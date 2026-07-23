@@ -1,0 +1,37 @@
+{
+  "name": "course-studio",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n server,web -c green,blue \"tsx watch server/index.ts\" \"vite\"",
+    "build": "npm run typecheck && vite build",
+    "start": "tsx server/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "chokidar": "5.0.0",
+    "express": "5.2.1",
+    "html2canvas": "1.4.1",
+    "lucide-react": "0.546.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "ws": "8.21.1"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "@types/ws": "8.18.1",
+    "@vitejs/plugin-react": "6.0.4",
+    "concurrently": "9.2.4",
+    "jsdom": "29.1.1",
+    "tsx": "4.23.1",
+    "typescript": "7.0.2",
+    "vite": "8.1.5",
+    "vitest": "4.1.10"
+  }
+}

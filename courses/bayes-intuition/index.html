@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="An interactive first lesson in Bayesian reasoning." />
+    <title>Bayes, before the formula</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="course-header">
+      <a class="course-mark" href="#top" aria-label="Back to the beginning">B</a>
+      <div>
+        <span class="eyebrow">Lesson 01 · Bayesian thinking</span>
+        <p class="lesson-title">Bayes, before the formula</p>
+      </div>
+      <span class="progress-label">12 min</span>
+    </header>
+
+    <main id="top">
+      <section class="hero lesson-section" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <span class="eyebrow">One idea, three ways</span>
+          <h1 id="hero-title">New evidence should move you—not erase where you started.</h1>
+          <p class="lead">Bayesian thinking is the ordinary act of revising a belief. The surprise is that the same evidence can mean something very different depending on what was plausible before it arrived.</p>
+        </div>
+        <figure class="belief-figure" aria-label="A prior belief moving after evidence arrives">
+          <div class="belief-track">
+            <span class="belief-prior">prior</span>
+            <span class="evidence-pulse">evidence</span>
+            <span class="belief-posterior">updated belief</span>
+          </div>
+          <figcaption>Evidence moves a belief from a prior to a posterior.</figcaption>
+        </figure>
+      </section>
+
+      <section class="lesson-section story" aria-labelledby="story-title">
+        <div>
+          <span class="section-number">01</span>
+          <h2 id="story-title">Start with a weather forecast</h2>
+        </div>
+        <div class="prose">
+          <p>Imagine a dark cloud appears over your walk home. In July, when rain is common, you reach for an umbrella. In the middle of a dry season, the same cloud might not convince you.</p>
+          <p>The cloud is the evidence. The season is your <strong>prior</strong>: what you believed before seeing the cloud. Your conclusion after combining them is the <strong>posterior</strong>.</p>
+          <aside class="margin-note"><strong>The useful habit:</strong> before asking “How strong is this evidence?”, ask “What did I think before it arrived?”</aside>
+        </div>
+      </section>
+
+      <section class="lesson-section simulator" aria-labelledby="simulator-title">
+        <div class="simulator-intro">
+          <span class="eyebrow">Interactive model</span>
+          <h2 id="simulator-title">The base-rate machine</h2>
+          <p>Suppose a medical test catches most real cases, but sometimes raises a false alarm. Move the assumptions and watch what a positive result actually means.</p>
+        </div>
+
+        <div class="machine">
+          <div class="controls">
+            <label>
+              <span><strong>Disease prevalence</strong><output id="prior-output">1%</output></span>
+              <input id="prior" type="range" min="1" max="40" value="1" />
+              <small>How common it was before testing</small>
+            </label>
+            <label>
+              <span><strong>Test sensitivity</strong><output id="sensitivity-output">90%</output></span>
+              <input id="sensitivity" type="range" min="50" max="100" value="90" />
+              <small>How often the test catches a real case</small>
+            </label>
+            <label>
+              <span><strong>False-alarm rate</strong><output id="false-positive-output">9%</output></span>
+              <input id="false-positive" type="range" min="1" max="30" value="9" />
+              <small>How often a healthy person tests positive</small>
+            </label>
+          </div>
+
+          <div class="result" aria-live="polite">
+            <p class="result-label">Chance a positive result is real</p>
+            <p class="result-value"><span id="posterior">9.2</span><small>%</small></p>
+            <div class="probability-bar" aria-hidden="true"><span id="truth-bar"></span></div>
+            <p id="natural-frequency" class="frequency">Out of 98 positive tests, about 9 belong to people who are actually sick.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="lesson-section worked-example" aria-labelledby="example-title">
+        <div>
+          <span class="section-number">02</span>
+          <h2 id="example-title">Why “90% accurate” fooled your intuition</h2>
+        </div>
+        <div class="prose">
+          <p>Picture 1,000 people. At a 1% base rate, only 10 are sick. A 90%-sensitive test finds 9 of them. But a 9% false-alarm rate also flags about 89 of the 990 healthy people.</p>
+          <div class="people-grid" aria-label="One thousand people summarized as true and false positive groups">
+            <div class="people-group true"><strong>9</strong><span>true positives</span></div>
+            <div class="people-group false"><strong>89</strong><span>false positives</span></div>
+          </div>
+          <p>So 98 people hear “positive,” yet only 9 are sick. The test did not fail. Our intuition ignored how many more healthy people there were to begin with.</p>
+        </div>
+      </section>
+
+      <section class="lesson-section quick-check" aria-labelledby="check-title">
+        <span class="eyebrow">Quick check</span>
+        <h2 id="check-title">Keep the same test, but make the disease more common. What happens to the chance that a positive is real?</h2>
+        <div class="answers" role="group" aria-label="Answer choices">
+          <button data-answer="up">It goes up</button>
+          <button data-answer="same">It stays the same</button>
+          <button data-answer="down">It goes down</button>
+        </div>
+        <p id="feedback" class="feedback" hidden></p>
+      </section>
+
+      <footer class="lesson-footer">
+        <span>Next</span>
+        <strong>Turning the intuition into a formula</strong>
+        <span aria-hidden="true">→</span>
+      </footer>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
