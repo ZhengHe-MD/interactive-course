@@ -7,8 +7,8 @@ describe("course prompt", () => {
       {
         id: "one",
         tag: "p",
-        text: "Bayes updates a belief.",
-        outerHTML: '<p class="lead">Bayes updates a belief.</p>',
+        text: "The explanation goes here.",
+        outerHTML: '<p class="lead">The explanation goes here.</p>',
         location: "main > section:nth-of-type(1) > p.lead",
       },
     ]);
@@ -28,5 +28,28 @@ describe("course prompt", () => {
     ]);
 
     expect(inputs).toEqual([{ type: "image", url: "data:image/jpeg;base64,abc" }]);
+  });
+
+  it("starts with an interview and builds a new course from scratch", () => {
+    const prompt = buildCoursePrompt("I want to learn something new", [], { coursePhase: "empty" });
+
+    expect(prompt).toContain("no index.html yet");
+    expect(prompt).toContain("do not create files yet");
+    expect(prompt).toContain("goal, desired depth, current background, and time budget");
+    expect(prompt).toContain("from scratch");
+    expect(prompt).toContain("Do not copy a sample course");
+    expect(prompt).toContain("create only a syllabus");
+    expect(prompt).toContain('content="syllabus"');
+    expect(prompt).toContain("Do not create lesson files");
+  });
+
+  it("keeps syllabus approval and lazy lesson generation as explicit phases", () => {
+    const syllabus = buildCoursePrompt("Make the outline more practical", [], { coursePhase: "syllabus" });
+    const learning = buildCoursePrompt("Continue", [], { coursePhase: "learning" });
+
+    expect(syllabus).toContain("until the learner explicitly approves the syllabus");
+    expect(syllabus).toContain("create only the first lesson");
+    expect(learning).toContain("only when the learner reaches or explicitly requests it");
+    expect(learning).toContain("never the remaining course in advance");
   });
 });

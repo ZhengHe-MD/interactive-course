@@ -1,6 +1,6 @@
 import type { Selection } from "../shared/protocol";
 
-export type { Checkpoint, CodexStatus, Selection, ServerMessage } from "../shared/protocol";
+export type { Checkpoint, CodexStatus, CourseOutline, Selection, ServerMessage } from "../shared/protocol";
 
 export type ChatMessage = {
   id: string;

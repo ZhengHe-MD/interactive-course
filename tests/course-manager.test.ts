@@ -12,6 +12,19 @@ afterEach(async () => {
 });
 
 describe("CourseManager", () => {
+  it("detects empty, syllabus, and learning phases from the course directory", async () => {
+    const root = await mkdtemp(join(tmpdir(), "course-studio-test-"));
+    execFileSync("mkdir", ["-p", "courses/demo"], { cwd: root });
+    const manager = new CourseManager(root, "courses/demo");
+    managers.push(manager);
+
+    expect(await manager.getCoursePhase()).toBe("empty");
+    await writeFile(join(root, "courses/demo/index.html"), '<meta name="course-studio-phase" content="syllabus"><h1>Plan</h1>');
+    expect(await manager.getCoursePhase()).toBe("syllabus");
+    await writeFile(join(root, "courses/demo/index.html"), "<h1>Lesson one</h1>");
+    expect(await manager.getCoursePhase()).toBe("learning");
+  });
+
   it("checkpoints course edits and restores the previous course state", async () => {
     const root = await mkdtemp(join(tmpdir(), "course-studio-test-"));
     execFileSync("git", ["init", "-q"], { cwd: root });
@@ -42,6 +55,7 @@ describe("CourseManager", () => {
     await writeFile(join(root, "courses/demo/index.html"), "<h1>First</h1>\n");
     execFileSync("git", ["add", "."], { cwd: root });
     execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "feat: add demo course"], { cwd: root });
+    execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-qm", "course(courses/other): Unrelated checkpoint"], { cwd: root });
 
     const manager = new CourseManager(root, "courses/demo");
     managers.push(manager);

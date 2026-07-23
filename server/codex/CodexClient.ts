@@ -3,6 +3,7 @@ import { EventEmitter } from "node:events";
 import { relative } from "node:path";
 import type { CodexStatus } from "../../shared/protocol";
 import { buildCoursePrompt, selectionInputs, type SelectionContext } from "../course/prompt";
+import type { CoursePhase } from "../course/CourseManager";
 import { JsonRpcPeer } from "./JsonRpcPeer";
 
 type ThreadStartResponse = { thread: { id: string } };
@@ -75,7 +76,7 @@ export class CodexClient extends EventEmitter {
         approvalPolicy: "never",
         sandbox: "workspace-write",
         serviceName: "Course Studio",
-        developerInstructions: `You are the course design agent inside Course Studio. Work only inside the current course directory. Default to improving the course for substantive learner questions, but respect an explicit request for a chat-only or meta answer. Keep chat replies short and oriented around what changed. Courses are plain HTML, CSS, and JavaScript with no build step. Preserve working interactions and visual coherence. Never run git or create commits; Course Studio owns checkpoints.`,
+        developerInstructions: `You are the course design agent inside Course Studio. Work only inside the current course directory. A new course starts with no index.html: conduct a short interview about the learner's goal, depth, background, and time, then create only a syllabus from scratch. Never copy a sample course or use a starter template. Wait for syllabus approval before creating the first lesson, and generate later lessons one at a time only when the learner reaches them. For an existing lesson, default to improving it for substantive learner questions, but respect an explicit request for a chat-only or meta answer. Keep chat replies short and oriented around what changed. Courses are plain HTML, CSS, and JavaScript with no build step. Preserve working interactions and visual coherence. Never run git or create commits; Course Studio owns checkpoints.`,
       });
       this.threadId = thread.thread.id;
       const accountLabel = account.account?.email ?? account.account?.planType ?? account.account?.type;
@@ -88,14 +89,14 @@ export class CodexClient extends EventEmitter {
     }
   }
 
-  async startTurn(message: string, selections: SelectionContext[]) {
+  async startTurn(message: string, selections: SelectionContext[], options: { coursePhase?: CoursePhase } = {}) {
     await this.connect();
     if (!this.peer || !this.threadId || this.status.state !== "ready") {
       throw new Error(this.status.message ?? "Codex is unavailable.");
     }
 
     const input = [
-      { type: "text" as const, text: buildCoursePrompt(message, selections), text_elements: [] },
+      { type: "text" as const, text: buildCoursePrompt(message, selections, options), text_elements: [] },
       ...selectionInputs(selections),
     ];
     const response = await this.peer.request<TurnStartResponse>(

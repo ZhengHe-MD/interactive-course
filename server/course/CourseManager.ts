@@ -1,4 +1,6 @@
 import { execFile } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import chokidar, { type FSWatcher } from "chokidar";
 import type { Checkpoint } from "../../shared/protocol";
@@ -6,6 +8,8 @@ import type { Checkpoint } from "../../shared/protocol";
 const execFileAsync = promisify(execFile);
 
 type ChangeListener = (path: string) => void;
+
+export type CoursePhase = "empty" | "syllabus" | "learning";
 
 export class CourseManager {
   private watcher: FSWatcher | null = null;
@@ -20,6 +24,10 @@ export class CourseManager {
     return `${this.repositoryRoot}/${this.courseRelativePath}`;
   }
 
+  private get checkpointPrefix() {
+    return `course(${this.courseRelativePath}):`;
+  }
+
   private async git(args: string[]) {
     const { stdout } = await execFileAsync("git", args, {
       cwd: this.repositoryRoot,
@@ -30,6 +38,18 @@ export class CourseManager {
 
   async isDirty() {
     return Boolean(await this.git(["status", "--porcelain", "--", this.courseRelativePath]));
+  }
+
+  async getCoursePhase(): Promise<CoursePhase> {
+    try {
+      const html = await readFile(join(this.courseDirectory, "index.html"), "utf8");
+      const phaseTag = html.match(/<meta\b[^>]*\bname=["']course-studio-phase["'][^>]*>/i)?.[0];
+      const phase = phaseTag?.match(/\bcontent=["'](syllabus|learning)["']/i)?.[1]?.toLowerCase();
+      return phase === "syllabus" ? "syllabus" : "learning";
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return "empty";
+      throw error;
+    }
   }
 
   async createCheckpoint(label: string, options: { allowEmpty?: boolean } = {}): Promise<Checkpoint | null> {
@@ -44,7 +64,7 @@ export class CourseManager {
       "user.email=course-studio@localhost",
       "commit",
       "-m",
-      `course: ${label}`,
+      `${this.checkpointPrefix} ${label}`,
       ...(options.allowEmpty ? ["--allow-empty"] : []),
       "--",
       this.courseRelativePath,
@@ -57,7 +77,7 @@ export class CourseManager {
   async listCheckpoints(limit = 12): Promise<Checkpoint[]> {
     const [courseHistory, namedCheckpoints, history] = await Promise.all([
       this.git(["log", "--format=%H", "--", this.courseRelativePath]),
-      this.git(["log", "--format=%H", "--grep=^course:"]),
+      this.git(["log", "--format=%H", "--fixed-strings", `--grep=${this.checkpointPrefix}`]),
       this.git(["rev-list", "--topo-order", "HEAD"]),
     ]);
     const candidates = new Set([...courseHistory.split("\n"), ...namedCheckpoints.split("\n")].filter(Boolean));
@@ -68,7 +88,9 @@ export class CourseManager {
       const [id, rawLabel, createdAt] = line.split("\0");
       return {
         id,
-        label: rawLabel.replace(/^course:\s*/, ""),
+        label: rawLabel.startsWith(this.checkpointPrefix)
+          ? rawLabel.slice(this.checkpointPrefix.length).trim()
+          : rawLabel,
         createdAt,
       };
     });

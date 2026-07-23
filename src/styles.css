@@ -47,6 +47,7 @@ button { color: inherit; }
 .course-progress { display: grid; gap: 7px; }
 .course-progress > span { position: relative; height: 3px; border-radius: 5px; background: rgba(37,33,29,.12); overflow: hidden; }
 .course-progress > span::after { content: ""; position: absolute; inset: 0 66% 0 0; background: var(--terracotta); }
+.course-progress.empty > span::after { right: 100%; }
 .course-progress small { color: var(--muted); font-size: 10px; }
 
 .course-nav nav { display: grid; gap: 3px; }

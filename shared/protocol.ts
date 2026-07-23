@@ -20,6 +20,13 @@ export type CodexStatus = {
   message?: string;
 };
 
+export type CourseOutline = {
+  empty: boolean;
+  title: string;
+  topic: string;
+  sections: string[];
+};
+
 export type ClientMessage =
   | { type: "turn.start"; message: string; selections: Selection[] }
   | { type: "checkpoint.revert" };

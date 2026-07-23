@@ -10,7 +10,7 @@ import type { ClientMessage, ServerMessage } from "../shared/protocol";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, "..");
-const courseRelativePath = "courses/bayes-intuition";
+const courseRelativePath = "courses/current";
 const courseDirectory = join(repositoryRoot, courseRelativePath);
 const port = Number(process.env.COURSE_STUDIO_PORT ?? 4310);
 
@@ -45,6 +45,11 @@ function safeCoursePath(requestPath: string) {
   return candidate;
 }
 
+function instrumentCourseHtml(html: string) {
+  const bridge = '<script src="/studio-vendor/html2canvas.min.js"></script><script src="/studio-preview.js"></script>';
+  return html.includes("</body>") ? html.replace("</body>", `${bridge}</body>`) : `${html}${bridge}`;
+}
+
 app.get("/api/health", async (_request, response) => {
   response.json({ ok: true, codex: codex.getStatus(), checkpoints: await checkpoints(), courseVersion });
 });
@@ -63,10 +68,17 @@ app.use("/course", async (request, response, next) => {
   if (!file) return response.status(403).send("Outside the course directory");
   try {
     const html = await readFile(file, "utf8");
-    const bridge = '<script src="/studio-vendor/html2canvas.min.js"></script><script src="/studio-preview.js"></script>';
-    const instrumented = html.includes("</body>") ? html.replace("</body>", `${bridge}</body>`) : `${html}${bridge}`;
-    response.set("Cache-Control", "no-store").type("html").send(instrumented);
-  } catch {
+    response.set("Cache-Control", "no-store").type("html").send(instrumentCourseHtml(html));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT" && (request.path === "/" || request.path === "/index.html")) {
+      try {
+        const html = await readFile(join(here, "assets/empty-course.html"), "utf8");
+        response.set("Cache-Control", "no-store").type("html").send(instrumentCourseHtml(html));
+        return;
+      } catch {
+        // Fall through to the regular static-file response.
+      }
+    }
     next();
   }
 });
@@ -105,7 +117,9 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
     }
     try {
       broadcast({ type: "activity", label: "Reading your course context…" });
-      const turn = await codex.startTurn(message.message, message.selections);
+      const turn = await codex.startTurn(message.message, message.selections, {
+        coursePhase: await course.getCoursePhase(),
+      });
       activeTurn = turn.id;
       broadcast({ type: "turn.accepted", turnId: turn.id });
     } catch (error) {

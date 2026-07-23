@@ -15,17 +15,34 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChatMessage, Checkpoint, CodexStatus, Selection, ServerMessage } from "./types";
+import type { ChatMessage, Checkpoint, CodexStatus, CourseOutline, Selection, ServerMessage } from "./types";
 
 const initialMessages: ChatMessage[] = [
   {
     id: "welcome",
     role: "agent",
-    text: "This lesson is yours to shape. Read, move the sliders, and take the quick check. If anything feels too abstract or too fast, inspect that part and tell me—I’ll fold the fix into the page.",
+    text: "What would you like to learn today? A rough topic is enough—I’ll help you shape the goal, depth, and pace before we build the course from scratch.",
   },
 ];
 
+const emptyCourse: CourseOutline = {
+  empty: true,
+  title: "What will you learn?",
+  topic: "New course",
+  sections: [],
+};
+
 const uid = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+
+function isCourseOutline(value: unknown): value is CourseOutline {
+  if (!value || typeof value !== "object") return false;
+  const course = value as Record<string, unknown>;
+  return typeof course.empty === "boolean"
+    && typeof course.title === "string"
+    && typeof course.topic === "string"
+    && Array.isArray(course.sections)
+    && course.sections.every((section) => typeof section === "string");
+}
 
 export function App() {
   const socket = useRef<WebSocket | null>(null);
@@ -50,16 +67,18 @@ export function App() {
   const [draft, setDraft] = useState("");
   const [working, setWorking] = useState(false);
   const [chatOpen, setChatOpen] = useState(true);
+  const [courseOutline, setCourseOutline] = useState<CourseOutline>(emptyCourse);
 
   const postToCourse = useCallback((message: Record<string, unknown>) => {
     iframe.current?.contentWindow?.postMessage({ source: "course-studio", ...message }, window.location.origin);
   }, []);
 
   const setInspect = useCallback((active: boolean) => {
+    if (active && courseOutline.empty) return;
     inspectRef.current = active;
     setInspectActive(active);
     postToCourse({ type: "inspect", active });
-  }, [postToCourse]);
+  }, [courseOutline.empty, postToCourse]);
 
   const patchMessage = useCallback((id: string, patch: Partial<ChatMessage> | ((message: ChatMessage) => Partial<ChatMessage>)) => {
     setMessages((current) => current.map((message) => {
@@ -147,6 +166,11 @@ export function App() {
     const receive = (event: MessageEvent) => {
       if (event.origin !== window.location.origin || event.data?.source !== "course-studio-preview") return;
       if (event.data.type === "ready") {
+        if (isCourseOutline(event.data.course)) {
+          const nextCourse = event.data.course;
+          setCourseOutline(nextCourse);
+          if (nextCourse.empty) setInspect(false);
+        }
         postToCourse({ type: "scroll.restore", top: scrollTop.current });
         postToCourse({ type: "inspect", active: inspectRef.current });
       }
@@ -163,6 +187,10 @@ export function App() {
         window.setTimeout(() => composer.current?.focus(), 50);
       }
       if (event.data.type === "inspect.cancelled") setInspect(false);
+      if (event.data.type === "empty.start") {
+        setChatOpen(true);
+        window.setTimeout(() => composer.current?.focus(), 50);
+      }
     };
     window.addEventListener("message", receive);
     return () => window.removeEventListener("message", receive);
@@ -209,24 +237,48 @@ export function App() {
     return working ? "Agent is working" : "Codex ready";
   }, [codex.state, connected, working]);
 
+  const navigationSections = courseOutline.empty
+    ? ["Choose a topic"]
+    : courseOutline.sections.length > 0 ? courseOutline.sections : ["Overview"];
+
   return (
     <div className={`studio-shell ${chatOpen ? "chat-is-open" : "chat-is-closed"}`}>
       <aside className="course-nav">
         <div className="studio-brand"><span>Course</span> Studio</div>
         <div className="course-identity">
-          <span className="nav-kicker">Bayesian thinking</span>
-          <h1>Bayes, before the formula</h1>
-          <div className="course-progress"><span /><small>1 of 3 lessons</small></div>
+          <span className="nav-kicker">{courseOutline.topic}</span>
+          <h1>{courseOutline.title}</h1>
+          <div className={`course-progress ${courseOutline.empty ? "empty" : ""}`}>
+            <span />
+            <small>{courseOutline.empty ? "Waiting for your topic" : `${navigationSections.length} ${navigationSections.length === 1 ? "section" : "sections"} ready`}</small>
+          </div>
         </div>
         <nav aria-label="Course sections">
-          <button className="active"><span>01</span>Introduction</button>
-          <button><span>02</span>The base-rate machine</button>
-          <button><span>03</span>Quick check</button>
+          {navigationSections.map((section, index) => (
+            <button
+              className={index === 0 ? "active" : ""}
+              key={`${section}-${index}`}
+              onClick={() => courseOutline.empty
+                ? composer.current?.focus()
+                : postToCourse({ type: "scroll.toSection", index })}
+            >
+              <span>{String(index + 1).padStart(2, "0")}</span>{section}
+            </button>
+          ))}
         </nav>
         <div className="locked-lessons">
-          <p>Coming as you learn</p>
-          <span><LockKeyhole size={12} /> The formula beneath it</span>
-          <span><LockKeyhole size={12} /> Priors in the wild</span>
+          <p>{courseOutline.empty ? "Shaped with you" : "Keep shaping it"}</p>
+          {courseOutline.empty ? (
+            <>
+              <span><LockKeyhole size={12} /> Your goal and background</span>
+              <span><LockKeyhole size={12} /> The right depth and pace</span>
+            </>
+          ) : (
+            <>
+              <span><Sparkles size={12} /> Select anything to reshape it</span>
+              <span><MessageCircle size={12} /> Ask whenever you get stuck</span>
+            </>
+          )}
         </div>
         <div className="nav-foot"><Sparkles size={14} /> Built for one learner</div>
       </aside>
@@ -237,10 +289,12 @@ export function App() {
             className={`inspect-button ${inspectActive ? "active" : ""}`}
             onClick={() => setInspect(!inspectActive)}
             aria-pressed={inspectActive}
+            disabled={courseOutline.empty}
+            title={courseOutline.empty ? "Choose a topic before inspecting the course" : "Inspect a course element"}
           >
             <Inspect size={16} /> {inspectActive ? "Pick an element" : "Inspect"}
           </button>
-          <span className="shortcut">or hold <kbd>⌥</kbd></span>
+          {!courseOutline.empty && <span className="shortcut">or hold <kbd>⌥</kbd></span>}
           <span className={`changed-indicator ${courseChanged ? "visible" : ""}`}><Check size={13} /> changed</span>
           <div className="checkpoint-summary" title={checkpoints[0]?.label ?? "No checkpoint yet"}>
             <div className="checkpoint-dots">
@@ -311,7 +365,9 @@ export function App() {
                       sendTurn();
                     }
                   }}
-                  placeholder={selections.length ? "What should change here?" : "Ask, or inspect part of the lesson…"}
+                  placeholder={selections.length
+                    ? "What should change here?"
+                    : courseOutline.empty ? "What would you like to learn today?" : "Ask, or inspect part of the lesson…"}
                   rows={1}
                   disabled={working}
                 />

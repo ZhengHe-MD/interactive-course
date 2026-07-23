@@ -8,9 +8,9 @@ Course Studio is a local workspace where a learner and Codex co-design an intera
 - Free-form element selection inside the preview, including a screenshot, DOM snippet, and location context for Codex.
 - A thin WebSocket/JSON-RPC seam over `codex app-server`, with streamed progress and automatic preview refreshes.
 - Git-backed checkpoints after successful agent turns, plus one-click revert.
-- A plain HTML/CSS/JavaScript Bayes intuition course with a live prevalence simulator and a knowledge check.
+- A course-birth flow that starts with a blank directory, asks what the learner wants to learn, and builds the syllabus and lessons from their answers.
 
-Courses deliberately have no build step. The starter course lives in [`courses/bayes-intuition`](courses/bayes-intuition) and can be opened directly as ordinary web files.
+Courses deliberately have no build step. [`courses/current`](courses/current) begins without an `index.html`; Course Studio shows its own empty state while the agent interviews the learner, then creates a syllabus there as ordinary HTML. Lessons are added as plain HTML, CSS, and JavaScript only when the learner reaches them.
 
 ## Run locally
 
