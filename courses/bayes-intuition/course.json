@@ -1,0 +1,12 @@
+{
+  "title": "Bayes' theorem — the intuition",
+  "lessonTag": "Lesson 01",
+  "lessonMeta": "Probability · ~8 min · written for you",
+  "entry": "index.html",
+  "sections": [
+    { "id": "sec-intro", "label": "Introduction" },
+    { "id": "sec-sim", "label": "The base-rate machine" },
+    { "id": "sec-check", "label": "Quick check" }
+  ],
+  "upNext": ["Naive Bayes classifiers", "Priors in the wild"]
+}

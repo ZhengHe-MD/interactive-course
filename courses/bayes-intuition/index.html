@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bayes' theorem — the intuition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Caprasimo&family=Figtree:ital,wght@0,400..700;1,400..600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <article class="lesson">
+      <div class="lesson-meta">
+        <span class="tag">Lesson 01</span>
+        <span class="meta-note">Probability · ~8 min · written for you</span>
+      </div>
+
+      <h1 id="sec-intro">Why a positive test can still mean you're probably fine</h1>
+
+      <p class="lead">
+        A test is <em>90% accurate</em>. You test positive. It feels obvious that you're 90%
+        likely to have the thing. That intuition is wrong — often wildly so — and
+        <strong>Bayes' theorem</strong> is the tool that tells you by how much.
+      </p>
+
+      <p>
+        The missing ingredient is how <em>common</em> the thing is to begin with — the
+        <strong>prior</strong>. When something is rare, even a good test produces mostly false
+        alarms. Play with it below.
+      </p>
+
+      <figure id="sec-sim" class="sim">
+        <figcaption>Interactive · the base-rate machine</figcaption>
+
+        <div class="sim-headline">
+          <span class="sim-label">A positive test really means:</span>
+          <span class="sim-posterior"><span data-out="posterior">9.2</span>%</span>
+          <span class="sim-label">chance you have it</span>
+        </div>
+
+        <div class="sim-controls">
+          <label class="control">
+            <span class="control-row">
+              <span>How common it is (prior)</span>
+              <strong data-out="prior">1%</strong>
+            </span>
+            <input data-in="prior" type="range" min="0.5" max="25" step="0.5" value="1" />
+          </label>
+
+          <label class="control">
+            <span class="control-row">
+              <span>Test catches the sick (sensitivity)</span>
+              <strong data-out="sens">90%</strong>
+            </span>
+            <input data-in="sens" type="range" min="50" max="100" step="1" value="90" />
+          </label>
+
+          <label class="control control-half">
+            <span class="control-row">
+              <span>False alarms on the healthy</span>
+              <strong data-out="fpr">9%</strong>
+            </span>
+            <input data-in="fpr" type="range" min="0" max="40" step="1" value="9" />
+          </label>
+        </div>
+
+        <div class="sim-result">
+          <div class="sim-bar-label">Everyone who tests positive</div>
+          <div class="sim-bar">
+            <div class="bar-sick" data-out="barSick" style="width: 9.2%">
+              <span>truly sick</span>
+            </div>
+            <div class="bar-false"><span>false alarm</span></div>
+          </div>
+          <p class="sim-story">
+            Out of <strong>1,000 people</strong>: about <strong data-out="nSick">10</strong> are
+            sick and <strong data-out="nTruePos">9</strong> of them test positive — but
+            <strong data-out="nFalsePos">89</strong> healthy people also test positive. That's
+            <strong data-out="nPos">98</strong> positives, only <span data-out="nTruePos2">9</span>
+            of them real.
+          </p>
+        </div>
+      </figure>
+
+      <h2 id="sec-check">Quick check</h2>
+      <p class="check-prompt">
+        If the disease became <strong>ten times more common</strong>, the chance that a positive
+        test is real would…
+      </p>
+      <div class="quiz" data-quiz>
+        <button class="quiz-option" data-correct="true">Go up — more positives are real</button>
+        <button class="quiz-option">Stay the same — the test didn't change</button>
+        <button class="quiz-option">Go down</button>
+      </div>
+      <p class="quiz-explain" data-quiz-explain hidden>
+        Right — the test's accuracy never changed, but a higher prior means more of the positives
+        come from genuinely sick people. Rarity is what drowns a good test in false alarms.
+      </p>
+    </article>
+
+    <script src="app.js"></script>
+  </body>
+</html>

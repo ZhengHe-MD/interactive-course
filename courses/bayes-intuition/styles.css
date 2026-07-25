@@ -1,0 +1,317 @@
+/* Bayes' theorem — the intuition. A self-contained lesson: plain HTML/CSS/JS,
+   no build step. Calm, book-like, content-forward. */
+
+:root {
+  --bg: #f5ead8;
+  --card: #f9f4ed;
+  --text: #201e1d;
+  --accent: #c67139;
+  --accent-800: #643312;
+  --green: #7a8a5e;
+  --green-400: #aebf92;
+  --green-900: #272e1b;
+  --neutral-200: #eee7db;
+  --neutral-300: #dcd3c4;
+  --divider: color-mix(in srgb, #201e1d 16%, transparent);
+  --font-heading: "Caprasimo", Georgia, serif;
+  --font-body: "Figtree", system-ui, -apple-system, sans-serif;
+  --radius: 28px;
+  --shadow: 0 12px 32px color-mix(in srgb, #2e2b25 22%, transparent);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  padding: 40px 0 120px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.lesson {
+  width: min(720px, 100% - 96px);
+  margin: 0 auto;
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 56px 64px 64px;
+}
+
+/* header */
+.lesson-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--green) 22%, var(--card));
+  color: var(--green-900);
+}
+.meta-note {
+  font-size: 12px;
+  color: color-mix(in srgb, var(--text) 50%, transparent);
+}
+
+h1 {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-size: 46px;
+  line-height: 1.05;
+  margin-bottom: 18px;
+  max-width: 15ch;
+}
+h2 {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-size: 30px;
+  margin: 34px 0 14px;
+  scroll-margin-top: 24px;
+}
+h1 {
+  scroll-margin-top: 24px;
+}
+
+p {
+  font-size: 18px;
+  line-height: 1.7;
+  max-width: 62ch;
+  color: color-mix(in srgb, var(--text) 88%, transparent);
+  margin-bottom: 14px;
+}
+p.lead strong,
+p strong {
+  color: var(--text);
+}
+em {
+  font-style: italic;
+}
+
+/* simulator */
+.sim {
+  margin: 30px 0;
+  padding: 26px;
+  background: var(--bg);
+  border-radius: var(--radius);
+  scroll-margin-top: 24px;
+}
+.sim figcaption,
+figcaption {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 18px;
+  font-weight: 700;
+}
+.sim-headline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.sim-label {
+  font-size: 13px;
+  color: color-mix(in srgb, var(--text) 60%, transparent);
+}
+.sim-posterior {
+  font-family: var(--font-heading);
+  font-size: 40px;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.sim-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 26px;
+}
+.control {
+  display: block;
+}
+.control-half {
+  grid-column: 1 / -1;
+  max-width: calc(50% - 13px);
+}
+.control-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 7px;
+}
+.control-row strong {
+  color: var(--accent);
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--neutral-300);
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--card);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--card);
+  cursor: pointer;
+}
+
+.sim-result {
+  margin-top: 24px;
+}
+.sim-bar-label {
+  font-size: 12px;
+  color: color-mix(in srgb, var(--text) 60%, transparent);
+  margin-bottom: 6px;
+}
+.sim-bar {
+  display: flex;
+  height: 42px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--neutral-300);
+}
+.bar-sick {
+  background: var(--accent);
+  display: grid;
+  place-items: center;
+  transition: width 0.18s ease;
+  min-width: 2px;
+  overflow: hidden;
+}
+.bar-sick span {
+  font-size: 12px;
+  color: var(--bg);
+  font-weight: 700;
+  white-space: nowrap;
+  padding: 0 6px;
+}
+.bar-false {
+  flex: 1 1 0;
+  background: var(--green-400);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.bar-false span {
+  font-size: 12px;
+  color: var(--green-900);
+  font-weight: 700;
+  white-space: nowrap;
+  padding: 0 6px;
+}
+.sim-story {
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 14px 0 0;
+  color: color-mix(in srgb, var(--text) 82%, transparent);
+}
+
+/* quick check */
+.check-prompt {
+  font-size: 17px;
+  line-height: 1.6;
+  max-width: 60ch;
+  margin-bottom: 16px;
+}
+.quiz {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 460px;
+}
+.quiz-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 13px 16px;
+  border-radius: 14px;
+  border: 1.5px solid var(--divider);
+  background: var(--card);
+  color: var(--text);
+  transition: 0.15s;
+}
+.quiz-option:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.quiz-option:disabled {
+  cursor: default;
+}
+.quiz-option.correct {
+  border-color: var(--green);
+  background: color-mix(in srgb, var(--green) 18%, var(--card));
+}
+.quiz-option.correct::after {
+  content: "✓";
+  font-weight: 700;
+  color: var(--green-900);
+}
+.quiz-option.wrong {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  opacity: 0.85;
+}
+.quiz-option.wrong::after {
+  content: "✕";
+  font-weight: 700;
+  color: var(--accent-800);
+}
+.quiz-explain {
+  font-size: 15px;
+  line-height: 1.6;
+  max-width: 60ch;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--green) 12%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--green) 30%, transparent);
+}
+
+@media (max-width: 720px) {
+  .lesson {
+    width: calc(100% - 32px);
+    padding: 36px 28px 44px;
+  }
+  h1 {
+    font-size: 36px;
+  }
+  .sim-controls {
+    grid-template-columns: 1fr;
+  }
+  .control-half {
+    max-width: 100%;
+  }
+}
