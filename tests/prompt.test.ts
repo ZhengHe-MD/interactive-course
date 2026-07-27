@@ -5,7 +5,7 @@ import { buildCoursePrompt, writeSelectionImages } from "../server/course/prompt
 const pixel = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
 describe("course prompt", () => {
-  it("grounds an edit in the selected DOM and course-first contract", () => {
+  it("grounds a request in the selected DOM without treating selection as edit permission", () => {
     const prompt = buildCoursePrompt("Make this concrete", [
       {
         id: "one",
@@ -19,9 +19,27 @@ describe("course prompt", () => {
     expect(prompt).toContain("Make this concrete");
     expect(prompt).toContain("main > section:nth-of-type(1) > p.lead");
     expect(prompt).toContain('<p class="lead">');
-    expect(prompt).toContain("substantive answers live in the course");
-    expect(prompt).toContain("explicitly asks for a chat-only or meta answer");
+    expect(prompt).toContain("reference context, not as authorization to edit");
+    expect(prompt).toContain("answer fully in chat and do not modify course files");
+    expect(prompt).toContain("Edit the course only when they explicitly ask");
     expect(prompt).toContain("Do not run git");
+  });
+
+  it("marks highlighted text as an exact quote for chat questions", () => {
+    const prompt = buildCoursePrompt("Why does this distinction matter?", [{
+      id: "quote",
+      kind: "text",
+      tag: "p",
+      text: "Energy is not the same as power.",
+      outerHTML: "Energy is not the same as power.",
+      location: "main > p",
+      page: "session1.html",
+    }]);
+
+    expect(prompt).toContain("Selection kind: text");
+    expect(prompt).toContain("Exact quoted text: Energy is not the same as power.");
+    expect(prompt).toContain("Page: session1.html");
+    expect(prompt).toContain("do not make a speculative edit");
   });
 
   it("writes only image data URLs to disk, then cleans them up", async () => {
@@ -51,14 +69,14 @@ describe("course prompt", () => {
   it("starts with an interview and builds a new course from scratch", () => {
     const prompt = buildCoursePrompt("I want to learn something new", [], { coursePhase: "empty" });
 
-    expect(prompt).toContain("no index.html yet");
+    expect(prompt).toContain("no syllabus.html or legacy index.html yet");
     expect(prompt).toContain("do not create files yet");
     expect(prompt).toContain("goal, desired depth, current background, and time budget");
     expect(prompt).toContain("from scratch");
     expect(prompt).toContain("Do not copy a sample course");
-    expect(prompt).toContain("create only a syllabus");
+    expect(prompt).toContain("create only a syllabus as syllabus.html");
     expect(prompt).toContain('content="syllabus"');
-    expect(prompt).toContain("Do not create lesson files");
+    expect(prompt).toContain("Do not create session files");
   });
 
   it("keeps syllabus approval and lazy lesson generation as explicit phases", () => {
@@ -66,8 +84,20 @@ describe("course prompt", () => {
     const learning = buildCoursePrompt("Continue", [], { coursePhase: "learning" });
 
     expect(syllabus).toContain("until the learner explicitly approves the syllabus");
-    expect(syllabus).toContain("create only the first lesson");
+    expect(syllabus).toContain("preserve the syllabus file permanently");
+    expect(syllabus).toContain("session1.html");
     expect(learning).toContain("only when the learner reaches or explicitly requests it");
     expect(learning).toContain("never the remaining course in advance");
+    expect(learning).toContain("must never be repurposed or overwritten");
+  });
+
+  it("tells the agent which course page the learner is viewing", () => {
+    const prompt = buildCoursePrompt("Make the exercise clearer", [], {
+      coursePhase: "learning",
+      activePage: "session2.html",
+    });
+
+    expect(prompt).toContain("currently viewing session2.html");
+    expect(prompt).toContain("use that page");
   });
 });

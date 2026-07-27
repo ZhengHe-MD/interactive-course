@@ -39,6 +39,8 @@ The founding design discussion, recorded as questions, the fork each one posed, 
 **Fork:** chat-answers-by-default vs. radically course-first vs. course-first with agent judgment.
 **Decision:** course-first with judgment — substantive answers must land in the course; meta/ephemeral stays in chat; overridable per message. This is what makes the course accrete everything the learner struggled with.
 
+**Amended 2026-07-27:** selection now supplies context without implying an edit. Questions and elaboration are answered in chat; changing the course requires an explicit learner request. Both outcomes use the same select-and-ask interaction.
+
 ## Q8. Where does the agent's knowledge of the learner live?
 **Fork:** nowhere (per-course chat history) vs. persistent profile document vs. structured learner model (mastery graphs).
 **Decision:** persistent studio-level profile — and the owner chose **HTML over markdown**: *"I think markdown is not effective enough. I prefer a direct HTML profile."* So `profile.html` is a first-class document, edited via the same select-and-edit loop.

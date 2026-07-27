@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import chokidar, { type FSWatcher } from "chokidar";
-import type { Checkpoint, CourseOutline, CoursePhase, CourseSection } from "../../shared/protocol";
+import type { Checkpoint, CourseOutline, CoursePage, CoursePhase, CourseSection } from "../../shared/protocol";
 
 const execFileAsync = promisify(execFile);
 
@@ -15,6 +15,7 @@ export const EMPTY_OUTLINE: CourseOutline = {
   hasContent: false,
   title: "What will you learn?",
   topic: "New course",
+  pages: [],
   sections: [],
   upNext: [],
 };
@@ -66,12 +67,14 @@ export class CourseManager {
 
   /** The course's entry page, or null when the course has not been born yet. */
   private async readEntry(): Promise<string | null> {
-    try {
-      return await readFile(join(this.courseDirectory, "index.html"), "utf8");
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-      throw error;
+    for (const path of ["syllabus.html", "index.html"]) {
+      try {
+        return await readFile(join(this.courseDirectory, path), "utf8");
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
     }
+    return null;
   }
 
   private async readManifest(): Promise<Manifest> {
@@ -96,19 +99,52 @@ export class CourseManager {
    * do not exist yet.
    */
   async getOutline(): Promise<CourseOutline> {
-    const [html, manifest] = await Promise.all([this.readEntry(), this.readManifest()]);
+    const [html, manifest, htmlFiles] = await Promise.all([this.readEntry(), this.readManifest(), this.readHtmlFiles()]);
     if (html === null) return EMPTY_OUTLINE;
 
     const phase = readPhase(html);
     const derived = deriveMeta(html);
+    const pages = htmlFiles
+      .map(({ path, html: pageHtml }): CoursePage => {
+        const page = deriveMeta(pageHtml);
+        const declaredKind = metaContent(pageHtml, "course-studio-page");
+        const kind = declaredKind === "lesson" || (path !== "index.html" && path !== "syllabus.html") ? "lesson" : "syllabus";
+        return {
+          path,
+          kind,
+          title: clean(metaContent(pageHtml, "course-page-title")) || (kind === "syllabus" ? "Syllabus" : page.title),
+          sections: page.sections,
+        };
+      })
+      .sort((left, right) => {
+        if (left.path === "syllabus.html") return -1;
+        if (right.path === "syllabus.html") return 1;
+        if (left.path === "index.html") return -1;
+        if (right.path === "index.html") return 1;
+        return left.path.localeCompare(right.path, undefined, { numeric: true });
+      });
     return {
       phase,
       hasContent: true,
       title: text(manifest.title) || derived.title,
       topic: text(manifest.topic) || derived.topic || (phase === "syllabus" ? "Proposed syllabus" : "Your course"),
+      pages,
       sections: derived.sections,
       upNext: strings(manifest.upNext),
     };
+  }
+
+  private async readHtmlFiles() {
+    try {
+      const entries = await readdir(this.courseDirectory, { withFileTypes: true });
+      const names = entries
+        .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".html"))
+        .map((entry) => entry.name);
+      return Promise.all(names.map(async (path) => ({ path, html: await readFile(join(this.courseDirectory, path), "utf8") })));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw error;
+    }
   }
 
   async createCheckpoint(label: string, options: { allowEmpty?: boolean } = {}): Promise<Checkpoint | null> {
@@ -125,8 +161,10 @@ export class CourseManager {
       "-m",
       `${this.checkpointPrefix} ${label}`,
       ...(options.allowEmpty ? ["--allow-empty"] : []),
-      "--",
-      this.courseRelativePath,
+      // Before the interview produces syllabus.html, Git has no path matching the
+      // course directory. `--only` creates a genuinely empty checkpoint and,
+      // unlike an unscoped commit, cannot consume unrelated staged changes.
+      ...(!dirty && options.allowEmpty ? ["--only"] : ["--", this.courseRelativePath]),
     ];
     await this.git(commitArgs);
 

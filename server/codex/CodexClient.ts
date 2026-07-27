@@ -1,7 +1,13 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { basename, isAbsolute, relative } from "node:path";
-import type { Activity, CodexStatus, CoursePhase } from "../../shared/protocol";
+import type {
+  Activity,
+  CodexStatus,
+  ConversationSummary,
+  CoursePhase,
+  TranscriptItem,
+} from "../../shared/protocol";
 import { DESIGN_GUIDE } from "../course/designGuide";
 import { buildCoursePrompt, writeSelectionImages, type SelectionContext } from "../course/prompt";
 import { JsonRpcPeer } from "./JsonRpcPeer";
@@ -14,6 +20,10 @@ import type {
   ReasoningSummaryTextDeltaNotification,
   ThreadStartParams,
   ThreadStartResponse,
+  ThreadListResponse,
+  ThreadListParams,
+  ThreadReadResponse,
+  ThreadResumeResponse,
   TurnCompletedNotification,
   TurnInterruptParams,
   TurnPlanUpdatedNotification,
@@ -31,6 +41,7 @@ export class CodexClient extends EventEmitter {
   private process: ChildProcessWithoutNullStreams | null = null;
   private peer: JsonRpcPeer | null = null;
   private threadId: string | null = null;
+  private conversationSnapshot: ConversationSnapshot | null = null;
   private connecting: Promise<CodexStatus> | null = null;
   private status: CodexStatus = { state: "starting" };
   private turnsWithDelta = new Set<string>();
@@ -105,7 +116,6 @@ export class CodexClient extends EventEmitter {
         throw new Error("Codex is not signed in. Run `codex login`, then restart Course Studio.");
       }
 
-      await this.beginThread();
       const accountLabel = account.account?.email ?? account.account?.planType ?? account.account?.type;
       return this.setStatus({ state: "ready", account: accountLabel });
     } catch (error) {
@@ -116,7 +126,8 @@ export class CodexClient extends EventEmitter {
     }
   }
 
-  private async beginThread() {
+  async newConversation() {
+    await this.requireReady();
     const params: ThreadStartParams = {
       cwd: this.courseDirectory,
       approvalPolicy: "never",
@@ -126,14 +137,70 @@ export class CodexClient extends EventEmitter {
     };
     const thread = await this.peer!.request<ThreadStartResponse>("thread/start", params);
     this.threadId = thread.thread.id;
-    return thread.thread.id;
+    this.conversationSnapshot = snapshot(thread.thread);
+    return this.conversationSnapshot;
   }
 
-  async startTurn(message: string, selections: SelectionContext[], options: { coursePhase?: CoursePhase } = {}) {
+  async listConversations(): Promise<ConversationSummary[]> {
+    await this.requireReady();
+    const response = await this.peer!.request<ThreadListResponse>("thread/list", conversationListParams(this.courseDirectory));
+    return response.data
+      .filter((thread) => Boolean(thread.preview?.trim()) || thread.id === this.threadId)
+      .map(toConversationSummary);
+  }
+
+  async openConversation(conversationId: string) {
+    await this.requireReady();
+    const response = await this.peer!.request<ThreadResumeResponse>("thread/resume", {
+      threadId: conversationId,
+      cwd: this.courseDirectory,
+      approvalPolicy: "never",
+      sandbox: "workspace-write",
+      developerInstructions: DESIGN_GUIDE,
+    });
+    this.threadId = response.thread.id;
+    this.conversationSnapshot = snapshot(response.thread);
+    return this.conversationSnapshot;
+  }
+
+  async currentConversation() {
+    if (!this.threadId) return null;
+    try {
+      return await this.readConversation(this.threadId);
+    } catch (error) {
+      // app-server cannot read a brand-new thread until its first user message
+      // materializes the rollout. The thread/start response is enough until then.
+      if (this.conversationSnapshot?.conversation.id === this.threadId) return this.conversationSnapshot;
+      throw error;
+    }
+  }
+
+  async ensureConversation() {
+    await this.requireReady();
+    if (this.threadId) return this.currentConversation();
+    const conversations = await this.listConversations();
+    return conversations[0] ? this.openConversation(conversations[0].id) : this.newConversation();
+  }
+
+  private async readConversation(conversationId: string) {
+    const response = await this.peer!.request<ThreadReadResponse>("thread/read", {
+      threadId: conversationId,
+      includeTurns: true,
+    });
+    this.conversationSnapshot = snapshot(response.thread);
+    return this.conversationSnapshot;
+  }
+
+  private async requireReady() {
     await this.connect();
-    if (!this.peer || !this.threadId || this.status.state !== "ready") {
+    if (!this.peer || this.status.state !== "ready") {
       throw new Error(this.status.message ?? "Codex is unavailable.");
     }
+  }
+
+  async startTurn(message: string, selections: SelectionContext[], options: { coursePhase?: CoursePhase; activePage?: string } = {}) {
+    await this.requireReady();
+    if (!this.threadId) await this.ensureConversation();
 
     const text: UserInput = {
       type: "text",
@@ -424,12 +491,119 @@ export class CodexClient extends EventEmitter {
     this.peer = null;
     this.process = null;
     this.threadId = null;
+    this.conversationSnapshot = null;
     this.connecting = null;
     this.activeTurn = null;
     this.turnsWithDelta.clear();
     this.reasoningSummaries.clear();
     this.toolActivities.clear();
   }
+}
+
+export function conversationListParams(courseDirectory: string): ThreadListParams {
+  return {
+    cwd: courseDirectory,
+    // Do not filter by source kind. Codex currently persists threads created by
+    // this app-server client with a `vscode` source even though their originator
+    // is `course_studio`; filtering for `appServer` hides intact conversations.
+    sortKey: "updated_at",
+    sortDirection: "desc",
+    limit: 100,
+  };
+}
+
+type ConversationSnapshot = {
+  conversation: ConversationSummary;
+  items: TranscriptItem[];
+};
+
+function snapshot(thread: import("./types").PersistedThread): ConversationSnapshot {
+  return {
+    conversation: toConversationSummary(thread),
+    items: transcriptFromThread(thread),
+  };
+}
+
+function toConversationSummary(thread: import("./types").PersistedThread): ConversationSummary {
+  const firstRequest = extractLearnerRequest(thread.preview ?? "");
+  return {
+    id: thread.id,
+    title: thread.name?.trim() || truncate(firstRequest || "New conversation", 56),
+    createdAt: new Date(thread.createdAt * 1000).toISOString(),
+    updatedAt: new Date(thread.updatedAt * 1000).toISOString(),
+  };
+}
+
+export function transcriptFromThread(thread: import("./types").PersistedThread): TranscriptItem[] {
+  const transcript: TranscriptItem[] = [];
+  for (const turn of thread.turns) {
+    const user = turn.items.find((item) => item.type === "userMessage");
+    const prompt = user?.content?.find((input): input is Extract<UserInput, { type: "text" }> => input.type === "text")?.text;
+    if (prompt) {
+      transcript.push({
+        kind: "user",
+        id: user?.id ?? `user-${turn.id}`,
+        text: extractLearnerRequest(prompt),
+        selections: extractSelections(prompt),
+      });
+    }
+
+    const messages = turn.items
+      .filter((item) => item.type === "agentMessage" && item.text)
+      .map((item) => item.text!.trim())
+      .filter(Boolean);
+    const activities = turn.items.flatMap(historicalActivity).slice(-16);
+    if (messages.length || activities.length || turn.status !== "completed") {
+      transcript.push({
+        kind: "agent",
+        id: `agent-${turn.id}`,
+        text: messages.join("\n\n"),
+        activities,
+        failed: turn.status !== "completed",
+      });
+    }
+  }
+  return transcript;
+}
+
+export function extractLearnerRequest(prompt: string) {
+  const match = /^Learner request:\s*\n([\s\S]*?)\n\nCourse context:/m.exec(prompt);
+  return (match?.[1] ?? prompt).trim();
+}
+
+function extractSelections(prompt: string) {
+  const selections: Array<{ kind?: "text" | "block"; tag: string; text: string }> = [];
+  const pattern = /(?:Selection kind: (text|block)\n)?Location: [^\n]*\n(?:Page: [^\n]*\n)?Element: <([^>]+)>\n(?:Visible text|Exact quoted text): ([^\n]*)/g;
+  for (const match of prompt.matchAll(pattern)) {
+    selections.push({
+      kind: match[1] === "text" || match[1] === "block" ? match[1] : undefined,
+      tag: match[2],
+      text: match[3] === "(no text)" ? "" : match[3],
+    });
+  }
+  return selections;
+}
+
+function historicalActivity(item: import("./types").PersistedThreadItem): Activity[] {
+  const id = item.id ?? `history-${item.type}`;
+  if (item.type === "reasoning" && item.summary?.length) {
+    return [{ id, kind: "reasoning", label: "Thought through the request", detail: cleanDetail(item.summary.join("\n\n")), done: true }];
+  }
+  if (item.type === "plan") return [{ id, kind: "plan", label: "Plan ready", detail: item.text, done: true }];
+  if (item.type === "fileChange") {
+    const files = item.changes?.map((change) => basename(change.path)) ?? [];
+    return [{ id, kind: "edit", label: "Updated the course", file: files[0], detail: files.length > 1 ? `${files.length} files` : undefined, done: true }];
+  }
+  if (item.type === "commandExecution") return [{ id, kind: "command", label: "Ran a command", detail: item.command, done: true }];
+  if (item.type === "webSearch") return [{ id, kind: "search", label: "Searched the web", detail: item.query, done: true }];
+  if (item.type === "mcpToolCall" || item.type === "dynamicToolCall") {
+    return [{ id, kind: "tool", label: `Used ${humanizeToolName(item.tool ?? "tool")}`, detail: item.server ? `via ${humanizeToolName(item.server)}` : undefined, done: true }];
+  }
+  return [];
+}
+
+function truncate(value: string, length: number) {
+  return value.length > length ? `${value.slice(0, length - 1).trimEnd()}…` : value;
 }
 
 function describe(error: unknown) {

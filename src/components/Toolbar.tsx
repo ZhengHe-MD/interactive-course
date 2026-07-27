@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Inspect, RotateCcw, Shield } from "lucide-react";
+import { Check, ChevronRight, Inspect, Layers3, RotateCcw, Shield } from "lucide-react";
 import type { Checkpoint, CourseSummary } from "../types";
 
 type Props = {
@@ -6,6 +6,7 @@ type Props = {
   courseId: string;
   courses: CourseSummary[];
   inspecting: boolean;
+  multipleSelection: boolean;
   canInspect: boolean;
   courseChanged: boolean;
   checkpoints: Checkpoint[];
@@ -13,6 +14,7 @@ type Props = {
   onHome: () => void;
   onSwitchCourse: (courseId: string) => void;
   onToggleInspect: () => void;
+  onToggleMultipleSelection: () => void;
   onRevert: () => void;
 };
 
@@ -21,6 +23,7 @@ export function Toolbar({
   courseId,
   courses,
   inspecting,
+  multipleSelection,
   canInspect,
   courseChanged,
   checkpoints,
@@ -28,6 +31,7 @@ export function Toolbar({
   onHome,
   onSwitchCourse,
   onToggleInspect,
+  onToggleMultipleSelection,
   onRevert,
 }: Props) {
   const currentCheckpoint = checkpoints[0]?.label ?? (working ? "Designing course" : "Course created");
@@ -74,15 +78,29 @@ export function Toolbar({
         </button>
       </div>
 
-      <button
-        className={`inspect-button ${inspecting ? "active" : ""}`}
-        onClick={onToggleInspect}
-        aria-pressed={inspecting}
-        disabled={!canInspect}
-        title={canInspect ? "Inspect a course element" : "Choose a topic before inspecting the course"}
-      >
-        <Inspect size={16} /> <span>{inspecting ? "Pick an element" : "Inspect"}</span>
-      </button>
+      <div className="selection-controls">
+        <button
+          className={`inspect-button ${inspecting ? "active" : ""}`}
+          onClick={onToggleInspect}
+          aria-pressed={inspecting}
+          disabled={!canInspect}
+          title={canInspect ? "Select text or a course block as context" : "Choose a topic before selecting course context"}
+        >
+          <Inspect size={16} /> <span>{inspecting ? "Selecting" : "Select"}</span>
+        </button>
+        <button
+          className={`multiple-selection-toggle ${multipleSelection ? "active" : ""}`}
+          type="button"
+          role="switch"
+          aria-label="Multiple selection"
+          aria-checked={multipleSelection}
+          onClick={onToggleMultipleSelection}
+          disabled={!canInspect}
+          title="Keep several selected parts in the same prompt"
+        >
+          <Layers3 size={14} /> <span>Multiple</span><i />
+        </button>
+      </div>
       <span className={`changed-indicator ${courseChanged ? "visible" : ""}`}>
         <Check size={13} /> changed
       </span>

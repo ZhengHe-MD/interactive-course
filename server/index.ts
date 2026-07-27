@@ -61,6 +61,38 @@ async function broadcastCourses() {
   broadcast({ type: "courses", courseId, courses: await courses() });
 }
 
+async function conversationContext(options: { create?: boolean } = {}) {
+  const status = await codex.connect();
+  if (status.state !== "ready") {
+    return { conversationId: null, conversations: [], items: [] };
+  }
+  const current = options.create === false
+    ? await codex.currentConversation()
+    : await codex.ensureConversation();
+  return {
+    conversationId: current?.conversation.id ?? null,
+    conversations: await conversationListing(current),
+    items: current?.items ?? [],
+  };
+}
+
+async function conversationListing(current: Awaited<ReturnType<CodexClient["currentConversation"]>>) {
+  const conversations = await codex.listConversations();
+  if (current && !conversations.some((entry) => entry.id === current.conversation.id)) {
+    return [current.conversation, ...conversations];
+  }
+  return conversations;
+}
+
+async function broadcastConversations() {
+  const current = await codex.currentConversation();
+  broadcast({
+    type: "conversations",
+    conversationId: current?.conversation.id ?? null,
+    conversations: codex.getStatus().state === "ready" ? await conversationListing(current) : [],
+  });
+}
+
 function wireCodex(client: CodexClient) {
   client.on("status", (status) => broadcast({ type: "codex.status", status }));
   client.on("agentDelta", ({ turnId, delta }) => broadcast({ type: "agent.delta", turnId, delta }));
@@ -144,13 +176,19 @@ app.get("/studio-vendor/html2canvas.min.js", (_request, response) => {
 
 app.use("/course", async (request, response, next) => {
   if (extname(request.path).toLowerCase() !== ".html" && request.path !== "/") return next();
-  const file = safeCoursePath(request.path === "/" ? "/index.html" : request.path);
+  const rootEntry = request.path === "/"
+    ? (await outline()).pages[0]?.path ?? "syllabus.html"
+    : request.path;
+  const file = safeCoursePath(rootEntry.startsWith("/") ? rootEntry : `/${rootEntry}`);
   if (!file) return response.status(403).send("Outside the course directory");
   try {
     const html = await readFile(file, "utf8");
     response.set("Cache-Control", "no-store").type("html").send(instrumentCourseHtml(html));
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT" && (request.path === "/" || request.path === "/index.html")) {
+    if (
+      (error as NodeJS.ErrnoException).code === "ENOENT"
+      && (request.path === "/" || request.path === "/syllabus.html" || request.path === "/index.html")
+    ) {
       try {
         const html = await readFile(join(here, "assets/empty-course.html"), "utf8");
         response.set("Cache-Control", "no-store").type("html").send(instrumentCourseHtml(html));
@@ -173,6 +211,12 @@ app.get("/{*splat}", (_request, response) => response.sendFile(join(distDirector
 const websocket = new WebSocketServer({ server, path: "/ws" });
 websocket.on("connection", async (socket) => {
   sockets.add(socket);
+  let conversation = { conversationId: null, conversations: [], items: [] } as Awaited<ReturnType<typeof conversationContext>>;
+  try {
+    conversation = await conversationContext();
+  } catch (error) {
+    if (process.env.COURSE_STUDIO_DEBUG) console.error(`[conversation] ${error instanceof Error ? error.message : error}`);
+  }
   send(socket, {
     type: "session",
     codex: codex.getStatus(),
@@ -180,6 +224,7 @@ websocket.on("connection", async (socket) => {
     course: await outline(),
     courseId,
     courses: await courses(),
+    ...conversation,
     courseVersion,
     turnActive: activeTurn !== null,
   });
@@ -208,6 +253,9 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
       }
       if (message.courseId !== courseId) await activateCourse(message.courseId);
       const status = await codex.connect();
+      const conversation = status.state === "ready"
+        ? await conversationContext()
+        : { conversationId: null, conversations: [], items: [] };
       broadcast({
         type: "course.opened",
         courseId,
@@ -216,9 +264,37 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
         courseVersion,
         checkpoints: await checkpoints(),
         codex: status,
+        ...conversation,
       });
     } catch (error) {
       send(socket, { type: "error", message: error instanceof Error ? error.message : "Could not open the course." });
+    }
+    return;
+  }
+
+  if (message.type === "conversation.new" || message.type === "conversation.open") {
+    if (activeTurn) {
+      send(socket, { type: "error", message: "Wait for the course agent to finish before switching conversations." });
+      return;
+    }
+    try {
+      if (message.type === "conversation.open") {
+        const available = await codex.listConversations();
+        if (!available.some((entry) => entry.id === message.conversationId)) {
+          throw new Error("That conversation no longer exists in this course.");
+        }
+      }
+      const next = message.type === "conversation.new"
+        ? await codex.newConversation()
+        : await codex.openConversation(message.conversationId);
+      broadcast({
+        type: "conversation.opened",
+        conversationId: next.conversation.id,
+        conversations: await conversationListing(next),
+        items: next.items,
+      });
+    } catch (error) {
+      send(socket, { type: "error", message: error instanceof Error ? error.message : "Could not open the conversation." });
     }
     return;
   }
@@ -241,9 +317,15 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
         await activateCourse(nextCourseId);
         const nextStatus = await codex.connect();
         if (nextStatus.state !== "ready") throw new Error(nextStatus.message ?? "Codex is unavailable.");
+        const nextConversation = await codex.newConversation();
 
         broadcast({ type: "checkpoints", checkpoints: await checkpoints() });
         await broadcastCourses();
+        broadcast({
+          type: "conversations",
+          conversationId: nextConversation.conversation.id,
+          conversations: await conversationListing(nextConversation),
+        });
         broadcast({ type: "course.changed", courseVersion, course: await outline() });
       }
       broadcast({
@@ -255,6 +337,7 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
         message.type === "course.start" ? [] : message.selections,
         {
           coursePhase: await course.getCoursePhase(),
+          activePage: message.type === "turn.start" ? message.page : "syllabus.html",
         },
       );
       activeTurn = turn.id;
@@ -299,9 +382,10 @@ async function handleTurnCompleted(turn: { turnId: string; status: string; error
   // Clear the slot first: a failed checkpoint must never leave the studio stuck.
   activeTurn = null;
   try {
-    if (turn.status === "completed") await course.createCheckpoint("Agent course update", { allowEmpty: true });
+    if (turn.status === "completed") await course.createCheckpoint("Agent course update");
     broadcast({ type: "checkpoints", checkpoints: await checkpoints() });
     await broadcastCourses();
+    await broadcastConversations();
   } catch (checkpointError) {
     broadcast({ type: "error", message: checkpointError instanceof Error ? checkpointError.message : "Checkpoint failed." });
   }

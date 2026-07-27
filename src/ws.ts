@@ -4,6 +4,7 @@ import type {
   Checkpoint,
   ClientMessage,
   CodexStatus,
+  ConversationSummary,
   CourseOutline,
   CourseSummary,
   Selection,
@@ -13,11 +14,14 @@ import type { ChatItem } from "./types";
 
 export const uid = () => (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`);
 
+const conversationStorageKey = (courseId: string) => `course-studio:conversation:${courseId}`;
+
 const emptyCourse: CourseOutline = {
   phase: "empty",
   hasContent: false,
   title: "What will you learn?",
   topic: "New course",
+  pages: [],
   sections: [],
   upNext: [],
 };
@@ -35,6 +39,8 @@ export type StudioState = {
   checkpoints: Checkpoint[];
   courseId: string;
   courses: CourseSummary[];
+  conversationId: string | null;
+  conversations: ConversationSummary[];
   course: CourseOutline;
   courseVersion: number;
   courseChanged: boolean;
@@ -52,6 +58,8 @@ const initialState: StudioState = {
   checkpoints: [],
   courseId: "current",
   courses: [],
+  conversationId: null,
+  conversations: [],
   course: emptyCourse,
   courseVersion: Date.now(),
   courseChanged: false,
@@ -129,7 +137,7 @@ function reducer(state: StudioState, action: Action): StudioState {
           kind: "user",
           id: action.id,
           text: action.text,
-          selections: action.selections.map(({ tag, text }) => ({ tag, text })),
+          selections: action.selections.map(({ kind, tag, text }) => ({ kind, tag, text })),
         },
         { kind: "agent", id: action.agentId, text: "", activities: [startingActivity] },
       ],
@@ -154,12 +162,16 @@ function reducer(state: StudioState, action: Action): StudioState {
     case "session":
       return {
         ...state,
+        connected: true,
         codex: message.codex,
         checkpoints: message.checkpoints,
         courseId: message.courseId,
         courses: message.courses,
+        conversationId: message.conversationId,
+        conversations: message.conversations,
         course: message.course,
         courseVersion: message.courseVersion,
+        items: message.items.length ? message.items : [welcome],
         working: message.turnActive,
       };
     case "codex.status":
@@ -168,6 +180,8 @@ function reducer(state: StudioState, action: Action): StudioState {
       return { ...state, checkpoints: message.checkpoints };
     case "courses":
       return { ...state, courseId: message.courseId, courses: message.courses };
+    case "conversations":
+      return { ...state, conversationId: message.conversationId, conversations: message.conversations };
     case "course.opened":
       return {
         ...state,
@@ -175,10 +189,22 @@ function reducer(state: StudioState, action: Action): StudioState {
         checkpoints: message.checkpoints,
         courseId: message.courseId,
         courses: message.courses,
+        conversationId: message.conversationId,
+        conversations: message.conversations,
         course: message.course,
         courseVersion: message.courseVersion,
         courseChanged: false,
-        items: [welcome],
+        items: message.items.length ? message.items : [welcome],
+        working: false,
+        pendingId: null,
+        turnMessages: {},
+      };
+    case "conversation.opened":
+      return {
+        ...state,
+        conversationId: message.conversationId,
+        conversations: message.conversations,
+        items: message.items.length ? message.items : [welcome],
         working: false,
         pendingId: null,
         turnMessages: {},
@@ -256,9 +282,11 @@ function reducer(state: StudioState, action: Action): StudioState {
 }
 
 export type StudioActions = {
-  sendTurn: (text: string, selections: Selection[]) => void;
+  sendTurn: (text: string, selections: Selection[], page: string) => void;
   startCourse: (topic: string) => void;
   openCourse: (courseId: string) => void;
+  newConversation: () => void;
+  openConversation: (conversationId: string) => void;
   interrupt: () => void;
   revert: () => void;
 };
@@ -270,15 +298,37 @@ export function useStudio(): { state: StudioState; actions: StudioActions } {
   useEffect(() => {
     let disposed = false;
     let retry: number | null = null;
+    let liveCourseId = initialState.courseId;
 
     const connect = () => {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const next = new WebSocket(`${protocol}//${window.location.host}/ws`);
       socket.current = next;
-      next.addEventListener("open", () => dispatch({ type: "connection", connected: true }));
       next.addEventListener("message", (event) => {
         try {
-          dispatch({ type: "server", message: JSON.parse(event.data) as ServerMessage });
+          const message = JSON.parse(event.data) as ServerMessage;
+          dispatch({ type: "server", message });
+
+          if (message.type === "session" || message.type === "course.opened") {
+            liveCourseId = message.courseId;
+            const key = conversationStorageKey(message.courseId);
+            const remembered = window.localStorage.getItem(key);
+            if (
+              remembered
+              && remembered !== message.conversationId
+              && message.conversations.some((conversation) => conversation.id === remembered)
+            ) {
+              next.send(JSON.stringify({ type: "conversation.open", conversationId: remembered } satisfies ClientMessage));
+            } else if (message.conversationId) {
+              window.localStorage.setItem(key, message.conversationId);
+            }
+          } else if (message.type === "conversation.opened") {
+            window.localStorage.setItem(conversationStorageKey(liveCourseId), message.conversationId);
+          } else if (message.type === "courses") {
+            liveCourseId = message.courseId;
+          } else if (message.type === "conversations" && message.conversationId) {
+            window.localStorage.setItem(conversationStorageKey(liveCourseId), message.conversationId);
+          }
         } catch {
           // A malformed frame should never take the studio down.
         }
@@ -309,8 +359,8 @@ export function useStudio(): { state: StudioState; actions: StudioActions } {
       if (live?.readyState === WebSocket.OPEN) live.send(JSON.stringify(message));
     };
     return {
-      sendTurn(text, selections) {
-        post({ type: "turn.start", message: text, selections });
+      sendTurn(text, selections, page) {
+        post({ type: "turn.start", message: text, selections, page });
         dispatch({ type: "send", id: uid(), agentId: uid(), text, selections });
       },
       startCourse(topic) {
@@ -318,6 +368,8 @@ export function useStudio(): { state: StudioState; actions: StudioActions } {
         dispatch({ type: "start", id: uid(), agentId: uid(), topic });
       },
       openCourse: (courseId) => post({ type: "course.open", courseId }),
+      newConversation: () => post({ type: "conversation.new" }),
+      openConversation: (conversationId) => post({ type: "conversation.open", conversationId }),
       interrupt: () => post({ type: "turn.interrupt" }),
       revert: () => post({ type: "checkpoint.revert" }),
     };

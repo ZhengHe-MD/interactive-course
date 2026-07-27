@@ -7,6 +7,8 @@ import {
   Expand,
   FilePenLine,
   ListChecks,
+  MessageSquarePlus,
+  Milestone,
   Search,
   Send,
   Sparkles,
@@ -16,7 +18,9 @@ import {
   X,
 } from "lucide-react";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import type { Activity, ChatItem, CodexStatus, Selection } from "../types";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import type { Activity, ChatItem, CodexStatus, ConversationSummary, CoursePhase, Selection } from "../types";
 
 export type ChatHandle = { focusComposer: () => void };
 
@@ -25,10 +29,15 @@ type Props = {
   statusText: string;
   connected: boolean;
   working: boolean;
+  phase: CoursePhase;
   items: ChatItem[];
+  conversationId: string | null;
+  conversations: ConversationSummary[];
   open: boolean;
   selections: Selection[];
   onToggleOpen: (open: boolean) => void;
+  onNewConversation: () => void;
+  onSwitchConversation: (conversationId: string) => void;
   onExpandSelection: (id: string) => void;
   onRemoveSelection: (id: string) => void;
   onSend: (text: string) => void;
@@ -68,7 +77,16 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
     return () => window.clearInterval(timer);
   }, [working]);
 
+  useEffect(() => {
+    setDraft("");
+  }, [props.conversationId]);
+
   const canSend = connected && !working && (draft.trim().length > 0 || selections.length > 0);
+  const lastItem = items.at(-1);
+  const activeAgent = working && lastItem?.kind === "agent"
+    ? lastItem
+    : undefined;
+  const activeAgentId = activeAgent?.id;
 
   const submit = () => {
     if (!canSend) return;
@@ -96,18 +114,40 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
         <div className={`agent-avatar ${working ? "working" : ""}`}>
           <Sparkles size={13} />
         </div>
-        <strong>Design agent</strong>
+        <div className="conversation-heading">
+          <strong>Design agent</strong>
+          <select
+            aria-label="Switch conversation"
+            value={props.conversationId ?? ""}
+            disabled={working || props.conversations.length === 0}
+            onChange={(event) => props.onSwitchConversation(event.target.value)}
+            title="Switch conversation"
+          >
+            {props.conversations.map((conversation) => (
+              <option key={conversation.id} value={conversation.id}>{conversation.title}</option>
+            ))}
+          </select>
+        </div>
         <span className={`agent-status ${working ? "working" : codex.state}`}>
           <i /> {working ? `working · ${formatElapsed(elapsedSeconds)}` : codex.state === "ready" ? "ready" : statusText}
         </span>
-        <button onClick={() => props.onToggleOpen(false)} aria-label="Collapse chat">
+        <button
+          className="new-conversation-button"
+          onClick={props.onNewConversation}
+          aria-label="New conversation"
+          title="New conversation"
+          disabled={working || !connected}
+        >
+          <MessageSquarePlus size={16} />
+        </button>
+        <button className="collapse-chat-button" onClick={() => props.onToggleOpen(false)} aria-label="Collapse chat">
           <ChevronRight size={17} />
         </button>
       </header>
 
       <div className="chat-messages" ref={scroller}>
         {items.map((item) => (
-          <Message key={item.id} item={item} />
+          <Message key={item.id} item={item} hideActivities={item.id === activeAgentId} />
         ))}
         {codex.state === "starting" && (
           <div className="starting-note">
@@ -119,6 +159,12 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
       </div>
 
       <div className="composer-wrap">
+        {working && <WorkingBanner activities={activeAgent?.activities ?? []} />}
+        <PhaseGuide
+          phase={props.phase}
+          canAct={connected && !working}
+          onApprove={() => props.onSend("I approve this syllabus. Preserve it and create Session 1 as session1.html.")}
+        />
         {selections.length > 0 && (
           <div className="selection-stack">
             {selections.map((selection) => (
@@ -126,10 +172,10 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
                 {selection.screenshot ? (
                   <img src={selection.screenshot} alt="Selected course element" />
                 ) : (
-                  <div className="chip-placeholder">&lt;{selection.tag}&gt;</div>
+                  <div className="chip-placeholder">{selection.kind === "text" ? "“ ”" : `<${selection.tag}>`}</div>
                 )}
                 <div>
-                  <span>&lt;{selection.tag}&gt;</span>
+                  <span>{selection.kind === "text" ? "Quoted text" : `Block · <${selection.tag}>`}</span>
                   <p>{selection.text}</p>
                 </div>
                 <div className="chip-actions">
@@ -164,14 +210,14 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
                 submit();
               }
             }}
-            placeholder={props.placeholder}
+            placeholder={working ? "Agent is still working…" : props.placeholder}
             rows={1}
             disabled={working}
           />
           <div className="composer-foot">
             <span>{working ? "the agent is working" : ""}</span>
             {working ? (
-              <button className="stop-button" onClick={props.onInterrupt} aria-label="Stop the current turn">
+              <button className="stop-button" onClick={props.onInterrupt} aria-label="Stop the current turn" title="Stop the agent">
                 <Square size={12} fill="currentColor" />
               </button>
             ) : (
@@ -181,13 +227,40 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
             )}
           </div>
         </div>
-        <div className="composer-promise">Answers land in the lesson. The chat is for steering.</div>
+        <div className="composer-promise">Selections are context. The course changes only when you ask.</div>
       </div>
     </aside>
   );
 });
 
-function Message({ item }: { item: ChatItem }) {
+function PhaseGuide({ phase, canAct, onApprove }: { phase: CoursePhase; canAct: boolean; onApprove: () => void }) {
+  if (phase === "learning") return null;
+
+  if (phase === "syllabus") {
+    return (
+      <section className="phase-guide syllabus" aria-label="Course design phase">
+        <Milestone size={15} />
+        <div>
+          <strong>Step 2 of 3 · Review the syllabus</strong>
+          <p>Ask for changes, or approve the plan to begin the first session.</p>
+          <button type="button" disabled={!canAct} onClick={onApprove}>Approve &amp; start Session 1</button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="phase-guide" aria-label="Course design phase">
+      <Milestone size={15} />
+      <div>
+        <strong>Step 1 of 3 · Shape the course</strong>
+        <p>Answer the agent’s questions; it will turn your direction into a syllabus.</p>
+      </div>
+    </section>
+  );
+}
+
+function Message({ item, hideActivities = false }: { item: ChatItem; hideActivities?: boolean }) {
   if (item.kind === "system") {
     return (
       <div className={`system-message ${item.failed ? "failed" : ""}`}>
@@ -205,7 +278,7 @@ function Message({ item }: { item: ChatItem }) {
             <div className="message-selections">
               {item.selections.map((selection, index) => (
                 <span key={`${selection.tag}-${index}`}>
-                  &lt;{selection.tag}&gt; {selection.text.slice(0, 34)}
+                  {selection.kind === "text" ? "Quote" : `<${selection.tag}>`} · {selection.text.slice(0, 34)}
                 </span>
               ))}
             </div>
@@ -219,15 +292,15 @@ function Message({ item }: { item: ChatItem }) {
   return (
     <article className={`message agent ${item.failed ? "failed" : ""}`}>
       <div className="message-content">
-        {item.activities.length > 0 && (
-          <div className="activity-list" aria-label="Agent activity" aria-live="polite">
-            {item.activities.map((activity) => (
-              <ActivityLine key={activity.id} activity={activity} />
-            ))}
+        {!hideActivities && item.activities.length > 0 && (
+          <ActivityTimeline activities={item.activities} label="Completed agent activity" />
+        )}
+        {item.text && (
+          <div className="markdown-content">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.text}</ReactMarkdown>
           </div>
         )}
-        {item.text && <p>{item.text}</p>}
-        {!item.text && item.activities.length === 0 && (
+        {!item.text && item.activities.length === 0 && !hideActivities && (
           <div className="typing">
             <span />
             <span />
@@ -236,6 +309,48 @@ function Message({ item }: { item: ChatItem }) {
         )}
       </div>
     </article>
+  );
+}
+
+function WorkingBanner({ activities }: { activities: Activity[] }) {
+  const latest = activities.at(-1);
+  const latestDetail = latest
+    ? latest.detail || latest.file || (latest.done ? "Moving to the next step…" : "In progress")
+    : "Waiting for the first activity…";
+
+  return (
+    <details className="working-banner" aria-label="Agent work details">
+      <summary>
+        <span className="working-banner-spinner" aria-label="Agent working" />
+        <span className="working-banner-copy" aria-live="polite">
+          <strong>{latest?.label ?? "Starting the request"}</strong>
+          <small>{latestDetail}</small>
+        </span>
+        <ChevronRight className="working-banner-chevron" size={15} aria-hidden="true" />
+      </summary>
+      <div className="working-activity-list" aria-label="Agent activity history" aria-live="polite">
+        {activities.length > 0 ? (
+          activities.map((activity) => <ActivityLine key={activity.id} activity={activity} />)
+        ) : (
+          <div className="activity live">
+            <span className="activity-kind" aria-hidden="true"><Sparkles size={14} /></span>
+            <span className="activity-copy">
+              <strong>Starting the request</strong>
+              <span className="activity-detail">Waiting for the first activity…</span>
+            </span>
+            <span className="activity-spinner" aria-label="In progress" />
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function ActivityTimeline({ activities, label }: { activities: Activity[]; label: string }) {
+  return (
+    <div className="activity-list" aria-label={label}>
+      {activities.map((activity) => <ActivityLine key={activity.id} activity={activity} />)}
+    </div>
   );
 }
 

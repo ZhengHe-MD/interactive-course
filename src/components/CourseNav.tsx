@@ -1,49 +1,68 @@
-import { LockKeyhole, Sparkles } from "lucide-react";
-import type { CourseOutline, CourseSection } from "../types";
+import { BookOpen, CircleHelp, FileText, LockKeyhole, Sparkles } from "lucide-react";
+import type { CourseOutline, CoursePage, CourseSection } from "../types";
 
 type Props = {
   course: CourseOutline;
+  activePage: string;
   activeSection: string | null;
   working: boolean;
+  onSelectPage: (page: CoursePage) => void;
   onSelectSection: (section: CourseSection) => void;
   onChooseTopic: () => void;
 };
 
-export function CourseNav({ course, activeSection, working, onSelectSection, onChooseTopic }: Props) {
+export function CourseNav({ course, activePage, activeSection, working, onSelectPage, onSelectSection, onChooseTopic }: Props) {
   const empty = !course.hasContent;
-  // A course with content but no headings still deserves one place to jump to.
-  const sections: CourseSection[] = course.sections.length
-    ? course.sections
-    : empty
-      ? []
-      : [{ index: 0, label: "Overview" }];
+  const page = course.pages.find((entry) => entry.path === activePage) ?? course.pages[0];
+  const sections: CourseSection[] = page?.sections.length
+    ? page.sections
+    : page
+      ? [{ index: 0, label: "Overview" }]
+      : [];
   const key = (section: CourseSection) => section.id ?? `index-${section.index}`;
   const current = activeSection ?? (sections[0] ? key(sections[0]) : null);
 
   return (
     <aside className="course-nav">
-      <div className="nav-kicker">Course outline</div>
+      <div className="nav-kicker">Course materials</div>
       <div className="course-identity">
         <span className={`course-status-dot ${working ? "working" : ""}`} />
         <h1>{course.title}</h1>
       </div>
 
-      <nav aria-label="Course sections">
+      <nav aria-label="Course materials">
         {empty ? (
           <button className="nav-generating active" onClick={onChooseTopic}>
             <Sparkles size={12} /> {working ? "Writing next section…" : "Shape this course"}
           </button>
         ) : (
-          sections.map((section) => (
-            <button
-              key={key(section)}
-              className={key(section) === current ? "active" : ""}
-              onClick={() => onSelectSection(section)}
-            >
-              <span className="section-marker">{String(section.index + 1).padStart(2, "0")}</span>
-              {section.label}
-            </button>
-          ))
+          course.pages.flatMap((coursePage, pageIndex) => {
+            const selected = coursePage.path === page?.path;
+            const pageSections = selected ? sections : [];
+            return [
+              <button
+                key={coursePage.path}
+                className={`course-page-link ${selected ? "active" : ""}`}
+                onClick={() => onSelectPage(coursePage)}
+              >
+                {coursePage.kind === "syllabus" ? <FileText size={14} /> : <BookOpen size={14} />}
+                <span>
+                  <small>{coursePage.kind === "syllabus" ? "Plan" : `Session ${pageIndex}`}</small>
+                  {coursePage.title}
+                </span>
+              </button>,
+              ...pageSections.map((section) => (
+                <button
+                  key={`${coursePage.path}:${key(section)}`}
+                  className={`course-section-link ${key(section) === current ? "active" : ""}`}
+                  onClick={() => onSelectSection(section)}
+                >
+                  <span className="section-marker">{String(section.index + 1).padStart(2, "0")}</span>
+                  {section.label}
+                </button>
+              )),
+            ];
+          })
         )}
       </nav>
 
@@ -57,6 +76,16 @@ export function CourseNav({ course, activeSection, working, onSelectSection, onC
           ))}
           <small>Written for you when you reach it.</small>
         </div>
+      )}
+
+      {course.phase === "learning" && (
+        <details className="course-phase-details">
+          <summary><CircleHelp size={12} /> Course status</summary>
+          <div>
+            <strong>Learning session by session</strong>
+            <p>The syllabus remains available, and new sessions appear separately as you reach them.</p>
+          </div>
+        </details>
       )}
     </aside>
   );

@@ -6,10 +6,14 @@
 /** A free-form element selection captured in the preview. */
 export type Selection = {
   id: string;
+  /** Text highlights are quoted context; blocks are DOM regions. */
+  kind?: "text" | "block";
   tag: string;
   text: string;
   outerHTML: string;
   location: string;
+  /** Course-relative page containing the selected element. */
+  page?: string;
   screenshot?: string;
   canExpand?: boolean;
 };
@@ -43,12 +47,22 @@ export type CourseSection = {
   label: string;
 };
 
+/** One durable, navigable HTML page in a course. */
+export type CoursePage = {
+  path: string;
+  title: string;
+  kind: "syllabus" | "lesson";
+  sections: CourseSection[];
+};
+
 /** Everything the studio chrome needs to render around the preview. */
 export type CourseOutline = {
   phase: CoursePhase;
   hasContent: boolean;
   title: string;
   topic: string;
+  /** Syllabus first, followed by generated lessons in filename order. */
+  pages: CoursePage[];
   sections: CourseSection[];
   /** Lessons named but not written yet, from an optional `course.json`. */
   upNext: string[];
@@ -60,6 +74,14 @@ export type CourseSummary = {
   title: string;
   phase: CoursePhase;
   hasContent: boolean;
+};
+
+/** A durable Codex thread belonging to one course directory. */
+export type ConversationSummary = {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type ActivityKind = "reasoning" | "plan" | "edit" | "command" | "search" | "tool";
@@ -75,12 +97,20 @@ export type Activity = {
   done?: boolean;
 };
 
+/** A display-safe transcript reconstructed from a persisted Codex thread. */
+export type TranscriptItem =
+  | { kind: "user"; id: string; text: string; selections: Array<Pick<Selection, "kind" | "tag" | "text">> }
+  | { kind: "agent"; id: string; text: string; activities: Activity[]; failed?: boolean }
+  | { kind: "system"; id: string; text: string; failed?: boolean };
+
 // ---- browser → server ----------------------------------------------------
 
 export type ClientMessage =
-  | { type: "turn.start"; message: string; selections: Selection[] }
+  | { type: "turn.start"; message: string; selections: Selection[]; page: string }
   | { type: "course.start"; topic: string }
   | { type: "course.open"; courseId: string }
+  | { type: "conversation.new" }
+  | { type: "conversation.open"; conversationId: string }
   | { type: "turn.interrupt" }
   | { type: "checkpoint.revert" };
 
@@ -94,6 +124,9 @@ export type ServerMessage =
       course: CourseOutline;
       courseId: string;
       courses: CourseSummary[];
+      conversationId: string | null;
+      conversations: ConversationSummary[];
+      items: TranscriptItem[];
       courseVersion: number;
       turnActive: boolean;
     }
@@ -110,7 +143,17 @@ export type ServerMessage =
       courseVersion: number;
       checkpoints: Checkpoint[];
       codex: CodexStatus;
+      conversationId: string | null;
+      conversations: ConversationSummary[];
+      items: TranscriptItem[];
     }
+  | {
+      type: "conversation.opened";
+      conversationId: string;
+      conversations: ConversationSummary[];
+      items: TranscriptItem[];
+    }
+  | { type: "conversations"; conversationId: string | null; conversations: ConversationSummary[] }
   | { type: "courses"; courseId: string; courses: CourseSummary[] }
   | { type: "checkpoints"; checkpoints: Checkpoint[] }
   | { type: "turn.completed"; turnId: string; status: string; error?: string }

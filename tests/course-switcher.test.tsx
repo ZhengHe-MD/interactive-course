@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Preview } from "../src/components/Preview";
+import { CourseNav } from "../src/components/CourseNav";
 import { Toolbar } from "../src/components/Toolbar";
 import { Welcome } from "../src/components/Welcome";
 
@@ -17,6 +18,7 @@ describe("course switching UI", () => {
         courseId="ev-batteries"
         courses={courses}
         inspecting={false}
+        multipleSelection={false}
         canInspect
         courseChanged={false}
         checkpoints={[]}
@@ -24,6 +26,7 @@ describe("course switching UI", () => {
         onHome={() => {}}
         onSwitchCourse={() => {}}
         onToggleInspect={() => {}}
+        onToggleMultipleSelection={() => {}}
         onRevert={() => {}}
       />,
     );
@@ -31,6 +34,10 @@ describe("course switching UI", () => {
     expect(html).toContain('aria-label="Switch course"');
     expect(html).toContain("EV Battery Fundamentals");
     expect(html).toContain("From Silicon to a Simple CPU");
+    expect(html).toContain("Select");
+    expect(html).toContain('role="switch"');
+    expect(html).toContain('aria-label="Multiple selection"');
+    expect(html).toContain('aria-checked="false"');
   });
 
   it("keeps the course picker available from the new-course screen", () => {
@@ -56,6 +63,7 @@ describe("course switching UI", () => {
       <Preview
         courseVersion={1}
         inspecting={false}
+        multipleSelection={false}
         courseChanged={false}
         codex={{ state: "ready" }}
         startingTopic="Batteries for Electric Vehicles"
@@ -69,5 +77,39 @@ describe("course switching UI", () => {
     expect(html).toContain("Batteries for Electric Vehicles");
     expect(html).toContain("Your previous course is saved");
     expect(html).not.toContain("<iframe");
+  });
+
+  it("lists the permanent syllabus and each generated session", () => {
+    const html = renderToStaticMarkup(
+      <CourseNav
+        course={{
+          phase: "learning",
+          hasContent: true,
+          title: "Confucius",
+          topic: "Philosophy",
+          pages: [
+            { path: "syllabus.html", title: "Syllabus", kind: "syllabus", sections: [] },
+            { path: "session1.html", title: "Practice", kind: "lesson", sections: [] },
+            { path: "session2.html", title: "Relationships", kind: "lesson", sections: [] },
+          ],
+          sections: [],
+          upNext: ["Session 3 · Moral authority"],
+        }}
+        activePage="session1.html"
+        activeSection={null}
+        working={false}
+        onSelectPage={() => {}}
+        onSelectSection={() => {}}
+        onChooseTopic={() => {}}
+      />,
+    );
+
+    expect(html).toContain('aria-label="Course materials"');
+    expect(html).toContain("Syllabus");
+    expect(html).toContain("Practice");
+    expect(html).toContain("Relationships");
+    expect(html).toContain("Session 3 · Moral authority");
+    expect(html).toContain("Course status");
+    expect(html).toContain("Learning session by session");
   });
 });

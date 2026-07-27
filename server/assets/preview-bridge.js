@@ -5,6 +5,7 @@
   let altInspect = false;
   let hovered = null;
   let scrollQueued = false;
+  let suppressBlockClick = false;
 
   const overlay = document.createElement("div");
   overlay.setAttribute("data-course-studio-ui", "true");
@@ -112,19 +113,54 @@
     }
   }
 
-  async function select(element, existingId) {
-    const id = existingId || (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
-    selections.set(id, element);
+  function selectionId() {
+    return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+  }
+
+  async function selectBlock(element, existingId) {
+    const id = existingId || selectionId();
+    selections.set(id, { element, kind: "block" });
     const text = (element.innerText || element.textContent || "").replace(/\s+/g, " ").trim();
     const screenshot = await thumbnail(element);
     post("selection", {
       selection: {
         id,
+        kind: "block",
         tag: element.tagName.toLowerCase(),
-        text: text.slice(0, 180) || `(${element.tagName.toLowerCase()} element)`,
+        text: text.slice(0, 4_000) || `(${element.tagName.toLowerCase()} element)`,
         outerHTML: element.outerHTML.slice(0, 12_000),
         location: cssPath(element),
         screenshot,
+        canExpand: Boolean(element.parentElement && element.parentElement !== document.body),
+      },
+    });
+  }
+
+  function rangeElement(range) {
+    const common = range.commonAncestorContainer;
+    const commonElement = common instanceof Element ? common : common.parentElement;
+    if (commonElement && commonElement !== document.body && commonElement !== document.documentElement) return commonElement;
+    const start = range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement;
+    return start && start !== document.body && start !== document.documentElement ? start : null;
+  }
+
+  async function selectText(range) {
+    const element = rangeElement(range);
+    const text = range.toString().replace(/\s+/g, " ").trim();
+    if (!element || !text || element.closest("[data-course-studio-ui]")) return;
+
+    const fragment = document.createElement("div");
+    fragment.append(range.cloneContents());
+    const id = selectionId();
+    selections.set(id, { element, range: range.cloneRange(), kind: "text" });
+    post("selection", {
+      selection: {
+        id,
+        kind: "text",
+        tag: element.tagName.toLowerCase(),
+        text: text.slice(0, 4_000),
+        outerHTML: fragment.innerHTML.slice(0, 12_000) || element.outerHTML.slice(0, 12_000),
+        location: cssPath(element),
         canExpand: Boolean(element.parentElement && element.parentElement !== document.body),
       },
     });
@@ -137,16 +173,25 @@
   }, true);
 
   document.addEventListener("mouseleave", clearHover, true);
+  document.addEventListener("mouseup", () => {
+    if (document.body.hasAttribute("data-course-studio-empty")) return;
+    const nativeSelection = window.getSelection();
+    if (!nativeSelection || nativeSelection.isCollapsed || nativeSelection.rangeCount === 0) return;
+    const range = nativeSelection.getRangeAt(0).cloneRange();
+    if (!range.toString().trim()) return;
+    suppressBlockClick = true;
+    window.setTimeout(() => { suppressBlockClick = false; }, 0);
+    void selectText(range);
+  }, true);
   document.addEventListener("click", (event) => {
     if (!active()) return;
+    if (suppressBlockClick) return;
     const target = validTarget(event.target);
     if (!target) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    inspect = false;
-    altInspect = false;
     clearHover();
-    void select(target);
+    void selectBlock(target);
   }, true);
 
   document.addEventListener("keydown", (event) => {
@@ -188,9 +233,17 @@
       if (!inspect) clearHover();
     }
     if (event.data.type === "selection.expand") {
-      const element = selections.get(event.data.id);
+      const element = selections.get(event.data.id)?.element;
       const parent = element?.parentElement;
-      if (parent && parent !== document.body) void select(parent, event.data.id);
+      if (parent && parent !== document.body) void selectBlock(parent, event.data.id);
+    }
+    if (event.data.type === "selection.remove") {
+      selections.delete(event.data.id);
+      window.getSelection()?.removeAllRanges();
+    }
+    if (event.data.type === "selection.clear") {
+      selections.clear();
+      window.getSelection()?.removeAllRanges();
     }
     if (event.data.type === "scroll.restore" && Number.isFinite(event.data.top)) {
       window.scrollTo({ top: event.data.top, behavior: "instant" });

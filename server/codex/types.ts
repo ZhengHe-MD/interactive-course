@@ -23,7 +23,46 @@ export type ThreadStartParams = {
   developerInstructions?: string;
 };
 
-export type ThreadStartResponse = { thread: { id: string } };
+export type PersistedThreadItem = {
+  id?: string;
+  type: string;
+  text?: string;
+  content?: UserInput[];
+  summary?: string[];
+  command?: string;
+  query?: string;
+  server?: string;
+  tool?: string;
+  path?: string;
+  changes?: FileChange[];
+};
+
+export type PersistedTurn = {
+  id: string;
+  items: PersistedThreadItem[];
+  status: string;
+  error?: { message?: string } | null;
+};
+
+export type PersistedThread = {
+  id: string;
+  preview?: string;
+  name?: string | null;
+  createdAt: number;
+  updatedAt: number;
+  turns: PersistedTurn[];
+};
+
+export type ThreadStartResponse = { thread: PersistedThread };
+export type ThreadResumeResponse = { thread: PersistedThread };
+export type ThreadReadResponse = { thread: PersistedThread };
+export type ThreadListResponse = { data: PersistedThread[]; nextCursor: string | null };
+export type ThreadListParams = {
+  cwd: string;
+  sortKey: "created_at" | "updated_at";
+  sortDirection: "asc" | "desc";
+  limit: number;
+};
 
 export type TurnStartResponse = { turn: { id: string; status: string } };
 

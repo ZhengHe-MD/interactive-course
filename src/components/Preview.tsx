@@ -5,12 +5,16 @@ import type { CodexStatus, CourseSection, Selection } from "../types";
 export type PreviewHandle = {
   /** Ask the course page to re-select the given chip's parent element. */
   expandSelection: (id: string) => void;
+  removeSelection: (id: string) => void;
+  clearSelections: () => void;
   scrollToSection: (section: CourseSection) => void;
 };
 
 type Props = {
   courseVersion: number;
+  pagePath?: string;
   inspecting: boolean;
+  multipleSelection: boolean;
   courseChanged: boolean;
   codex: CodexStatus;
   startingTopic?: string;
@@ -26,7 +30,7 @@ type Props = {
  * `postMessage`, pinned to this origin in both directions.
  */
 export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
-  { courseVersion, inspecting, courseChanged, codex, startingTopic, working, onSelection, onInspectCancelled, onStartRequested },
+  { courseVersion, pagePath = "syllabus.html", inspecting, multipleSelection, courseChanged, codex, startingTopic, working, onSelection, onInspectCancelled, onStartRequested },
   ref,
 ) {
   const frame = useRef<HTMLIFrameElement | null>(null);
@@ -40,12 +44,18 @@ export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
 
   useImperativeHandle(ref, () => ({
     expandSelection: (id: string) => post({ type: "selection.expand", id }),
+    removeSelection: (id: string) => post({ type: "selection.remove", id }),
+    clearSelections: () => post({ type: "selection.clear" }),
     scrollToSection: (section: CourseSection) => post({ type: "scroll.toSection", id: section.id, index: section.index }),
   }), [post]);
 
   useEffect(() => {
     post({ type: "inspect", active: inspecting });
   }, [inspecting, post]);
+
+  useEffect(() => {
+    scrollTop.current = 0;
+  }, [pagePath]);
 
   useEffect(() => {
     const receive = (event: MessageEvent) => {
@@ -75,7 +85,11 @@ export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
           <p>This is a separate course. Your previous course is saved and available from the course switcher.</p>
         </section>
       ) : (
-        <iframe ref={frame} title="Interactive course preview" src={`/course/index.html?v=${courseVersion}`} />
+        <iframe
+          ref={frame}
+          title="Interactive course preview"
+          src={`/course/${encodeURIComponent(pagePath)}?v=${courseVersion}`}
+        />
       )}
       {courseChanged && !startingTopic && (
         <div className="reload-toast">
@@ -84,7 +98,8 @@ export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
       )}
       {inspecting && (
         <div className="inspect-hint">
-          Click any part of the lesson to attach it <span>· Esc to cancel</span>
+          {multipleSelection ? "Click blocks to add context" : "Click a block to replace the current context"}
+          <span>· highlight text anytime · Esc when done</span>
         </div>
       )}
       {codex.state === "error" && (

@@ -65,6 +65,15 @@ describe("CourseManager", () => {
       { id: "outcomes", index: 0, label: "What you'll be able to do" },
       { id: undefined, index: 1, label: "The learning path" },
     ]);
+    expect(outline.pages).toEqual([{
+      path: "index.html",
+      title: "Syllabus",
+      kind: "syllabus",
+      sections: [
+        { id: "outcomes", index: 0, label: "What you'll be able to do" },
+        { id: undefined, index: 1, label: "The learning path" },
+      ],
+    }]);
   });
 
   it("lets an optional course.json name lessons that do not exist yet", async () => {
@@ -82,6 +91,33 @@ describe("CourseManager", () => {
     expect(outline.title).toBe("Bayes, for you");
     expect(outline.topic).toBe("Probability");
     expect(outline.upNext).toEqual(["Naive Bayes"]);
+  });
+
+  it("keeps the syllabus and generated sessions as separate navigable pages", async () => {
+    const root = await repository();
+    const manager = new CourseManager(root, "courses/demo");
+    managers.push(manager);
+
+    await writeFile(
+      join(root, "courses/demo/syllabus.html"),
+      '<meta name="course-studio-phase" content="learning"><meta name="course-studio-page" content="syllabus"><h1>Confucius</h1><h2 id="arc">Course arc</h2>',
+    );
+    await writeFile(
+      join(root, "courses/demo/session1.html"),
+      '<meta name="course-studio-page" content="lesson"><meta name="course-page-title" content="Practice"><h1>Becoming human</h1><h2 id="question">Opening question</h2>',
+    );
+    await writeFile(
+      join(root, "courses/demo/session2.html"),
+      '<meta name="course-studio-page" content="lesson"><meta name="course-page-title" content="Relationships"><h1>The relational self</h1>',
+    );
+
+    const outline = await manager.getOutline();
+    expect(outline.phase).toBe("learning");
+    expect(outline.pages).toEqual([
+      { path: "syllabus.html", title: "Syllabus", kind: "syllabus", sections: [{ id: "arc", index: 0, label: "Course arc" }] },
+      { path: "session1.html", title: "Practice", kind: "lesson", sections: [{ id: "question", index: 0, label: "Opening question" }] },
+      { path: "session2.html", title: "Relationships", kind: "lesson", sections: [] },
+    ]);
   });
 
   it("survives a course.json the agent wrote badly", async () => {
@@ -139,6 +175,40 @@ describe("CourseManager", () => {
 
     expect(checkpoint?.label).toBe("Answered in chat");
     expect((await manager.listCheckpoints(2)).map(({ label }) => label)).toEqual(["Answered in chat", "feat: add demo course"]);
+  });
+
+  it("does not add a course checkpoint for a chat-only answer by default", async () => {
+    const root = await mkdtemp(join(tmpdir(), "course-studio-test-"));
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    execFileSync("mkdir", ["-p", "courses/demo"], { cwd: root });
+    await writeFile(join(root, "courses/demo/index.html"), "<h1>First</h1>\n");
+    execFileSync("git", ["add", "."], { cwd: root });
+    execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "feat: add demo course"], { cwd: root });
+
+    const manager = new CourseManager(root, "courses/demo");
+    managers.push(manager);
+    const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+
+    expect(await manager.createCheckpoint("Answered in chat")).toBeNull();
+    expect(execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim()).toBe(head);
+  });
+
+  it("records a chat-only checkpoint before the course has any files", async () => {
+    const root = await mkdtemp(join(tmpdir(), "course-studio-test-"));
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    execFileSync("mkdir", ["-p", "courses/aristotle"], { cwd: root });
+    await writeFile(join(root, "unrelated.txt"), "keep staged\n");
+    execFileSync("git", ["add", "unrelated.txt"], { cwd: root });
+
+    const manager = new CourseManager(root, "courses/aristotle");
+    managers.push(manager);
+    const checkpoint = await manager.createCheckpoint("Agent course update", { allowEmpty: true });
+
+    expect(checkpoint?.label).toBe("Agent course update");
+    expect(execFileSync("git", ["status", "--short"], { cwd: root, encoding: "utf8" }))
+      .toContain("A  unrelated.txt");
+    expect(execFileSync("git", ["show", "--format=", "--name-only", "HEAD"], { cwd: root, encoding: "utf8" }).trim())
+      .toBe("");
   });
 });
 
