@@ -371,6 +371,86 @@
       margin: 0;
     }
 
+    .inner-outer-loop {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 6.5rem minmax(0, 1fr);
+      align-items: stretch;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .loop-side {
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: rgba(255, 253, 248, 0.72);
+    }
+
+    .loop-side .domain {
+      margin: 0 0 6px;
+      color: var(--muted);
+      font-family: system-ui, sans-serif;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .loop-side h4 {
+      margin: 0;
+      color: var(--red);
+      font-size: 1.14rem;
+    }
+
+    .loop-side p:last-child {
+      margin-bottom: 0;
+      font-size: 0.92rem;
+    }
+
+    .loop-link {
+      display: grid;
+      align-content: center;
+      gap: 7px;
+      color: var(--green);
+      font-family: system-ui, sans-serif;
+      font-size: 0.72rem;
+      font-weight: 700;
+      line-height: 1.35;
+      text-align: center;
+    }
+
+    .loop-link .arrow {
+      color: var(--red);
+      font-size: 1.6rem;
+      font-weight: 400;
+      line-height: 0.8;
+    }
+
+    .failure-modes {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .failure-mode {
+      margin: 0;
+      padding: 14px 16px;
+      border-left: 2px solid var(--line);
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .failure-mode strong {
+      color: var(--ink);
+    }
+
+    .loop-conclusion {
+      margin: 18px 0 0;
+      color: var(--green);
+      font-weight: 600;
+    }
+
     .interpretive-caution {
       margin-top: 24px;
       color: var(--muted);
@@ -428,6 +508,22 @@
       .concept-button {
         min-height: auto;
         border-radius: 4px;
+      }
+
+      .inner-outer-loop {
+        grid-template-columns: 1fr;
+      }
+
+      .loop-link {
+        min-height: 76px;
+      }
+
+      .loop-link .arrow {
+        transform: rotate(90deg);
+      }
+
+      .failure-modes {
+        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -510,17 +606,18 @@
           <h3><span lang="zh-Hans">仁</span> gives practice its ethical direction</h3>
           <p>
             Often translated “humaneness,” <span lang="zh-Hans">仁</span> is a way of
-            attending and responding well to other people—not merely warm feeling.
-            Without it, correct ritual can become empty performance.
+            attending and responding well to other people—not merely warm feeling. It
+            leans toward the inner dimension of ethics, but becomes real only in how
+            one responds. Without it, correct ritual can become empty performance.
           </p>
         </div>
         <div data-concept-panel="li" hidden>
           <h3><span lang="zh-Hans">礼</span> makes ethical concern concrete</h3>
           <p>
             Ritual propriety supplies learned, public forms for respect: timing,
-            gesture, language, and role-sensitive conduct. Without
-            <span lang="zh-Hans">仁</span>, it is hollow; with
-            <span lang="zh-Hans">仁</span>, it trains concern into reliable action.
+            gesture, language, and role-sensitive conduct. It leans toward the outer
+            dimension, but is not merely external: sincere practice also reshapes
+            attention, emotion, and desire.
           </p>
         </div>
         <div data-concept-panel="junzi" hidden>
@@ -532,6 +629,45 @@
           </p>
         </div>
       </div>
+
+      <h3 id="inner-outer-loop">Inner and outer: distinguishable, not separable</h3>
+      <p>
+        The distinction is useful if we treat it as a difference of emphasis. Confucius
+        does not imagine a finished inner virtue that simply puts on an external
+        costume. Each side continuously works on the other.
+      </p>
+      <div class="inner-outer-loop" aria-label="The reciprocal relationship between humane orientation and ritual propriety">
+        <article class="loop-side">
+          <p class="domain">Inner-leaning</p>
+          <h4><span lang="zh-Hans">仁</span> · humane orientation</h4>
+          <p>What you notice, care about, feel, and intend toward another person.</p>
+        </article>
+        <div class="loop-link">
+          <span><span lang="zh-Hans">仁</span> guides what <span lang="zh-Hans">礼</span> should express</span>
+          <span class="arrow" aria-hidden="true">⇄</span>
+          <span><span lang="zh-Hans">礼</span> practices and strengthens <span lang="zh-Hans">仁</span></span>
+        </div>
+        <article class="loop-side">
+          <p class="domain">Outer-leaning</p>
+          <h4><span lang="zh-Hans">礼</span> · ritual propriety</h4>
+          <p>The fitting words, gestures, roles, and practices through which you respond.</p>
+        </article>
+      </div>
+      <div class="failure-modes" aria-label="What happens when one side is missing">
+        <p class="failure-mode">
+          <strong><span lang="zh-Hans">仁</span> without adequate <span lang="zh-Hans">礼</span>:</strong>
+          well-intentioned concern may remain clumsy, invisible, or unreliable.
+        </p>
+        <p class="failure-mode">
+          <strong><span lang="zh-Hans">礼</span> without <span lang="zh-Hans">仁</span>:</strong>
+          formally correct conduct becomes hollow performance or manipulation.
+        </p>
+      </div>
+      <p class="loop-conclusion">
+        The loop is the cultivation: inner orientation guides outward practice; outward
+        practice returns to reshape inner character.
+      </p>
+
       <p class="interpretive-caution">
         A university-level caution: the <cite>Analects</cite> does not present a tidy
         theory with fixed technical definitions. This map is a reconstruction from
@@ -573,9 +709,9 @@
         made the two mutually reinforcing.
       </p>
       <p>
-        This avoids two thin readings of Confucius: virtue is neither private sincerity
-        alone nor mechanical conformity alone. The philosophical wager is that
-        well-practiced forms can reshape attention, desire, and character.
+        Inner and outer are therefore distinguishable aspects of virtue, but not
+        independent parts. This avoids two thin readings of Confucius: virtue is
+        neither private sincerity alone nor mechanical conformity alone.
       </p>
     </section>
 
