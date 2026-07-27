@@ -2,6 +2,7 @@ import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState }
 import { Chat, type ChatHandle } from "./components/Chat";
 import { CourseNav } from "./components/CourseNav";
 import { Preview, type PreviewHandle } from "./components/Preview";
+import { readReadingPosition, writeReadingPosition, type ReadingPosition } from "./readingPosition";
 import { collapseToLatestSelection, mergeSelection } from "./selection";
 import { Toolbar } from "./components/Toolbar";
 import { Welcome } from "./components/Welcome";
@@ -26,6 +27,7 @@ export function App() {
   const { state, actions } = useStudio();
   const preview = useRef<PreviewHandle | null>(null);
   const chat = useRef<ChatHandle | null>(null);
+  const readingSection = useRef<CourseSection | undefined>(undefined);
 
   const [inspecting, setInspecting] = useState(false);
   const [multipleSelection, setMultipleSelection] = useState(false);
@@ -40,6 +42,8 @@ export function App() {
   ));
   const [activePage, setActivePage] = useState("syllabus.html");
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [resumePosition, setResumePosition] = useState<ReadingPosition | null>(null);
+  const [resumeCourseId, setResumeCourseId] = useState<string | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
   const [birthTopic, setBirthTopic] = useState<string | null>(null);
   const [startingNewCourse, setStartingNewCourse] = useState(false);
@@ -47,6 +51,7 @@ export function App() {
   const syllabusCourse = useRef<string | null>(null);
   const studioBody = useRef<HTMLDivElement | null>(null);
   const resizingPointer = useRef<number | null>(null);
+  const positionedCourse = useRef<string | null>(null);
   const visiblePage = state.course.pages.find((page) => page.path === activePage)?.path
     ?? state.course.pages[0]?.path
     ?? activePage;
@@ -54,6 +59,12 @@ export function App() {
   const canInspect = state.course.hasContent && !startingNewCourse;
 
   const stopInspecting = useCallback(() => setInspecting(false), []);
+
+  const onReadingPosition = useCallback((top: number, section?: CourseSection) => {
+    readingSection.current = section;
+    setActiveSection(section ? section.id ?? `index-${section.index}` : null);
+    writeReadingPosition(state.courseId, { page: visiblePage, top, section });
+  }, [state.courseId, visiblePage]);
 
   useEffect(() => {
     window.localStorage.setItem("course-studio-chat-width", String(chatWidth));
@@ -144,6 +155,27 @@ export function App() {
   }, [activePage, state.course.pages]);
 
   useEffect(() => {
+    const pages = state.course.pages;
+    if (!pages.length || positionedCourse.current === state.courseId) return;
+
+    const saved = readReadingPosition(state.courseId);
+    const savedPage = saved && pages.some((page) => page.path === saved.page) ? saved : null;
+    const position = savedPage ?? { page: pages[0].path, top: 0 };
+    positionedCourse.current = state.courseId;
+    readingSection.current = savedPage?.section;
+    setResumePosition(position);
+    setResumeCourseId(state.courseId);
+    setActivePage(position.page);
+    setActiveSection(savedPage?.section ? savedPage.section.id ?? `index-${savedPage.section.index}` : null);
+  }, [state.course.pages, state.courseId]);
+
+  useEffect(() => {
+    readingSection.current = resumeCourseId === state.courseId && resumePosition?.page === visiblePage
+      ? resumePosition.section
+      : undefined;
+  }, [resumeCourseId, resumePosition, state.courseId, visiblePage]);
+
+  useEffect(() => {
     if (state.course.phase === "syllabus") syllabusCourse.current = state.courseId;
     const firstLesson = state.course.pages.find((page) => page.kind === "lesson");
     if (state.course.phase === "learning" && syllabusCourse.current === state.courseId && firstLesson) {
@@ -159,6 +191,10 @@ export function App() {
   };
 
   const onSelectPage = (page: CoursePage) => {
+    const position = { page: page.path, top: 0 };
+    writeReadingPosition(state.courseId, position);
+    setResumePosition(position);
+    setResumeCourseId(state.courseId);
     setActivePage(page.path);
     setActiveSection(null);
     setSelections([]);
@@ -166,7 +202,7 @@ export function App() {
   };
 
   const send = (text: string) => {
-    actions.sendTurn(text || "Explain this differently.", selections, visiblePage);
+    actions.sendTurn(text || "Explain this differently.", selections, visiblePage, readingSection.current);
     setSelections([]);
     preview.current?.clearSelections();
   };
@@ -178,6 +214,8 @@ export function App() {
     setShowWelcome(false);
     setSelections([]);
     setActivePage("syllabus.html");
+    setResumePosition(null);
+    setResumeCourseId(null);
     setActiveSection(null);
     setInspecting(false);
     actions.startCourse(topic);
@@ -190,10 +228,19 @@ export function App() {
     sawNewCourseEmpty.current = false;
     setShowWelcome(false);
     setSelections([]);
-    setActivePage("syllabus.html");
-    setActiveSection(null);
     setInspecting(false);
     actions.openCourse(courseId);
+  };
+
+  const returnToCourse = () => {
+    const saved = readReadingPosition(state.courseId);
+    if (saved && state.course.pages.some((page) => page.path === saved.page)) {
+      setResumePosition(saved);
+      setResumeCourseId(state.courseId);
+      setActivePage(saved.page);
+      setActiveSection(saved.section ? saved.section.id ?? `index-${saved.section.index}` : null);
+    }
+    setShowWelcome(false);
   };
 
   const switchConversation = (conversationId: string) => {
@@ -250,7 +297,7 @@ export function App() {
         working={state.working}
         courseId={state.courseId}
         courses={state.courses}
-        onBack={() => setShowWelcome(false)}
+        onBack={returnToCourse}
         onSwitchCourse={switchCourse}
         onStart={startCourse}
       />
@@ -314,8 +361,14 @@ export function App() {
         <main className="workspace">
           <Preview
             ref={preview}
+            courseId={state.courseId}
             courseVersion={state.courseVersion}
             pagePath={visiblePage}
+            initialScrollTop={
+              resumeCourseId === state.courseId && resumePosition?.page === visiblePage
+                ? resumePosition.top
+                : 0
+            }
             inspecting={inspecting}
             multipleSelection={multipleSelection}
             courseChanged={state.courseChanged}
@@ -323,6 +376,7 @@ export function App() {
             startingTopic={startingNewCourse ? birthTopic ?? undefined : undefined}
             working={state.working}
             onSelection={onSelection}
+            onReadingPosition={onReadingPosition}
             onInspectCancelled={stopInspecting}
             onStartRequested={() => chat.current?.focusComposer()}
           />

@@ -61,6 +61,7 @@ describe("course switching UI", () => {
   it("hides the previous preview while a separate course is being created", () => {
     const html = renderToStaticMarkup(
       <Preview
+        courseId="ev-batteries"
         courseVersion={1}
         inspecting={false}
         multipleSelection={false}
@@ -69,6 +70,7 @@ describe("course switching UI", () => {
         startingTopic="Batteries for Electric Vehicles"
         working
         onSelection={() => {}}
+        onReadingPosition={() => {}}
         onInspectCancelled={() => {}}
         onStartRequested={() => {}}
       />,

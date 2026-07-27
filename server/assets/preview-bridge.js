@@ -52,6 +52,33 @@
     return parts.join(" > ");
   }
 
+  function readingSection() {
+    const headings = [...document.querySelectorAll("h2")].filter((heading) => (
+      (heading.innerText || heading.textContent || "").trim()
+    ));
+    if (headings.length === 0) return undefined;
+
+    // A line one-third down the viewport approximates where reading is
+    // happening better than the raw scroll offset. Keep the latest section
+    // above that line; when the first section is entering view, anchor to it.
+    const readingLine = Math.min(window.innerHeight * 0.33, 280);
+    let current;
+    for (const heading of headings) {
+      if (heading.getBoundingClientRect().top > readingLine) break;
+      current = heading;
+    }
+    current ??= headings.find((heading) => heading.getBoundingClientRect().top < window.innerHeight);
+    if (!current) return undefined;
+
+    const label = (current.innerText || current.textContent || "").replace(/\s+/g, " ").trim();
+    if (!label) return undefined;
+    return {
+      id: current.id || undefined,
+      index: headings.indexOf(current),
+      label: label.slice(0, 240),
+    };
+  }
+
   function drawHover(element) {
     hovered = element;
     const rect = element.getBoundingClientRect();
@@ -221,7 +248,7 @@
     scrollQueued = true;
     requestAnimationFrame(() => {
       scrollQueued = false;
-      post("scroll", { top: window.scrollY });
+      post("scroll", { top: window.scrollY, section: readingSection() });
     });
   }, { passive: true });
 
@@ -247,6 +274,9 @@
     }
     if (event.data.type === "scroll.restore" && Number.isFinite(event.data.top)) {
       window.scrollTo({ top: event.data.top, behavior: "instant" });
+      requestAnimationFrame(() => {
+        post("scroll", { top: window.scrollY, section: readingSection() });
+      });
     }
     if (event.data.type === "scroll.toSection") {
       // The studio derives its table of contents from the course HTML on the
@@ -259,5 +289,5 @@
 
   document.querySelector("[data-course-studio-start]")?.addEventListener("click", () => post("empty.start"));
 
-  post("ready", { title: document.title, top: window.scrollY });
+  post("ready", { title: document.title, top: window.scrollY, section: readingSection() });
 })();

@@ -11,8 +11,10 @@ export type PreviewHandle = {
 };
 
 type Props = {
+  courseId: string;
   courseVersion: number;
   pagePath?: string;
+  initialScrollTop?: number;
   inspecting: boolean;
   multipleSelection: boolean;
   courseChanged: boolean;
@@ -20,6 +22,7 @@ type Props = {
   startingTopic?: string;
   working: boolean;
   onSelection: (selection: Selection) => void;
+  onReadingPosition: (top: number, section?: CourseSection) => void;
   onInspectCancelled: () => void;
   onStartRequested: () => void;
 };
@@ -30,11 +33,12 @@ type Props = {
  * `postMessage`, pinned to this origin in both directions.
  */
 export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
-  { courseVersion, pagePath = "syllabus.html", inspecting, multipleSelection, courseChanged, codex, startingTopic, working, onSelection, onInspectCancelled, onStartRequested },
+  { courseId, courseVersion, pagePath = "syllabus.html", initialScrollTop = 0, inspecting, multipleSelection, courseChanged, codex, startingTopic, working, onSelection, onReadingPosition, onInspectCancelled, onStartRequested },
   ref,
 ) {
   const frame = useRef<HTMLIFrameElement | null>(null);
   const scrollTop = useRef(0);
+  const frameReady = useRef(false);
   const inspectingRef = useRef(inspecting);
   inspectingRef.current = inspecting;
 
@@ -54,25 +58,39 @@ export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
   }, [inspecting, post]);
 
   useEffect(() => {
-    scrollTop.current = 0;
-  }, [pagePath]);
+    frameReady.current = false;
+    scrollTop.current = initialScrollTop;
+  }, [courseId, pagePath]);
+
+  useEffect(() => {
+    scrollTop.current = initialScrollTop;
+    if (frameReady.current) post({ type: "scroll.restore", top: initialScrollTop });
+  }, [initialScrollTop, post]);
 
   useEffect(() => {
     const receive = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || event.data?.source !== "course-studio-preview") return;
+      if (
+        event.origin !== window.location.origin
+        || event.source !== frame.current?.contentWindow
+        || event.data?.source !== "course-studio-preview"
+      ) return;
       if (event.data.type === "ready") {
+        frameReady.current = true;
         // The page was replaced under us; put the reader back where they were.
         post({ type: "scroll.restore", top: scrollTop.current });
         post({ type: "inspect", active: inspectingRef.current });
       }
-      if (event.data.type === "scroll") scrollTop.current = Number(event.data.top) || 0;
+      if (event.data.type === "scroll") {
+        scrollTop.current = Number(event.data.top) || 0;
+        onReadingPosition(scrollTop.current, event.data.section as CourseSection | undefined);
+      }
       if (event.data.type === "selection") onSelection(event.data.selection as Selection);
       if (event.data.type === "inspect.cancelled") onInspectCancelled();
       if (event.data.type === "empty.start") onStartRequested();
     };
     window.addEventListener("message", receive);
     return () => window.removeEventListener("message", receive);
-  }, [onInspectCancelled, onSelection, onStartRequested, post]);
+  }, [onInspectCancelled, onReadingPosition, onSelection, onStartRequested, post]);
 
   return (
     <div className={`preview-stage ${inspecting ? "is-inspecting" : ""}`}>
