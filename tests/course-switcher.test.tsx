@@ -111,5 +111,36 @@ describe("course switching UI", () => {
     expect(html).toContain("Session 3 · Moral authority");
     expect(html).toContain("Course status");
     expect(html).toContain("Learning session by session");
+    expect(html).toContain('aria-label="Collapse course navigation"');
+  });
+
+  it("turns the course outline into a compact rail when collapsed", () => {
+    const html = renderToStaticMarkup(
+      <CourseNav
+        course={{
+          phase: "learning",
+          hasContent: true,
+          title: "Confucius",
+          topic: "Philosophy",
+          pages: [
+            { path: "session1.html", title: "Practice", kind: "lesson", sections: [] },
+          ],
+          sections: [],
+          upNext: [],
+        }}
+        activePage="session1.html"
+        activeSection={null}
+        working={false}
+        collapsed
+        onToggleCollapsed={() => {}}
+        onSelectPage={() => {}}
+        onSelectSection={() => {}}
+        onChooseTopic={() => {}}
+      />,
+    );
+
+    expect(html).toContain('aria-label="Open course navigation"');
+    expect(html).not.toContain(">Course</span>");
+    expect(html).not.toContain("Practice");
   });
 });

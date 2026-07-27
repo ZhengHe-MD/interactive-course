@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Chat, type ChatHandle } from "./components/Chat";
 import { CourseNav } from "./components/CourseNav";
 import { Preview, type PreviewHandle } from "./components/Preview";
@@ -7,6 +7,20 @@ import { Toolbar } from "./components/Toolbar";
 import { Welcome } from "./components/Welcome";
 import { useStudio } from "./ws";
 import type { CoursePage, CourseSection, Selection } from "./types";
+
+const DEFAULT_CHAT_WIDTH = 384;
+const MIN_CHAT_WIDTH = 320;
+const MAX_CHAT_WIDTH = 720;
+const MIN_COURSE_WIDTH = 320;
+const RESIZE_HANDLE_WIDTH = 7;
+
+function storedChatWidth() {
+  if (typeof window === "undefined") return DEFAULT_CHAT_WIDTH;
+  const width = Number(window.localStorage.getItem("course-studio-chat-width"));
+  return Number.isFinite(width)
+    ? Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, width))
+    : DEFAULT_CHAT_WIDTH;
+}
 
 export function App() {
   const { state, actions } = useStudio();
@@ -17,6 +31,13 @@ export function App() {
   const [multipleSelection, setMultipleSelection] = useState(false);
   const [selections, setSelections] = useState<Selection[]>([]);
   const [chatOpen, setChatOpen] = useState(true);
+  const [chatWidth, setChatWidth] = useState(storedChatWidth);
+  const [chatResizing, setChatResizing] = useState(false);
+  const [courseNavOpen, setCourseNavOpen] = useState(() => (
+    typeof window === "undefined"
+      ? true
+      : window.localStorage.getItem("course-studio-course-nav") !== "collapsed"
+  ));
   const [activePage, setActivePage] = useState("syllabus.html");
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
@@ -24,6 +45,8 @@ export function App() {
   const [startingNewCourse, setStartingNewCourse] = useState(false);
   const sawNewCourseEmpty = useRef(false);
   const syllabusCourse = useRef<string | null>(null);
+  const studioBody = useRef<HTMLDivElement | null>(null);
+  const resizingPointer = useRef<number | null>(null);
   const visiblePage = state.course.pages.find((page) => page.path === activePage)?.path
     ?? state.course.pages[0]?.path
     ?? activePage;
@@ -31,6 +54,37 @@ export function App() {
   const canInspect = state.course.hasContent && !startingNewCourse;
 
   const stopInspecting = useCallback(() => setInspecting(false), []);
+
+  useEffect(() => {
+    window.localStorage.setItem("course-studio-chat-width", String(chatWidth));
+  }, [chatWidth]);
+
+  useEffect(() => {
+    window.localStorage.setItem("course-studio-course-nav", courseNavOpen ? "expanded" : "collapsed");
+  }, [courseNavOpen]);
+
+  const availableChatWidth = useCallback(() => {
+    const body = studioBody.current;
+    if (!body) return MAX_CHAT_WIDTH;
+    const bodyWidth = body.getBoundingClientRect().width;
+    if (bodyWidth <= 780) return MAX_CHAT_WIDTH;
+    const navWidth = body.querySelector<HTMLElement>(".course-nav")?.getBoundingClientRect().width ?? 0;
+    return Math.max(
+      MIN_CHAT_WIDTH,
+      Math.min(MAX_CHAT_WIDTH, bodyWidth - navWidth - MIN_COURSE_WIDTH - RESIZE_HANDLE_WIDTH),
+    );
+  }, []);
+
+  const updateChatWidth = useCallback((width: number) => {
+    setChatWidth(Math.min(availableChatWidth(), Math.max(MIN_CHAT_WIDTH, width)));
+  }, [availableChatWidth]);
+
+  useEffect(() => {
+    const fitChatToWindow = () => setChatWidth((width) => Math.min(width, availableChatWidth()));
+    window.addEventListener("resize", fitChatToWindow);
+    fitChatToWindow();
+    return () => window.removeEventListener("resize", fitChatToWindow);
+  }, [availableChatWidth, courseNavOpen]);
 
   // The course can disappear under us (a revert back to the blank canvas).
   useEffect(() => {
@@ -215,7 +269,18 @@ export function App() {
       : state.course;
 
   return (
-    <div className={`studio-shell ${chatOpen ? "chat-is-open" : "chat-is-closed"}`}>
+    <div
+      className={[
+        "studio-shell",
+        chatOpen ? "chat-is-open" : "chat-is-closed",
+        courseNavOpen ? "course-nav-is-open" : "course-nav-is-closed",
+        chatResizing ? "chat-is-resizing" : "",
+      ].join(" ")}
+      style={{
+        "--chat-width": `${chatWidth}px`,
+        "--course-nav-width": courseNavOpen ? "236px" : "52px",
+      } as CSSProperties}
+    >
       <Toolbar
         courseTitle={displayCourse.title}
         courseId={state.courseId}
@@ -233,12 +298,14 @@ export function App() {
         onRevert={actions.revert}
       />
 
-      <div className="studio-body">
+      <div className="studio-body" ref={studioBody}>
         <CourseNav
           course={displayCourse}
           activePage={visiblePage}
           activeSection={activeSection}
           working={state.working}
+          collapsed={!courseNavOpen}
+          onToggleCollapsed={() => setCourseNavOpen((open) => !open)}
           onSelectPage={onSelectPage}
           onSelectSection={onSelectSection}
           onChooseTopic={() => chat.current?.focusComposer()}
@@ -260,6 +327,56 @@ export function App() {
             onStartRequested={() => chat.current?.focusComposer()}
           />
         </main>
+
+        <div
+          className="chat-resizer"
+          role="separator"
+          aria-label="Resize chat panel"
+          aria-orientation="vertical"
+          aria-valuemin={MIN_CHAT_WIDTH}
+          aria-valuemax={MAX_CHAT_WIDTH}
+          aria-valuenow={Math.round(chatWidth)}
+          tabIndex={chatOpen ? 0 : -1}
+          title="Drag to resize chat · Double-click to reset"
+          onDoubleClick={() => updateChatWidth(DEFAULT_CHAT_WIDTH)}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowLeft") {
+              event.preventDefault();
+              updateChatWidth(chatWidth + (event.shiftKey ? 48 : 16));
+            } else if (event.key === "ArrowRight") {
+              event.preventDefault();
+              updateChatWidth(chatWidth - (event.shiftKey ? 48 : 16));
+            } else if (event.key === "Home") {
+              event.preventDefault();
+              updateChatWidth(MIN_CHAT_WIDTH);
+            } else if (event.key === "End") {
+              event.preventDefault();
+              updateChatWidth(MAX_CHAT_WIDTH);
+            }
+          }}
+          onPointerDown={(event) => {
+            resizingPointer.current = event.pointerId;
+            event.currentTarget.setPointerCapture(event.pointerId);
+            setChatResizing(true);
+          }}
+          onPointerMove={(event) => {
+            if (resizingPointer.current !== event.pointerId) return;
+            const body = studioBody.current;
+            if (body) updateChatWidth(body.getBoundingClientRect().right - event.clientX);
+          }}
+          onPointerUp={(event) => {
+            if (resizingPointer.current !== event.pointerId) return;
+            resizingPointer.current = null;
+            event.currentTarget.releasePointerCapture(event.pointerId);
+            setChatResizing(false);
+          }}
+          onPointerCancel={() => {
+            resizingPointer.current = null;
+            setChatResizing(false);
+          }}
+        >
+          <span />
+        </div>
 
         <Chat
           ref={chat}

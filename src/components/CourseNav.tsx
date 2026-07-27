@@ -1,4 +1,4 @@
-import { BookOpen, CircleHelp, FileText, LockKeyhole, Sparkles } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, CircleHelp, FileText, LockKeyhole, Sparkles } from "lucide-react";
 import type { CourseOutline, CoursePage, CourseSection } from "../types";
 
 type Props = {
@@ -6,12 +6,24 @@ type Props = {
   activePage: string;
   activeSection: string | null;
   working: boolean;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
   onSelectPage: (page: CoursePage) => void;
   onSelectSection: (section: CourseSection) => void;
   onChooseTopic: () => void;
 };
 
-export function CourseNav({ course, activePage, activeSection, working, onSelectPage, onSelectSection, onChooseTopic }: Props) {
+export function CourseNav({
+  course,
+  activePage,
+  activeSection,
+  working,
+  collapsed = false,
+  onToggleCollapsed = () => undefined,
+  onSelectPage,
+  onSelectSection,
+  onChooseTopic,
+}: Props) {
   const empty = !course.hasContent;
   const page = course.pages.find((entry) => entry.path === activePage) ?? course.pages[0];
   const sections: CourseSection[] = page?.sections.length
@@ -22,9 +34,34 @@ export function CourseNav({ course, activePage, activeSection, working, onSelect
   const key = (section: CourseSection) => section.id ?? `index-${section.index}`;
   const current = activeSection ?? (sections[0] ? key(sections[0]) : null);
 
+  if (collapsed) {
+    return (
+      <aside className="course-nav collapsed" aria-label="Course navigation">
+        <button
+          className="collapsed-course-nav-button"
+          onClick={onToggleCollapsed}
+          aria-label="Open course navigation"
+          title="Open course navigation"
+        >
+          <span className="course-nav-toggle-icon"><ChevronRight size={15} /></span>
+        </button>
+      </aside>
+    );
+  }
+
   return (
     <aside className="course-nav">
-      <div className="nav-kicker">Course materials</div>
+      <div className="course-nav-header">
+        <div className="nav-kicker">Course materials</div>
+        <button
+          className="course-nav-collapse-button"
+          onClick={onToggleCollapsed}
+          aria-label="Collapse course navigation"
+          title="Collapse course navigation"
+        >
+          <ChevronLeft size={16} />
+        </button>
+      </div>
       <div className="course-identity">
         <span className={`course-status-dot ${working ? "working" : ""}`} />
         <h1>{course.title}</h1>
