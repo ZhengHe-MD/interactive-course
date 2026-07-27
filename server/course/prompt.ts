@@ -1,5 +1,8 @@
-import type { Selection } from "../../shared/protocol";
-import type { CoursePhase } from "./CourseManager";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { CoursePhase, Selection } from "../../shared/protocol";
+import type { UserInput } from "../codex/types";
 
 export type SelectionContext = Selection;
 
@@ -43,8 +46,37 @@ ${courseState}
 Default to editing the course files so substantive answers live in the course, not only in chat. If the learner explicitly asks for a chat-only or meta answer, respect that request and leave the course unchanged. Preserve working interactions and the course's visual language. Use only plain HTML, CSS, and JavaScript; this course has no build step. Do not run git or create commits—the studio checkpoints the result. Finish with a brief learner-facing note describing what changed and where.`;
 }
 
-export function selectionInputs(selections: SelectionContext[]) {
-  return selections
-    .filter((selection) => selection.screenshot?.startsWith("data:image/"))
-    .map((selection) => ({ type: "image" as const, url: selection.screenshot! }));
+const IMAGE_DATA_URL = /^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/;
+
+export type SelectionImages = {
+  inputs: UserInput[];
+  /** Removes the temp files. Safe to call more than once. */
+  cleanup: () => Promise<void>;
+};
+
+/**
+ * Turn selection screenshots into turn inputs. `app-server` takes images as
+ * paths on disk, so each data URL is written to a short-lived temp file that the
+ * caller disposes of once the turn has been accepted.
+ */
+export async function writeSelectionImages(selections: SelectionContext[]): Promise<SelectionImages> {
+  const shots = selections
+    .map((selection) => IMAGE_DATA_URL.exec(selection.screenshot ?? ""))
+    .filter((match): match is RegExpExecArray => Boolean(match));
+
+  if (shots.length === 0) return { inputs: [], cleanup: async () => {} };
+
+  const directory = await mkdtemp(join(tmpdir(), "course-studio-"));
+  const inputs: UserInput[] = [];
+  for (const [index, shot] of shots.entries()) {
+    const extension = shot[1] === "jpg" ? "jpeg" : shot[1];
+    const path = join(directory, `selection-${index + 1}.${extension}`);
+    await writeFile(path, Buffer.from(shot[2], "base64"));
+    inputs.push({ type: "localImage", path });
+  }
+
+  return {
+    inputs,
+    cleanup: () => rm(directory, { recursive: true, force: true }),
+  };
 }

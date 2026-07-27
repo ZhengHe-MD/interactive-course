@@ -3,7 +3,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { CourseManager } from "../server/course/CourseManager";
+import { CourseManager, deriveMeta } from "../server/course/CourseManager";
 
 const managers: CourseManager[] = [];
 
@@ -11,10 +11,15 @@ afterEach(async () => {
   await Promise.all(managers.splice(0).map((manager) => manager.close()));
 });
 
+async function repository() {
+  const root = await mkdtemp(join(tmpdir(), "course-studio-test-"));
+  execFileSync("mkdir", ["-p", "courses/demo"], { cwd: root });
+  return root;
+}
+
 describe("CourseManager", () => {
   it("detects empty, syllabus, and learning phases from the course directory", async () => {
-    const root = await mkdtemp(join(tmpdir(), "course-studio-test-"));
-    execFileSync("mkdir", ["-p", "courses/demo"], { cwd: root });
+    const root = await repository();
     const manager = new CourseManager(root, "courses/demo");
     managers.push(manager);
 
@@ -23,6 +28,73 @@ describe("CourseManager", () => {
     expect(await manager.getCoursePhase()).toBe("syllabus");
     await writeFile(join(root, "courses/demo/index.html"), "<h1>Lesson one</h1>");
     expect(await manager.getCoursePhase()).toBe("learning");
+  });
+
+  it("reports an unborn course rather than inventing an outline", async () => {
+    const root = await repository();
+    const manager = new CourseManager(root, "courses/demo");
+    managers.push(manager);
+
+    const outline = await manager.getOutline();
+    expect(outline.hasContent).toBe(false);
+    expect(outline.phase).toBe("empty");
+    expect(outline.sections).toEqual([]);
+    expect(outline.upNext).toEqual([]);
+  });
+
+  it("derives the outline from the course HTML", async () => {
+    const root = await repository();
+    const manager = new CourseManager(root, "courses/demo");
+    managers.push(manager);
+
+    await writeFile(
+      join(root, "courses/demo/index.html"),
+      `<title>Silicon to CPU — Syllabus</title>
+       <meta name="course-studio-phase" content="syllabus">
+       <h1>From Silicon to a Simple CPU</h1>
+       <h2 id="outcomes">What you'll be able to <em>do</em></h2>
+       <h2>The learning path</h2>`,
+    );
+
+    const outline = await manager.getOutline();
+    expect(outline.phase).toBe("syllabus");
+    expect(outline.hasContent).toBe(true);
+    expect(outline.title).toBe("From Silicon to a Simple CPU");
+    expect(outline.topic).toBe("Proposed syllabus");
+    expect(outline.sections).toEqual([
+      { id: "outcomes", index: 0, label: "What you'll be able to do" },
+      { id: undefined, index: 1, label: "The learning path" },
+    ]);
+  });
+
+  it("lets an optional course.json name lessons that do not exist yet", async () => {
+    const root = await repository();
+    const manager = new CourseManager(root, "courses/demo");
+    managers.push(manager);
+
+    await writeFile(join(root, "courses/demo/index.html"), "<h1>Lesson one</h1>");
+    await writeFile(
+      join(root, "courses/demo/course.json"),
+      JSON.stringify({ title: "Bayes, for you", topic: "Probability", upNext: ["Naive Bayes", 7] }),
+    );
+
+    const outline = await manager.getOutline();
+    expect(outline.title).toBe("Bayes, for you");
+    expect(outline.topic).toBe("Probability");
+    expect(outline.upNext).toEqual(["Naive Bayes"]);
+  });
+
+  it("survives a course.json the agent wrote badly", async () => {
+    const root = await repository();
+    const manager = new CourseManager(root, "courses/demo");
+    managers.push(manager);
+
+    await writeFile(join(root, "courses/demo/index.html"), "<h1>Lesson one</h1>");
+    await writeFile(join(root, "courses/demo/course.json"), "{ not json at all");
+
+    const outline = await manager.getOutline();
+    expect(outline.title).toBe("Lesson one");
+    expect(outline.upNext).toEqual([]);
   });
 
   it("checkpoints course edits and restores the previous course state", async () => {
@@ -46,6 +118,10 @@ describe("CourseManager", () => {
     expect(reverted?.label).toBe("Reverted “Made the title concrete”");
     expect(await readFile(join(root, "courses/demo/index.html"), "utf8")).toBe("<h1>First</h1>\n");
     await expect(readFile(join(root, "courses/demo/stray.html"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+
+    // Undo is itself undoable: the reverted state is a checkpoint, not a rewrite.
+    const labels = (await manager.listCheckpoints(3)).map(({ label }) => label);
+    expect(labels).toEqual(["Reverted “Made the title concrete”", "Made the title concrete", "feat: add demo course"]);
   });
 
   it("records a checkpoint for a successful turn with no file edits", async () => {
@@ -63,5 +139,23 @@ describe("CourseManager", () => {
 
     expect(checkpoint?.label).toBe("Answered in chat");
     expect((await manager.listCheckpoints(2)).map(({ label }) => label)).toEqual(["Answered in chat", "feat: add demo course"]);
+  });
+});
+
+describe("deriveMeta", () => {
+  it("prefers an explicit course title, then the first h1, then the document title", () => {
+    expect(deriveMeta('<meta name="course-title" content="Named"><h1>Heading</h1>').title).toBe("Named");
+    expect(deriveMeta("<h1>Heading</h1><title>Document</title>").title).toBe("Heading");
+    expect(deriveMeta("<title>Document</title><p>no headings</p>").title).toBe("Document");
+    expect(deriveMeta("<p>nothing at all</p>").title).toBe("Untitled course");
+  });
+
+  it("keeps heading ids where they exist and positions where they do not", () => {
+    const html = "<h2 id='a'>Intro</h2><h2>Middle</h2><h2 id='c'>The <em>hard</em> part</h2>";
+    expect(deriveMeta(html).sections).toEqual([
+      { id: "a", index: 0, label: "Intro" },
+      { id: undefined, index: 1, label: "Middle" },
+      { id: "c", index: 2, label: "The hard part" },
+    ]);
   });
 });
