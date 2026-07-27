@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="course-studio-phase" content="syllabus">
-  <title>Confucius Reconsidered — A Three-Session Survey</title>
+  <meta name="course-studio-phase" content="learning">
+  <title>Becoming Human Through Practice — Confucius Reconsidered</title>
   <style>
     :root {
       color-scheme: light;
@@ -208,6 +208,202 @@
       font-size: 0.93rem;
     }
 
+    .lesson-progress {
+      height: 3px;
+      margin-bottom: 26px;
+      overflow: hidden;
+      border-radius: 2px;
+      background: var(--paper-deep);
+    }
+
+    .lesson-progress span {
+      display: block;
+      width: 0;
+      height: 100%;
+      background: var(--red);
+      transition: width 240ms ease;
+    }
+
+    .passage {
+      margin: 26px 0;
+      padding: 24px 26px;
+      border: 1px solid var(--line);
+      background: rgba(255, 253, 248, 0.78);
+    }
+
+    .passage blockquote {
+      margin: 0;
+      font-size: 1.38rem;
+      line-height: 1.55;
+    }
+
+    .passage figcaption {
+      margin-top: 12px;
+      color: var(--muted);
+      font-family: system-ui, sans-serif;
+      font-size: 0.8rem;
+    }
+
+    .translation {
+      margin-bottom: 0;
+      color: #554d44;
+      font-style: italic;
+    }
+
+    .question-card {
+      margin-top: 28px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: rgba(255, 253, 248, 0.76);
+    }
+
+    .question-label {
+      margin: 0 0 7px;
+      color: var(--red);
+      font-family: system-ui, sans-serif;
+      font-size: 0.72rem;
+      font-weight: 750;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .question-card h3 {
+      margin: 0;
+      font-size: 1.12rem;
+    }
+
+    .choices {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .choice {
+      width: 100%;
+      padding: 13px 15px;
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      background: var(--white);
+      color: var(--ink);
+      cursor: pointer;
+      font: inherit;
+      line-height: 1.45;
+      text-align: left;
+    }
+
+    .choice:hover {
+      border-color: #a99582;
+      background: #fffaf1;
+    }
+
+    .choice[aria-pressed="true"] {
+      border-color: var(--red);
+      box-shadow: inset 3px 0 0 var(--red);
+    }
+
+    .feedback {
+      min-height: 1.5em;
+      margin: 16px 0 0;
+      color: var(--green);
+      font-weight: 600;
+    }
+
+    .feedback:empty {
+      display: none;
+    }
+
+    .concept-map {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin: 26px 0 0;
+    }
+
+    .concept-button {
+      min-height: 112px;
+      padding: 16px 10px;
+      border: 1px solid var(--line);
+      border-radius: 50% 50% 46% 54% / 46% 54% 48% 52%;
+      background: rgba(255, 253, 248, 0.72);
+      color: var(--ink);
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .concept-button strong {
+      display: block;
+      color: var(--red);
+      font-size: 1.7rem;
+      font-weight: 500;
+    }
+
+    .concept-button span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-family: system-ui, sans-serif;
+      font-size: 0.74rem;
+    }
+
+    .concept-button[aria-pressed="true"] {
+      border-color: var(--green);
+      background: #e7ece5;
+      box-shadow: 0 0 0 3px rgba(72, 100, 87, 0.12);
+    }
+
+    .concept-detail {
+      min-height: 7.2em;
+      margin-top: 16px;
+      padding: 18px 20px;
+      border-left: 3px solid var(--green);
+      background: rgba(255, 253, 248, 0.64);
+    }
+
+    .concept-detail h3 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;
+    }
+
+    .concept-detail p {
+      margin: 0;
+    }
+
+    .interpretive-caution {
+      margin-top: 24px;
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+
+    .synthesis {
+      padding: 22px 24px;
+      border-left: 3px solid var(--red);
+      background: var(--red-soft);
+      font-size: 1.05rem;
+    }
+
+    .up-next-grid {
+      display: grid;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .up-next-item {
+      padding: 18px 20px;
+      border: 1px solid var(--line);
+      background: rgba(255, 253, 248, 0.48);
+    }
+
+    .up-next-item p {
+      margin: 6px 0 0;
+      color: var(--muted);
+    }
+
+    .up-next-item h3 {
+      margin: 0;
+      font-size: 1.02rem;
+    }
+
     @media (max-width: 560px) {
       main {
         width: min(100% - 28px, 66ch);
@@ -222,117 +418,228 @@
         position: static;
         margin-bottom: 12px;
       }
+
+      .concept-map {
+        grid-template-columns: 1fr;
+      }
+
+      .concept-button {
+        min-height: auto;
+        border-radius: 4px;
+      }
     }
   </style>
 </head>
 <body>
   <main>
     <header>
-      <p class="eyebrow">A 15-minute university-style survey</p>
-      <h1>Confucius, <span lang="zh-Hans">重新认识</span></h1>
+      <div class="lesson-progress" aria-hidden="true"><span id="progress-bar"></span></div>
+      <p class="eyebrow">Session 1 of 3 · about 5 minutes</p>
+      <h1>Becoming human <span>through practice</span></h1>
       <p class="lede">
-        You have met the familiar sayings before. This short course steps behind them:
-        it asks what kind of person, relationship, and political order Confucius thought
-        could be cultivated—and where his answers still invite argument.
+        You probably remember the words <span lang="zh-Hans">仁、礼、君子</span>.
+        The harder question is how they fit together: is virtue an inner feeling,
+        an outward performance, or a character slowly formed by both?
       </p>
-      <div class="course-facts" aria-label="Course facts">
-        <span><strong>3</strong> sessions</span>
-        <span><strong>5 minutes</strong> each</span>
-        <span><strong>Level:</strong> university survey</span>
-        <span><strong>Prior knowledge:</strong> Chinese high school</span>
+      <div class="course-facts" aria-label="Lesson facts">
+        <span><strong>Question:</strong> Can practicing forms make us humane?</span>
+        <span><strong>Text:</strong> <cite>Analects</cite> 12.1</span>
       </div>
     </header>
 
-    <section aria-labelledby="approach">
-      <h2 id="approach">Our approach</h2>
+    <section aria-labelledby="familiar-line">
+      <h2 id="familiar-line">Make a familiar line strange</h2>
       <p>
-        Rather than treating <span lang="zh-Hans">仁、礼、君子</span> as definitions to
-        memorize, we will treat them as parts of one philosophical system. Each session
-        starts with a tension, uses a short passage from the <cite>Analects</cite>, and
-        ends with one decision that tests your interpretation.
+        When Yan Hui asks about <span lang="zh-Hans">仁</span>, Confucius does not define
+        it as a feeling. He answers with an action:
       </p>
-      <aside class="note">
-        <strong>Designed for your background.</strong> Key terms will appear in Chinese
-        alongside concise English analysis. Familiar schoolbook readings will be
-        acknowledged, then complicated—not taught from zero.
-      </aside>
+      <figure class="passage">
+        <blockquote lang="zh-Hans">“克己复礼为仁。一日克己复礼，天下归仁焉。为仁由己，而由人乎哉？”</blockquote>
+        <figcaption>《论语·颜渊》12.1</figcaption>
+        <p class="translation">
+          “To discipline the self and return to ritual propriety is to become humane…
+          Becoming humane depends on oneself—could it depend on others?”
+        </p>
+      </figure>
+      <p>
+        <span lang="zh-Hans">克己</span> need not mean erasing individuality, and
+        <span lang="zh-Hans">礼</span> is wider than ceremonies or polite manners. It
+        includes learned forms for inhabiting roles—how one speaks, listens, mourns,
+        disagrees, and shows regard.
+      </p>
+
+      <div class="question-card" data-question="reading">
+        <p class="question-label">Quick interpretation</p>
+        <h3 id="reading-question">What is the most philosophically useful reading of the line?</h3>
+        <div class="choices" role="group" aria-labelledby="reading-question">
+          <button class="choice" type="button" data-answer="obedience" aria-pressed="false">
+            Suppress personal desires and obey inherited rules.
+          </button>
+          <button class="choice" type="button" data-answer="practice" aria-pressed="false">
+            Regulate self-centered impulses through shared practices until humane conduct becomes characteristic.
+          </button>
+          <button class="choice" type="button" data-answer="feeling" aria-pressed="false">
+            Feel sincere concern; outward forms are secondary.
+          </button>
+        </div>
+        <p class="feedback" id="reading-feedback" aria-live="polite"></p>
+      </div>
     </section>
 
-    <section aria-labelledby="course-arc">
-      <h2 id="course-arc">The three-session arc</h2>
-      <div class="arc">
-        <article class="session">
-          <span class="number" aria-hidden="true">01</span>
-          <h3 id="session-one">Becoming human through practice</h3>
-          <p class="question">Are we good first, or do repeated forms make us good?</p>
-          <p class="concepts">
-            Core ideas: <span lang="zh-Hans">仁</span> (humaneness),
-            <span lang="zh-Hans">礼</span> (ritual propriety),
-            <span lang="zh-Hans">君子</span> (exemplary person)
+    <section aria-labelledby="three-part-system">
+      <h2 id="three-part-system">One system, not three vocabulary words</h2>
+      <p>Select each term. Notice that none is complete by itself.</p>
+      <div class="concept-map" role="group" aria-label="Explore the three connected concepts">
+        <button class="concept-button" type="button" data-concept="ren" aria-pressed="true">
+          <strong lang="zh-Hans">仁</strong>
+          <span>ethical direction</span>
+        </button>
+        <button class="concept-button" type="button" data-concept="li" aria-pressed="false">
+          <strong lang="zh-Hans">礼</strong>
+          <span>practiced form</span>
+        </button>
+        <button class="concept-button" type="button" data-concept="junzi" aria-pressed="false">
+          <strong lang="zh-Hans">君子</strong>
+          <span>cultivated character</span>
+        </button>
+      </div>
+      <div class="concept-detail" id="concept-detail" aria-live="polite">
+        <div data-concept-panel="ren">
+          <h3><span lang="zh-Hans">仁</span> gives practice its ethical direction</h3>
+          <p>
+            Often translated “humaneness,” <span lang="zh-Hans">仁</span> is a way of
+            attending and responding well to other people—not merely warm feeling.
+            Without it, correct ritual can become empty performance.
           </p>
-          <details>
-            <summary>Preview the five-minute route</summary>
-            <ol>
-              <li>Recall a familiar saying—and question its usual reading.</li>
-              <li>Build the relationship between <span lang="zh-Hans">仁</span> and <span lang="zh-Hans">礼</span>.</li>
-              <li>Choose how a <span lang="zh-Hans">君子</span> would respond to a concrete social moment.</li>
-            </ol>
-          </details>
-        </article>
+        </div>
+        <div data-concept-panel="li" hidden>
+          <h3><span lang="zh-Hans">礼</span> makes ethical concern concrete</h3>
+          <p>
+            Ritual propriety supplies learned, public forms for respect: timing,
+            gesture, language, and role-sensitive conduct. Without
+            <span lang="zh-Hans">仁</span>, it is hollow; with
+            <span lang="zh-Hans">仁</span>, it trains concern into reliable action.
+          </p>
+        </div>
+        <div data-concept-panel="junzi" hidden>
+          <h3><span lang="zh-Hans">君子</span> is the cultivated result—and the continuing project</h3>
+          <p>
+            The exemplary person is not noble by birth and not morally finished. A
+            <span lang="zh-Hans">君子</span> repeatedly aligns humane attention with
+            fitting form, then becomes an example from whom others can learn.
+          </p>
+        </div>
+      </div>
+      <p class="interpretive-caution">
+        A university-level caution: the <cite>Analects</cite> does not present a tidy
+        theory with fixed technical definitions. This map is a reconstruction from
+        recurring patterns in the text.
+      </p>
+    </section>
 
-        <article class="session">
-          <span class="number" aria-hidden="true">02</span>
-          <h3 id="session-two">The self inside relationships</h3>
-          <p class="question">Can partial duties to family produce an ethical society?</p>
-          <p class="concepts">
-            Core ideas: <span lang="zh-Hans">孝</span> (filiality),
-            <span lang="zh-Hans">忠恕</span> (doing one’s utmost and sympathetic understanding),
-            <span lang="zh-Hans">正名</span> (rectifying names)
-          </p>
-          <details>
-            <summary>Preview the five-minute route</summary>
-            <ol>
-              <li>Map the Confucian self as a web of roles, not an isolated individual.</li>
-              <li>Test whether <span lang="zh-Hans">孝</span> conflicts with impartial justice.</li>
-              <li>Use <span lang="zh-Hans">正名</span> to diagnose a breakdown in responsibility.</li>
-            </ol>
-          </details>
-        </article>
+    <section aria-labelledby="practice">
+      <h2 id="practice">Test the system in a social moment</h2>
+      <p>
+        In a seminar, the professor mistakenly praises you for an idea your classmate
+        introduced moments earlier. What response best combines
+        <span lang="zh-Hans">仁</span> and <span lang="zh-Hans">礼</span>?
+      </p>
+      <div class="question-card" data-question="scenario">
+        <p class="question-label">Your decision</p>
+        <h3 id="scenario-question">Choose the response you would defend.</h3>
+        <div class="choices" role="group" aria-labelledby="scenario-question">
+          <button class="choice" type="button" data-answer="silent" aria-pressed="false">
+            Say nothing. Correcting a professor publicly would violate respectful form.
+          </button>
+          <button class="choice" type="button" data-answer="blunt" aria-pressed="false">
+            Interrupt: “That’s wrong—it wasn’t my idea.” Truth matters more than form.
+          </button>
+          <button class="choice" type="button" data-answer="redirect" aria-pressed="false">
+            Say: “That was Xiaolin’s point; I learned from it too,” returning credit without humiliating anyone.
+          </button>
+        </div>
+        <p class="feedback" id="scenario-feedback" aria-live="polite"></p>
+      </div>
+    </section>
 
-        <article class="session">
-          <span class="number" aria-hidden="true">03</span>
-          <h3 id="session-three">Moral authority and political order</h3>
-          <p class="question">Can exemplary conduct govern more effectively than rules and punishment?</p>
-          <p class="concepts">
-            Core ideas: <span lang="zh-Hans">德</span> (moral power),
-            <span lang="zh-Hans">为政以德</span> (governing through virtue),
-            education and the Confucian legacy
-          </p>
-          <details>
-            <summary>Preview the five-minute route</summary>
-            <ol>
-              <li>Contrast moral example with coercive government.</li>
-              <li>Read Confucius charitably, then raise the strongest modern objection.</li>
-              <li>Assemble one concept map connecting person, relationship, and state.</li>
-            </ol>
-          </details>
+    <section aria-labelledby="synthesis">
+      <h2 id="synthesis">The one-sentence synthesis</h2>
+      <p class="synthesis">
+        <span lang="zh-Hans">仁</span> supplies humane orientation;
+        <span lang="zh-Hans">礼</span> gives that orientation repeatable social form;
+        the <span lang="zh-Hans">君子</span> is the person whose repeated practice has
+        made the two mutually reinforcing.
+      </p>
+      <p>
+        This avoids two thin readings of Confucius: virtue is neither private sincerity
+        alone nor mechanical conformity alone. The philosophical wager is that
+        well-practiced forms can reshape attention, desire, and character.
+      </p>
+    </section>
+
+    <section aria-labelledby="up-next">
+      <h2 id="up-next">Up next</h2>
+      <div class="up-next-grid">
+        <article class="up-next-item">
+          <h3 id="session-two">Session 2 · The self inside relationships</h3>
+          <p><span lang="zh-Hans">孝、忠恕、正名</span> — can family partiality support justice?</p>
+        </article>
+        <article class="up-next-item">
+          <h3 id="session-three">Session 3 · Moral authority and political order</h3>
+          <p><span lang="zh-Hans">德、为政以德</span> — can example govern better than punishment?</p>
         </article>
       </div>
     </section>
 
-    <section aria-labelledby="outcomes">
-      <h2 id="outcomes">By the end</h2>
-      <ul class="outcomes">
-        <li>Explain how the major concepts support one another instead of reciting them separately.</li>
-        <li>Interpret a short <cite>Analects</cite> passage with attention to philosophical tension.</li>
-        <li>Distinguish Confucius’s own project from later slogans associated with “Confucianism.”</li>
-        <li>Form a defensible view of one strength and one limitation in his ethical vision.</li>
-      </ul>
-    </section>
-
-    <p class="closing">
-      Next: Session 1 will begin with a saying you probably remember, then make it strange again.
-    </p>
+    <p class="closing">Session 1 is complete when you can explain why Confucius needs both inner orientation and outward form.</p>
   </main>
+
+  <script>
+    const completedQuestions = new Set();
+
+    const feedback = {
+      obedience: "Too narrow. This turns self-discipline into submission and treats 礼 as fixed rules, missing its role in cultivating perception and response.",
+      practice: "Strongest reading. The point is not a single obedient act but self-cultivation through practices that make humane response more reliable.",
+      feeling: "Only half the system. Sincere concern matters, but Confucius distrusts virtue that never acquires an appropriate, shareable form.",
+      silent: "礼 without enough 仁: the form protects hierarchy, but neglects your classmate and allows a false attribution to stand.",
+      blunt: "仁’s concern for fairness is present, but the form is needlessly damaging. A Confucian response asks whether truth can be expressed more fittingly.",
+      redirect: "Best integration: concern restores your classmate’s standing, while tact preserves the relationships involved. 礼 is doing ethical work, not hiding the truth."
+    };
+
+    function updateProgress() {
+      const percentage = completedQuestions.size * 50;
+      document.getElementById("progress-bar").style.width = percentage + "%";
+    }
+
+    function selectAnswer(card, selectedButton) {
+      card.querySelectorAll(".choice").forEach(function (button) {
+        button.setAttribute("aria-pressed", "false");
+      });
+      selectedButton.setAttribute("aria-pressed", "true");
+      card.querySelector(".feedback").textContent = feedback[selectedButton.dataset.answer];
+      completedQuestions.add(card.dataset.question);
+      updateProgress();
+    }
+
+    document.querySelectorAll(".question-card").forEach(function (card) {
+      card.querySelectorAll(".choice").forEach(function (button) {
+        button.addEventListener("click", function () {
+          selectAnswer(card, button);
+        });
+      });
+    });
+
+    document.querySelectorAll(".concept-button").forEach(function (button) {
+      button.addEventListener("click", function () {
+        document.querySelectorAll(".concept-button").forEach(function (item) {
+          item.setAttribute("aria-pressed", "false");
+        });
+        button.setAttribute("aria-pressed", "true");
+        document.querySelectorAll("[data-concept-panel]").forEach(function (panel) {
+          panel.hidden = panel.dataset.conceptPanel !== button.dataset.concept;
+        });
+      });
+    });
+  </script>
 </body>
 </html>
