@@ -25,8 +25,8 @@ export function App() {
     if (!canInspect) setInspecting(false);
   }, [canInspect]);
 
-  // Alt anywhere in the studio is the same "peek at the DOM" gesture the course
-  // page offers; mirroring it here keeps the shortcut from feeling half-wired.
+  // The preview bridge handles Escape inside the course page; this covers the
+  // same key when focus is anywhere in the studio chrome.
   useEffect(() => {
     const cancel = (event: KeyboardEvent) => {
       if (event.key === "Escape" && inspecting) setInspecting(false);
