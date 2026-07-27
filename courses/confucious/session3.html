@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="course-studio-phase" content="learning">
+  <meta name="course-studio-page" content="lesson">
+  <meta name="course-page-title" content="Moral authority and political order">
+  <title>Moral Authority and Political Order — Confucius Reconsidered</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f7f2e8;
+      --paper-deep: #eee5d5;
+      --ink: #2f2a24;
+      --muted: #756b5f;
+      --line: #d8cbbb;
+      --red: #963e32;
+      --red-soft: #ead7d0;
+      --green: #486457;
+      --green-soft: #e7ece5;
+      --white: #fffdf8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(90deg, rgba(150, 62, 50, 0.045) 1px, transparent 1px),
+        var(--paper);
+      background-size: min(9vw, 88px) 100%;
+      color: var(--ink);
+      font-family: Georgia, "Noto Serif SC", "Songti SC", serif;
+      line-height: 1.68;
+    }
+
+    main {
+      width: min(100% - 40px, 66ch);
+      margin: 0 auto;
+      padding: 72px 0 88px;
+    }
+
+    .eyebrow,
+    .question-label,
+    .domain,
+    button {
+      font-family: system-ui, sans-serif;
+    }
+
+    .eyebrow {
+      margin: 0 0 18px;
+      color: var(--red);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3 {
+      line-height: 1.18;
+      text-wrap: balance;
+    }
+
+    h1 {
+      max-width: 13ch;
+      margin: 0;
+      font-size: clamp(2.7rem, 9vw, 5.4rem);
+      font-weight: 500;
+      letter-spacing: -0.045em;
+    }
+
+    h1 span {
+      color: var(--red);
+      font-family: "Noto Serif SC", "Songti SC", serif;
+      font-weight: 400;
+    }
+
+    h2 {
+      margin: 0 0 18px;
+      font-size: 1.7rem;
+      font-weight: 600;
+    }
+
+    h3 {
+      font-size: 1.12rem;
+    }
+
+    .lede {
+      max-width: 58ch;
+      margin: 28px 0 0;
+      color: #4e463d;
+      font-size: 1.15rem;
+    }
+
+    .course-facts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 24px;
+      margin: 32px 0 0;
+      padding: 18px 0;
+      border-block: 1px solid var(--line);
+      color: var(--muted);
+      font-family: system-ui, sans-serif;
+      font-size: 0.84rem;
+    }
+
+    .course-facts strong {
+      color: var(--ink);
+      font-weight: 650;
+    }
+
+    section {
+      margin-top: 64px;
+    }
+
+    .lesson-progress {
+      height: 3px;
+      margin-bottom: 26px;
+      overflow: hidden;
+      border-radius: 2px;
+      background: var(--paper-deep);
+    }
+
+    .lesson-progress span {
+      display: block;
+      width: 0;
+      height: 100%;
+      background: var(--red);
+      transition: width 240ms ease;
+    }
+
+    .passage {
+      margin: 26px 0;
+      padding: 24px 26px;
+      border: 1px solid var(--line);
+      background: rgba(255, 253, 248, 0.78);
+    }
+
+    .passage blockquote {
+      margin: 0;
+      font-size: 1.2rem;
+      line-height: 1.72;
+    }
+
+    .passage figcaption {
+      margin-top: 12px;
+      color: var(--muted);
+      font-family: system-ui, sans-serif;
+      font-size: 0.8rem;
+    }
+
+    .translation {
+      margin-bottom: 0;
+      color: #554d44;
+      font-style: italic;
+    }
+
+    .comparison {
+      margin-top: 28px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: rgba(255, 253, 248, 0.76);
+    }
+
+    .question-label {
+      margin: 0 0 7px;
+      color: var(--red);
+      font-size: 0.72rem;
+      font-weight: 750;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .comparison h3,
+    .question-card h3 {
+      margin: 0;
+    }
+
+    .mode-controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .mode-button,
+    .choice,
+    .map-node {
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      background: var(--white);
+      color: var(--ink);
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .mode-button {
+      padding: 13px 14px;
+    }
+
+    .mode-button:hover,
+    .choice:hover,
+    .map-node:hover {
+      border-color: #a99582;
+      background: #fffaf1;
+    }
+
+    .mode-button[aria-pressed="true"] {
+      border-color: var(--green);
+      background: var(--green-soft);
+      box-shadow: inset 0 -3px 0 var(--green);
+    }
+
+    .mode-panel {
+      min-height: 12em;
+      margin-top: 16px;
+      padding: 18px 20px;
+      border-left: 3px solid var(--green);
+      background: rgba(255, 253, 248, 0.64);
+    }
+
+    .mode-panel h3 {
+      margin: 0 0 7px;
+      color: var(--red);
+    }
+
+    .mode-panel p {
+      margin: 0;
+    }
+
+    .mode-panel p + p {
+      margin-top: 10px;
+    }
+
+    .note {
+      margin-top: 24px;
+      padding: 20px 22px;
+      border-left: 3px solid var(--green);
+      background: rgba(255, 253, 248, 0.65);
+    }
+
+    .note strong {
+      color: var(--green);
+    }
+
+    .question-card {
+      margin-top: 28px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: rgba(255, 253, 248, 0.76);
+    }
+
+    .choices {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .choice {
+      width: 100%;
+      padding: 13px 15px;
+      line-height: 1.45;
+      text-align: left;
+    }
+
+    .choice[aria-pressed="true"] {
+      border-color: var(--red);
+      box-shadow: inset 3px 0 0 var(--red);
+    }
+
+    .feedback {
+      min-height: 1.5em;
+      margin: 16px 0 0;
+      color: var(--green);
+      font-weight: 600;
+    }
+
+    .feedback:empty {
+      display: none;
+    }
+
+    .two-lenses {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .lens {
+      padding: 20px;
+      border: 1px solid var(--line);
+      background: rgba(255, 253, 248, 0.64);
+    }
+
+    .lens .domain {
+      margin: 0 0 5px;
+      color: var(--muted);
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    .lens h3 {
+      margin: 0;
+      color: var(--red);
+      font-size: 1.16rem;
+    }
+
+    .lens p:last-child {
+      margin-bottom: 0;
+      font-size: 0.92rem;
+    }
+
+    .concept-map {
+      margin-top: 28px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      background: rgba(255, 253, 248, 0.76);
+    }
+
+    .map-route {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      align-items: center;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .map-node {
+      min-height: 88px;
+      padding: 12px 10px;
+      text-align: center;
+    }
+
+    .map-node strong {
+      display: block;
+      color: var(--red);
+      font-family: Georgia, "Noto Serif SC", "Songti SC", serif;
+      font-size: 1.12rem;
+    }
+
+    .map-node span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.72rem;
+    }
+
+    .map-node[aria-pressed="true"] {
+      border-color: var(--green);
+      background: var(--green-soft);
+      box-shadow: inset 0 -3px 0 var(--green);
+    }
+
+    .arrow {
+      color: var(--red);
+      font-size: 1.3rem;
+    }
+
+    .map-detail {
+      min-height: 8.5em;
+      margin-top: 16px;
+      padding: 18px 20px;
+      border-left: 3px solid var(--green);
+      background: var(--green-soft);
+    }
+
+    .map-detail p {
+      margin: 0;
+    }
+
+    .map-detail strong {
+      color: var(--green);
+    }
+
+    .synthesis {
+      padding: 22px 24px;
+      border-left: 3px solid var(--red);
+      background: var(--red-soft);
+      font-size: 1.05rem;
+    }
+
+    .closing {
+      margin-top: 64px;
+      padding-top: 22px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.93rem;
+    }
+
+    @media (max-width: 560px) {
+      main {
+        width: min(100% - 28px, 66ch);
+        padding-top: 46px;
+      }
+
+      .mode-controls,
+      .two-lenses {
+        grid-template-columns: 1fr;
+      }
+
+      .mode-panel,
+      .map-detail {
+        min-height: 0;
+      }
+
+      .map-route {
+        grid-template-columns: 1fr;
+      }
+
+      .arrow {
+        transform: rotate(90deg);
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="lesson-progress" aria-hidden="true"><span id="progress-bar"></span></div>
+      <p class="eyebrow">Session 3 of 3 · about 5 minutes</p>
+      <h1>Moral authority, <span>political order</span></h1>
+      <p class="lede">
+        Sessions 1 and 2 moved from cultivated habits to responsible relationships.
+        Confucius now makes his largest wager: the character of those who govern can
+        shape an entire political community. Is that an alternative to law—or a
+        dangerous excuse for weak institutions?
+      </p>
+      <div class="course-facts" aria-label="Lesson facts">
+        <span><strong>Question:</strong> Can example govern better than punishment?</span>
+        <span><strong>Text:</strong> <cite>Analects</cite> 2.3</span>
+      </div>
+    </header>
+
+    <section aria-labelledby="two-kinds-of-order">
+      <h2 id="two-kinds-of-order">Two kinds of order</h2>
+      <p>
+        Confucius distinguishes outward compliance from inwardly guided conduct.
+        The contrast is not “government versus no government.” It is between two
+        ways government can produce regular behavior:
+      </p>
+      <figure class="passage">
+        <blockquote lang="zh-Hans">
+          “道之以政，齐之以刑，民免而无耻；道之以德，齐之以礼，
+          有耻且格。”
+        </blockquote>
+        <figcaption>《论语·为政》2.3</figcaption>
+        <p class="translation">
+          “Guide people with administrative measures and align them with punishments:
+          they will avoid penalties but lack a sense of shame. Guide them with moral
+          power and align them through ritual: they will develop ethical awareness
+          and bring themselves into order.”
+        </p>
+      </figure>
+
+      <div class="comparison">
+        <p class="question-label">Read the contrast from inside the citizen</p>
+        <h3 id="government-mode-question">
+          A rule is obeyed in both cases. What changes?
+        </h3>
+        <div class="mode-controls" role="group" aria-labelledby="government-mode-question">
+          <button class="mode-button" type="button" data-mode="punishment" aria-pressed="false">
+            <span lang="zh-Hans">政刑</span> · measures and penalties
+          </button>
+          <button class="mode-button" type="button" data-mode="virtue" aria-pressed="true">
+            <span lang="zh-Hans">德礼</span> · moral power and ritual
+          </button>
+        </div>
+        <div class="mode-panel" aria-live="polite">
+          <div data-mode-panel="punishment" hidden>
+            <h3 id="punishment-order">“How do I avoid the penalty?”</h3>
+            <p>
+              Conduct is coordinated by an external threat. This can stop immediate
+              harm, but the motive disappears when enforcement disappears. The clever
+              citizen searches for the edge of the rule.
+            </p>
+            <p><strong>Strength:</strong> clear, fast, and less dependent on admiration.</p>
+          </div>
+          <div data-mode-panel="virtue">
+            <h3 id="virtue-order">“What response fits this situation?”</h3>
+            <p>
+              A trustworthy example and shared practices train judgment. The citizen
+              does not merely calculate risk; they begin to see some conduct as
+              unworthy and regulate themselves.
+            </p>
+            <p><strong>Strength:</strong> it can still guide action when no official is watching.</p>
+          </div>
+        </div>
+      </div>
+
+      <aside class="note">
+        <strong><span lang="zh-Hans">德</span> is effective moral presence.</strong>
+        It is not a private stock of “goodness points.” It names character as it
+        becomes socially persuasive—credibility earned by conduct that others can
+        trust and emulate.
+      </aside>
+    </section>
+
+    <section aria-labelledby="governing-dilemma">
+      <h2 id="governing-dilemma">Put virtue under pressure</h2>
+      <p>
+        Imagine you direct a university dining hall. Students repeatedly leave used
+        trays on tables, making extra work for cleaners. The hall needs a response
+        this week.
+      </p>
+
+      <div class="question-card" data-question="dining">
+        <p class="question-label">One decision</p>
+        <h3 id="dining-question">
+          Which policy best preserves Confucius’s insight while answering the modern
+          demand for reliable rules?
+        </h3>
+        <div class="choices" role="group" aria-labelledby="dining-question">
+          <button class="choice" type="button" data-answer="fine" aria-pressed="false">
+            Install cameras and fine every student who leaves a tray. Deterrence is enough.
+          </button>
+          <button class="choice" type="button" data-answer="example" aria-pressed="false">
+            Ask respected student leaders to return trays publicly. Example is enough.
+          </button>
+          <button class="choice" type="button" data-answer="combined" aria-pressed="false">
+            Make responsibility visible through staff and student example, explain the burden on cleaners, and keep a clear rule for repeated refusal.
+          </button>
+        </div>
+        <p class="feedback" id="dining-feedback" aria-live="polite"></p>
+      </div>
+
+      <p>
+        The combined answer goes beyond the stark contrast in 2.3. It treats law as
+        a floor that protects people from persistent harm, while treating example,
+        explanation, and shared practice as the means by which a community learns
+        to act without constant surveillance.
+      </p>
+    </section>
+
+    <section aria-labelledby="strongest-objection">
+      <h2 id="strongest-objection">The strongest modern objection</h2>
+      <p>
+        Read charitably, <span lang="zh-Hans">为政以德</span> does not mean “trust any
+        leader who calls himself virtuous.” Sessions 1 and 2 supplied demanding
+        standards: the ruler must practice, accept correction, and make the name
+        “ruler” answerable to public responsibility. Moral authority must be earned.
+      </p>
+
+      <div class="two-lenses">
+        <article class="lens">
+          <p class="domain">Confucius’s insight</p>
+          <h3 id="institutions-have-people">Institutions still contain people</h3>
+          <p>
+            No rule interprets or enforces itself. Officials with cultivated judgment
+            can apply rules humanely, resist corruption, and create trust that force
+            alone cannot manufacture.
+          </p>
+        </article>
+        <article class="lens">
+          <p class="domain">Modern reply</p>
+          <h3 id="virtue-needs-constraints">Virtue cannot audit itself</h3>
+          <p>
+            Citizens should not have to rely on a ruler’s self-assessment. Public
+            rules, independent review, and channels for criticism protect them when
+            leaders are incompetent, biased, or merely performing virtue.
+          </p>
+        </article>
+      </div>
+
+      <p class="synthesis">
+        The strongest reconstruction is not <strong>virtue instead of institutions</strong>,
+        but <strong>virtue within institutions that constrain, test, and outlast the ruler</strong>.
+        That is partly a modern extension of Confucius, not a formula found ready-made
+        in the <cite>Analects</cite>.
+      </p>
+
+      <aside class="note">
+        <strong>Education is the political infrastructure.</strong>
+        <span lang="zh-Hans">“有教无类”</span>—“in education, there should be no fixed
+        social categories” (<cite>Analects</cite> 15.39)—points beyond inherited rank.
+        Yet later examination systems, state orthodoxies, and family hierarchies are
+        historical Confucian developments; they should not all be projected backward
+        into Confucius’s own brief, argumentative text.
+      </aside>
+    </section>
+
+    <section aria-labelledby="whole-system">
+      <h2 id="whole-system">Assemble the whole system</h2>
+      <p>
+        The three sessions form a scale, not three separate topics. Select each level
+        to see what it contributes—and what failure it can produce.
+      </p>
+
+      <div class="concept-map">
+        <p class="question-label">Course map</p>
+        <h3 id="map-question">From practiced person to political order</h3>
+        <div class="map-route" role="group" aria-labelledby="map-question">
+          <button class="map-node" type="button" data-map="person" aria-pressed="true">
+            <strong>Person</strong>
+            <span><span lang="zh-Hans">仁 · 礼 · 君子</span></span>
+          </button>
+          <span class="arrow" aria-hidden="true">→</span>
+          <button class="map-node" type="button" data-map="relation" aria-pressed="false">
+            <strong>Relationship</strong>
+            <span><span lang="zh-Hans">孝 · 忠恕 · 正名</span></span>
+          </button>
+          <span class="arrow" aria-hidden="true">→</span>
+          <button class="map-node" type="button" data-map="state" aria-pressed="false">
+            <strong>State</strong>
+            <span><span lang="zh-Hans">德 · 为政以德</span></span>
+          </button>
+        </div>
+        <div class="map-detail" aria-live="polite">
+          <div data-map-panel="person">
+            <p>
+              <strong>Practice forms perception.</strong> Ritual gives humaneness a
+              repeatable shape; the exemplary person becomes capable of responding
+              well without treating morality as a performance.
+            </p>
+          </div>
+          <div data-map-panel="relation" hidden>
+            <p>
+              <strong>Character becomes accountable in roles.</strong> Reciprocity
+              stretches concern beyond the self, while rectifying names lets duties
+              judge the people who claim authority.
+            </p>
+          </div>
+          <div data-map-panel="state" hidden>
+            <p>
+              <strong>Example scales outward—but imperfectly.</strong> A ruler’s
+              conduct can establish trust and norms. Modern readers add institutions
+              because moral influence alone cannot guarantee accountability.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="synthesis">
+      <h2 id="synthesis">The one-sentence synthesis</h2>
+      <p class="synthesis">
+        Confucius imagines political order growing outward from practiced character
+        through accountable relationships into moral example; his enduring insight
+        is that rules need cultivated people, and his enduring limitation is that
+        cultivated people still need institutions able to challenge them.
+      </p>
+    </section>
+
+    <section aria-labelledby="course-complete">
+      <h2 id="course-complete">Where you can now disagree</h2>
+      <p>
+        You need not decide that Confucius is simply right or wrong. A defensible
+        conclusion can preserve one claim and reject another: perhaps moral education
+        is indispensable to public life, while family hierarchy and exemplary rule
+        remain too vulnerable to unequal power. That argued distinction—not a slogan
+        about “Confucianism”—is the point of reconsidering him.
+      </p>
+    </section>
+
+    <p class="closing">
+      The course is complete when you can connect person, relationship, and state—and
+      name both one strength and one limit in the connection.
+    </p>
+  </main>
+
+  <script>
+    const completedActivities = new Set();
+    const exploredMapNodes = new Set(["person"]);
+
+    const feedback = {
+      fine: "Deterrence may change conduct quickly, but it reproduces the weakness Confucius identifies: students learn to avoid detection, not to notice the burden they impose.",
+      example: "This captures moral influence, but it leaves cleaners unprotected if admiration fails. Example cannot guarantee that persistent free-riders stop.",
+      combined: "The strongest synthesis: cultivate ethical perception and make good conduct visible, while retaining a public rule as protection when formation fails."
+    };
+
+    function updateProgress() {
+      const percentage = (completedActivities.size / 3) * 100;
+      document.getElementById("progress-bar").style.width = percentage + "%";
+    }
+
+    function markComplete(activity) {
+      completedActivities.add(activity);
+      updateProgress();
+    }
+
+    function selectMode(selectedButton) {
+      document.querySelectorAll(".mode-button").forEach(function (button) {
+        button.setAttribute("aria-pressed", "false");
+      });
+      selectedButton.setAttribute("aria-pressed", "true");
+
+      document.querySelectorAll("[data-mode-panel]").forEach(function (panel) {
+        panel.hidden = panel.dataset.modePanel !== selectedButton.dataset.mode;
+      });
+
+      markComplete("comparison");
+    }
+
+    function selectAnswer(card, selectedButton) {
+      card.querySelectorAll(".choice").forEach(function (button) {
+        button.setAttribute("aria-pressed", "false");
+      });
+      selectedButton.setAttribute("aria-pressed", "true");
+      card.querySelector(".feedback").textContent = feedback[selectedButton.dataset.answer];
+      markComplete("dilemma");
+    }
+
+    function selectMapNode(selectedButton) {
+      document.querySelectorAll(".map-node").forEach(function (button) {
+        button.setAttribute("aria-pressed", "false");
+      });
+      selectedButton.setAttribute("aria-pressed", "true");
+
+      document.querySelectorAll("[data-map-panel]").forEach(function (panel) {
+        panel.hidden = panel.dataset.mapPanel !== selectedButton.dataset.map;
+      });
+
+      exploredMapNodes.add(selectedButton.dataset.map);
+      if (exploredMapNodes.size === 3) {
+        markComplete("map");
+      }
+    }
+
+    document.querySelectorAll(".mode-button").forEach(function (button) {
+      button.addEventListener("click", function () {
+        selectMode(button);
+      });
+    });
+
+    document.querySelectorAll(".question-card").forEach(function (card) {
+      card.querySelectorAll(".choice").forEach(function (button) {
+        button.addEventListener("click", function () {
+          selectAnswer(card, button);
+        });
+      });
+    });
+
+    document.querySelectorAll(".map-node").forEach(function (button) {
+      button.addEventListener("click", function () {
+        selectMapNode(button);
+      });
+    });
+  </script>
+</body>
+</html>
