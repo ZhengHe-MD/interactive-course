@@ -364,6 +364,13 @@
       font-size: 0.92rem;
     }
 
+    .source-line {
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
     .bridge {
       margin: 14px 0 0;
       padding: 14px 18px;
@@ -371,6 +378,87 @@
       color: var(--green);
       font-weight: 600;
       text-align: center;
+    }
+
+    .pair-practice {
+      margin-top: 28px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: rgba(255, 253, 248, 0.76);
+    }
+
+    .pair-practice h3 {
+      margin: 0;
+    }
+
+    .pair-controls {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .pair-button {
+      padding: 10px 8px;
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      background: var(--white);
+      color: var(--ink);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.9rem;
+    }
+
+    .pair-button:hover {
+      border-color: #a99582;
+      background: #fffaf1;
+    }
+
+    .pair-button[aria-pressed="true"] {
+      border-color: var(--green);
+      background: var(--green-soft);
+      box-shadow: inset 0 -3px 0 var(--green);
+    }
+
+    .pair-panel {
+      min-height: 10.5em;
+      margin-top: 16px;
+      padding: 18px 20px;
+      border-left: 3px solid var(--green);
+      background: rgba(255, 253, 248, 0.64);
+    }
+
+    .pair-panel p {
+      margin: 0;
+    }
+
+    .pair-panel p + p {
+      margin-top: 10px;
+    }
+
+    .pair-panel strong {
+      color: var(--red);
+    }
+
+    .case-connection {
+      margin-top: 24px;
+      padding: 20px 22px;
+      border-left: 3px solid var(--red);
+      background: var(--red-soft);
+    }
+
+    .case-connection h3 {
+      margin: 0 0 8px;
+      font-size: 1.05rem;
+    }
+
+    .case-connection p {
+      margin: 0;
+    }
+
+    .case-connection p + p {
+      margin-top: 10px;
     }
 
     .synthesis {
@@ -414,6 +502,14 @@
       .role-web,
       .two-lenses {
         grid-template-columns: 1fr;
+      }
+
+      .pair-controls {
+        grid-template-columns: 1fr;
+      }
+
+      .pair-panel {
+        min-height: 0;
       }
 
       .role-button {
@@ -600,37 +696,124 @@
       <h2 id="zhong-shu"><span lang="zh-Hans">忠恕</span>: a bridge beyond favoritism</h2>
       <p>
         Relational duties need an ethical discipline. In the <cite>Analects</cite>,
-        Zengzi summarizes Confucius’s way as <span lang="zh-Hans">忠恕</span>. The pair
-        is difficult to compress into English, but two lenses are useful:
+        Confucius tells Zengzi that his way is threaded together by one principle.
+        After Confucius leaves, Zengzi explains that thread to the other students:
+      </p>
+      <figure class="passage">
+        <blockquote lang="zh-Hans">“夫子之道，忠恕而已矣。”</blockquote>
+        <figcaption>《论语·里仁》4.15</figcaption>
+        <p class="translation">“The Master’s way consists of loyalty-to-duty and sympathetic reciprocity.”</p>
+      </figure>
+      <p>
+        A useful later gloss is <span lang="zh-Hans">尽己之谓忠，推己之谓恕</span>:
+        <strong>fully commit oneself</strong> is <span lang="zh-Hans">忠</span>;
+        <strong>extend from oneself toward others</strong> is
+        <span lang="zh-Hans">恕</span>. These are two directions of one practice:
       </p>
       <div class="two-lenses">
         <article class="lens">
           <p class="domain">From the role outward</p>
-          <h3 id="zhong-lens"><span lang="zh-Hans">忠</span> · doing one’s utmost</h3>
+          <h3 id="zhong-lens"><span lang="zh-Hans">忠</span> · conscientious responsibility</h3>
           <p>
-            Bring your whole moral attention to what the relationship asks; do not
-            occupy a role in name while withholding its work.
+            Ask: “Am I genuinely fulfilling what this relationship or role asks of
+            me?” Here <span lang="zh-Hans">忠</span> is broader than loyalty to a ruler
+            or obedience to a superior. It means bringing full attention, sincerity,
+            and effort instead of holding a role while withholding its work.
+          </p>
+          <p class="source-line">
+            Zengzi’s self-examination: <span lang="zh-Hans">“为人谋而不忠乎？”</span> —
+            “When handling affairs for others, have I failed to be conscientious?”
+            (<cite>Analects</cite> 1.4)
           </p>
         </article>
         <article class="lens">
           <p class="domain">From oneself toward another</p>
           <h3 id="shu-lens"><span lang="zh-Hans">恕</span> · sympathetic reciprocity</h3>
           <p>
-            Use your own experience as a starting point for imagining another’s:
-            “What I do not desire, I do not impose on others.”
+            Ask: “If I were receiving this action, what would I reasonably need?”
+            Begin from your own experience, then make the imaginative move into the
+            other person’s position. Confucius gives a minimum:
+            <span lang="zh-Hans">“己所不欲，勿施于人”</span> — do not impose on others
+            what you would reject yourself.
+          </p>
+          <p class="source-line">
+            A related positive movement is
+            <span lang="zh-Hans">“己欲立而立人，己欲达而达人”</span> — if you wish to
+            become established or flourish, help others do so too.
+            (<cite>Analects</cite> 6.30; compare 15.24)
           </p>
         </article>
       </div>
       <p class="bridge">
-        <span lang="zh-Hans">忠</span> deepens responsibility within a role;
-        <span lang="zh-Hans">恕</span> prevents that role from closing your eyes to the other person.
+        <span lang="zh-Hans">忠</span> prevents empathy from becoming passive sentiment;
+        <span lang="zh-Hans">恕</span> prevents responsibility from becoming coercion.
       </p>
       <p>
-        <span lang="zh-Hans">恕</span> is not a complete algorithm—other people may
-        want different things than you do. Its value is the disciplined movement out
-        of self-centeredness. That movement helps a family-centered ethic reach beyond
-        the family.
+        <span lang="zh-Hans">恕</span> is not projection. If you enjoy blunt criticism,
+        you cannot conclude that everyone else should receive it bluntly. Your own
+        experience is a starting point, not a complete algorithm: you still have to
+        listen and discover how the other person differs from you.
       </p>
+
+      <div class="pair-practice">
+        <p class="question-label">Run both lenses</p>
+        <h3 id="meeting-example">
+          You lead a group project. The work is behind schedule, but everyone is tired.
+          Compare three responses.
+        </h3>
+        <div class="pair-controls" role="group" aria-labelledby="meeting-example">
+          <button class="pair-button" type="button" data-pair="zhong" aria-pressed="false">
+            <span lang="zh-Hans">忠</span> alone
+          </button>
+          <button class="pair-button" type="button" data-pair="shu" aria-pressed="false">
+            <span lang="zh-Hans">恕</span> alone
+          </button>
+          <button class="pair-button" type="button" data-pair="together" aria-pressed="true">
+            <span lang="zh-Hans">忠恕</span> together
+          </button>
+        </div>
+        <div class="pair-panel" aria-live="polite">
+          <div data-pair-panel="zhong" hidden>
+            <p><strong>“The project must be completed, so everyone must attend an 11 p.m. meeting.”</strong></p>
+            <p>
+              Responsibility is present, but perspective is missing. The leader’s
+              determination becomes coercive because teammates are treated as tools
+              for completing the task.
+            </p>
+          </div>
+          <div data-pair-panel="shu" hidden>
+            <p><strong>“Everyone is exhausted, so let’s cancel and not discuss the unfinished work.”</strong></p>
+            <p>
+              Empathy is present, but responsibility disappears. Understanding how
+              people feel does not itself fulfill the leader’s duty to help the group finish.
+            </p>
+          </div>
+          <div data-pair-panel="together">
+            <p><strong>“I am responsible for getting us to the finish, but I should not impose a schedule I would find unreasonable.”</strong></p>
+            <p>
+              Ask about everyone’s constraints, divide the remaining work fairly,
+              take an unglamorous task yourself, and set a workable deadline.
+              <span lang="zh-Hans">忠</span> owns the outcome;
+              <span lang="zh-Hans">恕</span> shapes how you pursue it.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <aside class="case-connection">
+        <h3 id="scooter-revisited">Return to the damaged scooter</h3>
+        <p>
+          <span lang="zh-Hans">忠</span> toward your family member means caring about
+          their moral character, not merely protecting their reputation. You therefore
+          press them to take responsibility.
+        </p>
+        <p>
+          <span lang="zh-Hans">恕</span> extends attention to the neighbor: if your own
+          property were damaged, you would reasonably want acknowledgment and repair.
+          Together, the pair supports confronting your relative privately, insisting
+          on repayment, and offering to accompany them—neither abandonment nor favoritism.
+        </p>
+      </aside>
     </section>
 
     <section aria-labelledby="rectifying-names">
@@ -759,6 +942,19 @@
       card.querySelectorAll(".choice").forEach(function (button) {
         button.addEventListener("click", function () {
           selectAnswer(card, button);
+        });
+      });
+    });
+
+    document.querySelectorAll(".pair-button").forEach(function (button) {
+      button.addEventListener("click", function () {
+        document.querySelectorAll(".pair-button").forEach(function (item) {
+          item.setAttribute("aria-pressed", "false");
+        });
+        button.setAttribute("aria-pressed", "true");
+
+        document.querySelectorAll("[data-pair-panel]").forEach(function (panel) {
+          panel.hidden = panel.dataset.pairPanel !== button.dataset.pair;
         });
       });
     });
