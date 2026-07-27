@@ -1,4 +1,20 @@
-import { Bot, Check, ChevronLeft, ChevronRight, CornerUpLeft, Expand, MessageCircle, Send, Sparkles, Square, X } from "lucide-react";
+import {
+  Brain,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  CornerUpLeft,
+  Expand,
+  FilePenLine,
+  ListChecks,
+  Search,
+  Send,
+  Sparkles,
+  Square,
+  Terminal,
+  Wrench,
+  X,
+} from "lucide-react";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { Activity, ChatItem, CodexStatus, Selection } from "../types";
 
@@ -25,6 +41,7 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
   const scroller = useRef<HTMLDivElement | null>(null);
   const composer = useRef<HTMLTextAreaElement | null>(null);
   const [draft, setDraft] = useState("");
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   useImperativeHandle(ref, () => ({
     focusComposer: () => {
@@ -37,6 +54,19 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
     const node = scroller.current;
     if (node) node.scrollTop = node.scrollHeight;
   }, [items, working]);
+
+  useEffect(() => {
+    if (!working) {
+      setElapsedSeconds(0);
+      return;
+    }
+    const startedAt = Date.now();
+    setElapsedSeconds(0);
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [working]);
 
   const canSend = connected && !working && (draft.trim().length > 0 || selections.length > 0);
 
@@ -52,11 +82,9 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
       <aside className="chat-panel" aria-label="Course agent chat">
         <div className="collapsed-chat">
           <button onClick={() => props.onToggleOpen(true)} aria-label="Open chat">
-            <ChevronLeft size={17} />
+            <span className="agent-avatar"><ChevronLeft size={15} /></span>
+            <span>Design agent</span>
           </button>
-          <MessageCircle size={19} />
-          <span>Course agent</span>
-          <i className={working ? "working" : codex.state} />
         </div>
       </aside>
     );
@@ -66,15 +94,12 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
     <aside className="chat-panel" aria-label="Course agent chat">
       <header className="chat-header">
         <div className={`agent-avatar ${working ? "working" : ""}`}>
-          <Sparkles size={16} />
+          <Sparkles size={13} />
         </div>
-        <div>
-          <strong>Course agent</strong>
-          <span>
-            <i className={codex.state} />
-            {statusText}
-          </span>
-        </div>
+        <strong>Design agent</strong>
+        <span className={`agent-status ${working ? "working" : codex.state}`}>
+          <i /> {working ? `working · ${formatElapsed(elapsedSeconds)}` : codex.state === "ready" ? "ready" : statusText}
+        </span>
         <button onClick={() => props.onToggleOpen(false)} aria-label="Collapse chat">
           <ChevronRight size={17} />
         </button>
@@ -144,7 +169,7 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
             disabled={working}
           />
           <div className="composer-foot">
-            <span>{working ? "the agent is working" : "↵ send · ⇧↵ newline"}</span>
+            <span>{working ? "the agent is working" : ""}</span>
             {working ? (
               <button className="stop-button" onClick={props.onInterrupt} aria-label="Stop the current turn">
                 <Square size={12} fill="currentColor" />
@@ -156,6 +181,7 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
             )}
           </div>
         </div>
+        <div className="composer-promise">Answers land in the lesson. The chat is for steering.</div>
       </div>
     </aside>
   );
@@ -192,15 +218,16 @@ function Message({ item }: { item: ChatItem }) {
 
   return (
     <article className={`message agent ${item.failed ? "failed" : ""}`}>
-      <div className="message-avatar">
-        <Bot size={14} />
-      </div>
       <div className="message-content">
-        {item.activities.map((activity) => (
-          <ActivityLine key={activity.id} activity={activity} />
-        ))}
+        {item.activities.length > 0 && (
+          <div className="activity-list" aria-label="Agent activity" aria-live="polite">
+            {item.activities.map((activity) => (
+              <ActivityLine key={activity.id} activity={activity} />
+            ))}
+          </div>
+        )}
         {item.text && <p>{item.text}</p>}
-        {!item.text && (
+        {!item.text && item.activities.length === 0 && (
           <div className="typing">
             <span />
             <span />
@@ -213,13 +240,48 @@ function Message({ item }: { item: ChatItem }) {
 }
 
 function ActivityLine({ activity }: { activity: Activity }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasLongDetail = Boolean(activity.detail && (activity.detail.length > 220 || activity.detail.split("\n").length > 4));
+
   return (
-    <div className={`activity ${activity.done ? "done" : ""}`}>
-      {activity.done ? <Check size={13} /> : <span className="activity-spinner" />}
-      <span>
-        {activity.label}
-        {activity.file ? ` · ${activity.file}` : ""}
+    <div className={`activity ${activity.done ? "done" : "live"}`}>
+      <span className="activity-kind" aria-hidden="true">
+        <ActivityIcon activity={activity} />
       </span>
+      <span className="activity-copy">
+        <strong>
+          {activity.label}
+          {activity.file ? ` · ${activity.file}` : ""}
+        </strong>
+        {activity.detail && (
+          <span className={`${activity.kind === "command" ? "activity-detail command" : "activity-detail"}${expanded ? " expanded" : ""}`}>
+            {activity.detail}
+          </span>
+        )}
+        {hasLongDetail && (
+          <button className="activity-more" type="button" onClick={() => setExpanded((current) => !current)}>
+            {expanded ? "Show less" : "Show more"}
+          </button>
+        )}
+      </span>
+      {activity.done
+        ? <Check className="activity-check" size={13} aria-label="Completed" />
+        : <span className="activity-spinner" aria-label="In progress" />}
     </div>
   );
+}
+
+function ActivityIcon({ activity }: { activity: Activity }) {
+  const size = 14;
+  if (activity.kind === "reasoning") return <Brain size={size} />;
+  if (activity.kind === "plan") return <ListChecks size={size} />;
+  if (activity.kind === "edit") return <FilePenLine size={size} />;
+  if (activity.kind === "command") return <Terminal size={size} />;
+  if (activity.kind === "search") return <Search size={size} />;
+  return <Wrench size={size} />;
+}
+
+function formatElapsed(seconds: number) {
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }

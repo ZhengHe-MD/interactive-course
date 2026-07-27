@@ -54,13 +54,23 @@ export type CourseOutline = {
   upNext: string[];
 };
 
-export type ActivityKind = "reasoning" | "edit" | "command" | "search";
+/** A lightweight entry in the local course switcher. */
+export type CourseSummary = {
+  id: string;
+  title: string;
+  phase: CoursePhase;
+  hasContent: boolean;
+};
+
+export type ActivityKind = "reasoning" | "plan" | "edit" | "command" | "search" | "tool";
 
 /** A compact indicator of what the agent is doing right now. */
 export type Activity = {
   id: string;
   kind: ActivityKind;
   label: string;
+  /** Display-safe context supplied by Codex, such as a reasoning summary or command. */
+  detail?: string;
   file?: string;
   done?: boolean;
 };
@@ -69,6 +79,8 @@ export type Activity = {
 
 export type ClientMessage =
   | { type: "turn.start"; message: string; selections: Selection[] }
+  | { type: "course.start"; topic: string }
+  | { type: "course.open"; courseId: string }
   | { type: "turn.interrupt" }
   | { type: "checkpoint.revert" };
 
@@ -80,6 +92,8 @@ export type ServerMessage =
       codex: CodexStatus;
       checkpoints: Checkpoint[];
       course: CourseOutline;
+      courseId: string;
+      courses: CourseSummary[];
       courseVersion: number;
       turnActive: boolean;
     }
@@ -88,6 +102,16 @@ export type ServerMessage =
   | { type: "agent.delta"; turnId: string; delta: string }
   | { type: "activity"; turnId?: string; activity: Activity }
   | { type: "course.changed"; courseVersion: number; course: CourseOutline; path?: string }
+  | {
+      type: "course.opened";
+      courseId: string;
+      courses: CourseSummary[];
+      course: CourseOutline;
+      courseVersion: number;
+      checkpoints: Checkpoint[];
+      codex: CodexStatus;
+    }
+  | { type: "courses"; courseId: string; courses: CourseSummary[] }
   | { type: "checkpoints"; checkpoints: Checkpoint[] }
   | { type: "turn.completed"; turnId: string; status: string; error?: string }
   | { type: "system"; message: string }

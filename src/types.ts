@@ -7,6 +7,7 @@ export type {
   CodexStatus,
   CourseOutline,
   CourseSection,
+  CourseSummary,
   Selection,
   ServerMessage,
 } from "../shared/protocol";

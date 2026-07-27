@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { basename, isAbsolute, relative } from "node:path";
-import type { CodexStatus, CoursePhase } from "../../shared/protocol";
+import type { Activity, CodexStatus, CoursePhase } from "../../shared/protocol";
 import { DESIGN_GUIDE } from "../course/designGuide";
 import { buildCoursePrompt, writeSelectionImages, type SelectionContext } from "../course/prompt";
 import { JsonRpcPeer } from "./JsonRpcPeer";
@@ -10,9 +10,13 @@ import type {
   AgentMessageDeltaNotification,
   ErrorNotification,
   ItemNotification,
+  McpToolCallProgressNotification,
+  ReasoningSummaryTextDeltaNotification,
   ThreadStartParams,
   ThreadStartResponse,
   TurnCompletedNotification,
+  TurnInterruptParams,
+  TurnPlanUpdatedNotification,
   TurnStartResponse,
   UserInput,
 } from "./types";
@@ -30,6 +34,8 @@ export class CodexClient extends EventEmitter {
   private connecting: Promise<CodexStatus> | null = null;
   private status: CodexStatus = { state: "starting" };
   private turnsWithDelta = new Set<string>();
+  private reasoningSummaries = new Map<string, string[]>();
+  private toolActivities = new Map<string, Activity>();
   private activeTurn: string | null = null;
 
   constructor(
@@ -72,9 +78,10 @@ export class CodexClient extends EventEmitter {
       this.process.stderr.setEncoding("utf8");
       this.process.stderr.on("data", (chunk: string) => this.emit("diagnostic", chunk.trim()));
       this.process.on("error", (error) => {
-        this.setStatus({ state: "error", message: `Could not start Codex: ${error.message}` });
+        const message = describeStartupError(error, this.binary);
+        this.setStatus({ state: "error", message });
         this.peer?.shutdown(new Error(error.message));
-        this.failActiveTurn(error.message);
+        this.failActiveTurn(message);
       });
       this.process.on("exit", (code) => {
         this.peer?.shutdown(new Error(`Codex app-server exited with code ${code ?? "unknown"}.`));
@@ -98,23 +105,28 @@ export class CodexClient extends EventEmitter {
         throw new Error("Codex is not signed in. Run `codex login`, then restart Course Studio.");
       }
 
-      const params: ThreadStartParams = {
-        cwd: this.courseDirectory,
-        approvalPolicy: "never",
-        sandbox: "workspace-write",
-        serviceName: "Course Studio",
-        developerInstructions: DESIGN_GUIDE,
-      };
-      const thread = await this.peer.request<ThreadStartResponse>("thread/start", params);
-      this.threadId = thread.thread.id;
+      await this.beginThread();
       const accountLabel = account.account?.email ?? account.account?.planType ?? account.account?.type;
       return this.setStatus({ state: "ready", account: accountLabel });
     } catch (error) {
       return this.setStatus({
         state: "error",
-        message: error instanceof Error ? error.message : "Could not start Codex app-server.",
+        message: describeStartupError(error, this.binary),
       });
     }
+  }
+
+  private async beginThread() {
+    const params: ThreadStartParams = {
+      cwd: this.courseDirectory,
+      approvalPolicy: "never",
+      sandbox: "workspace-write",
+      serviceName: "Course Studio",
+      developerInstructions: DESIGN_GUIDE,
+    };
+    const thread = await this.peer!.request<ThreadStartResponse>("thread/start", params);
+    this.threadId = thread.thread.id;
+    return thread.thread.id;
   }
 
   async startTurn(message: string, selections: SelectionContext[], options: { coursePhase?: CoursePhase } = {}) {
@@ -161,7 +173,12 @@ export class CodexClient extends EventEmitter {
   async interrupt() {
     if (!this.peer || !this.threadId || !this.activeTurn) return;
     try {
-      await this.peer.request("turn/interrupt", { threadId: this.threadId }, 10_000);
+      const params: TurnInterruptParams = { threadId: this.threadId, turnId: this.activeTurn };
+      await this.peer.request(
+        "turn/interrupt",
+        params,
+        10_000,
+      );
     } catch (error) {
       this.emit("diagnostic", `Interrupt failed: ${describe(error)}`);
     }
@@ -202,6 +219,63 @@ export class CodexClient extends EventEmitter {
       return;
     }
 
+    // Codex distinguishes its display-safe reasoning summary from raw
+    // reasoning text. Course Studio deliberately streams only the summary.
+    if (method === "item/reasoning/summaryTextDelta") {
+      const params = rawParams as ReasoningSummaryTextDeltaNotification;
+      const turnId = params.turnId ?? this.activeTurn;
+      if (!turnId || !params.itemId || typeof params.delta !== "string") return;
+      const parts = this.reasoningSummaries.get(params.itemId) ?? [];
+      const index = params.summaryIndex ?? 0;
+      parts[index] = `${parts[index] ?? ""}${params.delta}`;
+      this.reasoningSummaries.set(params.itemId, parts);
+      this.emit("activity", {
+        turnId,
+        activity: {
+          id: params.itemId,
+          kind: "reasoning",
+          label: "Thinking",
+          detail: cleanDetail(parts.filter(Boolean).join("\n\n")),
+        },
+      });
+      return;
+    }
+
+    if (method === "turn/plan/updated") {
+      const params = rawParams as TurnPlanUpdatedNotification;
+      const turnId = params.turnId ?? this.activeTurn;
+      if (!turnId || !params.plan?.length) return;
+      const active = params.plan.find((step) => step.status === "inProgress");
+      const completed = params.plan.filter((step) => step.status === "completed").length;
+      const done = completed === params.plan.length;
+      this.emit("activity", {
+        turnId,
+        activity: {
+          id: `plan-${turnId}`,
+          kind: "plan",
+          label: done ? "Plan complete" : `Planning · ${completed}/${params.plan.length}`,
+          detail: active?.step ?? params.explanation ?? params.plan.at(-1)?.step,
+          done,
+        },
+      });
+      return;
+    }
+
+    if (method === "item/mcpToolCall/progress") {
+      const params = rawParams as McpToolCallProgressNotification;
+      const turnId = params.turnId ?? this.activeTurn;
+      if (!turnId || !params.itemId || !params.message) return;
+      const current = this.toolActivities.get(params.itemId) ?? {
+        id: params.itemId,
+        kind: "tool" as const,
+        label: "Using a tool",
+      };
+      const activity = { ...current, detail: cleanDetail(params.message) };
+      this.toolActivities.set(params.itemId, activity);
+      this.emit("activity", { turnId, activity });
+      return;
+    }
+
     if (method === "item/started" || method === "item/completed") {
       const params = rawParams as ItemNotification;
       const turnId = params.turnId ?? this.activeTurn ?? undefined;
@@ -217,25 +291,14 @@ export class CodexClient extends EventEmitter {
       }
 
       const id = item.id ?? `${item.type}-${turnId ?? "turn"}`;
-      if (item.type === "fileChange") {
-        const changedPath = item.changes?.[0]?.path;
-        const file = changedPath ? this.courseRelative(changedPath) : undefined;
-        this.emit("activity", {
-          turnId,
-          activity: { id, kind: "edit", label: done ? "Course updated" : "Editing the course…", file, done },
-        });
-        return;
+      const activity = this.activityForItem(id, item, done);
+      if (activity) {
+        if (activity.kind === "tool") this.toolActivities.set(id, activity);
+        this.emit("activity", { turnId, activity });
       }
-      if (item.type === "reasoning") {
-        this.emit("activity", { turnId, activity: { id, kind: "reasoning", label: "Thinking…", done } });
-        return;
-      }
-      if (item.type === "commandExecution") {
-        this.emit("activity", { turnId, activity: { id, kind: "command", label: "Working in the course…", done } });
-        return;
-      }
-      if (item.type === "webSearch") {
-        this.emit("activity", { turnId, activity: { id, kind: "search", label: "Searching the web…", done } });
+      if (done) {
+        this.reasoningSummaries.delete(id);
+        this.toolActivities.delete(id);
       }
       return;
     }
@@ -245,6 +308,8 @@ export class CodexClient extends EventEmitter {
       const turnId = params.turnId ?? params.turn?.id ?? this.activeTurn;
       if (!turnId) return;
       this.turnsWithDelta.delete(turnId);
+      this.reasoningSummaries.clear();
+      this.toolActivities.clear();
       if (this.activeTurn === turnId) this.activeTurn = null;
       this.emit("turnCompleted", {
         turnId,
@@ -260,6 +325,99 @@ export class CodexClient extends EventEmitter {
     }
   }
 
+  private activityForItem(id: string, item: NonNullable<ItemNotification["item"]>, done: boolean): Activity | null {
+    if (item.type === "reasoning") {
+      const detail = item.summary?.filter(Boolean).join("\n\n")
+        || this.reasoningSummaries.get(id)?.filter(Boolean).join("\n\n");
+      return {
+        id,
+        kind: "reasoning",
+        label: done ? "Thought through the request" : "Thinking",
+        detail: detail ? cleanDetail(detail) : undefined,
+        done,
+      };
+    }
+
+    if (item.type === "plan") {
+      return { id, kind: "plan", label: done ? "Plan ready" : "Planning", detail: item.text, done };
+    }
+
+    if (item.type === "fileChange") {
+      const files = item.changes?.map((change) => this.courseRelative(change.path)) ?? [];
+      return {
+        id,
+        kind: "edit",
+        label: done ? "Updated the course" : "Editing the course",
+        file: files[0],
+        detail: files.length > 1 ? `${files.length} files` : undefined,
+        done,
+      };
+    }
+
+    if (item.type === "commandExecution") {
+      return {
+        id,
+        kind: "command",
+        label: done ? "Ran a command" : "Running a command",
+        detail: item.command ? cleanDetail(item.command) : undefined,
+        done,
+      };
+    }
+
+    if (item.type === "webSearch") {
+      return {
+        id,
+        kind: "search",
+        label: done ? "Searched the web" : "Searching the web",
+        detail: item.query ? cleanDetail(item.query) : undefined,
+        done,
+      };
+    }
+
+    if (item.type === "mcpToolCall" || item.type === "dynamicToolCall") {
+      const name = item.tool ? humanizeToolName(item.tool) : "tool";
+      return {
+        id,
+        kind: "tool",
+        label: done ? `Used ${name}` : `Using ${name}`,
+        detail: item.server ? `via ${humanizeToolName(item.server)}` : undefined,
+        done,
+      };
+    }
+
+    if (item.type === "collabAgentToolCall") {
+      return {
+        id,
+        kind: "tool",
+        label: done ? "Finished delegated work" : "Delegating work",
+        detail: item.prompt ? cleanDetail(item.prompt) : undefined,
+        done,
+      };
+    }
+
+    if (item.type === "subAgentActivity") {
+      return { id, kind: "tool", label: done ? "Sub-agent finished" : "Sub-agent working", done };
+    }
+
+    if (item.type === "imageView") {
+      return { id, kind: "tool", label: done ? "Inspected an image" : "Inspecting an image", file: item.path, done };
+    }
+
+    if (item.type === "imageGeneration") {
+      return { id, kind: "tool", label: done ? "Generated an image" : "Generating an image", done };
+    }
+
+    if (item.type === "sleep") {
+      return { id, kind: "tool", label: done ? "Wait finished" : "Waiting", done };
+    }
+
+    if (item.type === "contextCompaction") {
+      return { id, kind: "reasoning", label: done ? "Context organized" : "Organizing context", done };
+    }
+
+    return null;
+  }
+
   close() {
     this.peer?.shutdown();
     this.process?.kill();
@@ -269,9 +427,48 @@ export class CodexClient extends EventEmitter {
     this.connecting = null;
     this.activeTurn = null;
     this.turnsWithDelta.clear();
+    this.reasoningSummaries.clear();
+    this.toolActivities.clear();
   }
 }
 
 function describe(error: unknown) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function cleanDetail(value: string) {
+  return value.trim().replace(/\n{3,}/g, "\n\n");
+}
+
+function humanizeToolName(value: string) {
+  const words = value
+    .replace(/^mcp__/, "")
+    .replace(/__/g, " · ")
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .trim();
+  return words ? words[0].toUpperCase() + words.slice(1) : "tool";
+}
+
+/** Turn process-level startup failures into instructions a learner can act on. */
+export function describeStartupError(error: unknown, binary = "codex") {
+  const raw = describe(error);
+  const code = error && typeof error === "object" && "code" in error
+    ? String((error as NodeJS.ErrnoException).code)
+    : "";
+  const missingBinary = code === "ENOENT" || (/\bENOENT\b/.test(raw) && raw.includes(binary));
+
+  if (missingBinary) {
+    return [
+      "Codex CLI was not found.",
+      "Open Terminal and install it:",
+      "curl -fsSL https://chatgpt.com/codex/install.sh | sh",
+      "Then sign in:",
+      "codex login",
+      "Finally, stop and restart Course Studio with `npm run dev`.",
+      "If Codex is already installed, set CODEX_BIN to its full path before starting the studio.",
+    ].join("\n");
+  }
+
+  return raw || "Could not start Codex app-server.";
 }
