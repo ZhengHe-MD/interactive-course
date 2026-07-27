@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="course-studio-phase" content="learning">
+  <meta name="course-studio-page" content="syllabus">
+  <title>Confucius Reconsidered — A Three-Session Survey</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f7f2e8;
+      --paper-deep: #eee5d5;
+      --ink: #2f2a24;
+      --muted: #756b5f;
+      --line: #d8cbbb;
+      --red: #963e32;
+      --red-soft: #ead7d0;
+      --green: #486457;
+      --white: #fffdf8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(90deg, rgba(150, 62, 50, 0.045) 1px, transparent 1px),
+        var(--paper);
+      background-size: min(9vw, 88px) 100%;
+      color: var(--ink);
+      font-family: Georgia, "Noto Serif SC", "Songti SC", serif;
+      line-height: 1.68;
+    }
+
+    main {
+      width: min(100% - 40px, 66ch);
+      margin: 0 auto;
+      padding: 72px 0 88px;
+    }
+
+    .eyebrow {
+      margin: 0 0 18px;
+      color: var(--red);
+      font-family: system-ui, sans-serif;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3 {
+      line-height: 1.18;
+      text-wrap: balance;
+    }
+
+    h1 {
+      max-width: 13ch;
+      margin: 0;
+      font-size: clamp(2.7rem, 9vw, 5.4rem);
+      font-weight: 500;
+      letter-spacing: -0.045em;
+    }
+
+    h1 span {
+      color: var(--red);
+      font-family: "Noto Serif SC", "Songti SC", serif;
+      font-weight: 400;
+    }
+
+    .lede {
+      max-width: 58ch;
+      margin: 28px 0 0;
+      color: #4e463d;
+      font-size: 1.15rem;
+    }
+
+    .course-facts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 24px;
+      margin: 32px 0 0;
+      padding: 18px 0;
+      border-block: 1px solid var(--line);
+      color: var(--muted);
+      font-family: system-ui, sans-serif;
+      font-size: 0.84rem;
+    }
+
+    .course-facts strong {
+      color: var(--ink);
+      font-weight: 650;
+    }
+
+    section {
+      margin-top: 64px;
+    }
+
+    h2 {
+      margin: 0 0 18px;
+      font-size: 1.7rem;
+      font-weight: 600;
+    }
+
+    .note {
+      margin-top: 24px;
+      padding: 20px 22px;
+      border-left: 3px solid var(--green);
+      background: rgba(255, 253, 248, 0.65);
+    }
+
+    .note strong {
+      color: var(--green);
+    }
+
+    .arc {
+      display: grid;
+      gap: 18px;
+      margin-top: 28px;
+    }
+
+    .session {
+      position: relative;
+      padding: 24px 24px 22px 72px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: rgba(255, 253, 248, 0.72);
+    }
+
+    .number {
+      position: absolute;
+      top: 23px;
+      left: 22px;
+      display: grid;
+      width: 32px;
+      height: 32px;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--red-soft);
+      color: var(--red);
+      font-family: system-ui, sans-serif;
+      font-size: 0.8rem;
+      font-weight: 750;
+    }
+
+    .session h3 {
+      margin: 0;
+      font-size: 1.2rem;
+      font-weight: 650;
+    }
+
+    .session .question {
+      margin: 8px 0 14px;
+      color: var(--red);
+      font-style: italic;
+    }
+
+    .concepts {
+      margin: 0;
+      color: var(--muted);
+      font-family: system-ui, sans-serif;
+      font-size: 0.83rem;
+    }
+
+    details {
+      margin-top: 16px;
+      border-top: 1px solid var(--line);
+      padding-top: 13px;
+    }
+
+    summary {
+      color: var(--green);
+      cursor: pointer;
+      font-family: system-ui, sans-serif;
+      font-size: 0.82rem;
+      font-weight: 700;
+      list-style-position: outside;
+    }
+
+    details ol {
+      margin: 12px 0 0;
+      padding-left: 20px;
+      color: #554d44;
+      font-size: 0.94rem;
+    }
+
+    details li + li {
+      margin-top: 5px;
+    }
+
+    .outcomes {
+      margin: 20px 0 0;
+      padding-left: 22px;
+    }
+
+    .outcomes li + li {
+      margin-top: 10px;
+    }
+
+    .closing {
+      margin-top: 64px;
+      padding-top: 22px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.93rem;
+    }
+
+    @media (max-width: 560px) {
+      main {
+        width: min(100% - 28px, 66ch);
+        padding-top: 46px;
+      }
+
+      .session {
+        padding: 20px;
+      }
+
+      .number {
+        position: static;
+        margin-bottom: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">A 15-minute university-style survey</p>
+      <h1>Confucius, <span lang="zh-Hans">重新认识</span></h1>
+      <p class="lede">
+        You have met the familiar sayings before. This short course steps behind them:
+        it asks what kind of person, relationship, and political order Confucius thought
+        could be cultivated—and where his answers still invite argument.
+      </p>
+      <div class="course-facts" aria-label="Course facts">
+        <span><strong>3</strong> sessions</span>
+        <span><strong>5 minutes</strong> each</span>
+        <span><strong>Level:</strong> university survey</span>
+        <span><strong>Prior knowledge:</strong> Chinese high school</span>
+      </div>
+    </header>
+
+    <section aria-labelledby="approach">
+      <h2 id="approach">Our approach</h2>
+      <p>
+        Rather than treating <span lang="zh-Hans">仁、礼、君子</span> as definitions to
+        memorize, we will treat them as parts of one philosophical system. Each session
+        starts with a tension, uses a short passage from the <cite>Analects</cite>, and
+        ends with one decision that tests your interpretation.
+      </p>
+      <aside class="note">
+        <strong>Designed for your background.</strong> Key terms will appear in Chinese
+        alongside concise English analysis. Familiar schoolbook readings will be
+        acknowledged, then complicated—not taught from zero.
+      </aside>
+    </section>
+
+    <section aria-labelledby="course-arc">
+      <h2 id="course-arc">The three-session arc</h2>
+      <div class="arc">
+        <article class="session">
+          <span class="number" aria-hidden="true">01</span>
+          <h3 id="session-one">Becoming human through practice</h3>
+          <p class="question">Are we good first, or do repeated forms make us good?</p>
+          <p class="concepts">
+            Core ideas: <span lang="zh-Hans">仁</span> (humaneness),
+            <span lang="zh-Hans">礼</span> (ritual propriety),
+            <span lang="zh-Hans">君子</span> (exemplary person)
+          </p>
+          <details>
+            <summary>Preview the five-minute route</summary>
+            <ol>
+              <li>Recall a familiar saying—and question its usual reading.</li>
+              <li>Build the relationship between <span lang="zh-Hans">仁</span> and <span lang="zh-Hans">礼</span>.</li>
+              <li>Choose how a <span lang="zh-Hans">君子</span> would respond to a concrete social moment.</li>
+            </ol>
+          </details>
+        </article>
+
+        <article class="session">
+          <span class="number" aria-hidden="true">02</span>
+          <h3 id="session-two">The self inside relationships</h3>
+          <p class="question">Can partial duties to family produce an ethical society?</p>
+          <p class="concepts">
+            Core ideas: <span lang="zh-Hans">孝</span> (filiality),
+            <span lang="zh-Hans">忠恕</span> (doing one’s utmost and sympathetic understanding),
+            <span lang="zh-Hans">正名</span> (rectifying names)
+          </p>
+          <details>
+            <summary>Preview the five-minute route</summary>
+            <ol>
+              <li>Map the Confucian self as a web of roles, not an isolated individual.</li>
+              <li>Test whether <span lang="zh-Hans">孝</span> conflicts with impartial justice.</li>
+              <li>Use <span lang="zh-Hans">正名</span> to diagnose a breakdown in responsibility.</li>
+            </ol>
+          </details>
+        </article>
+
+        <article class="session">
+          <span class="number" aria-hidden="true">03</span>
+          <h3 id="session-three">Moral authority and political order</h3>
+          <p class="question">Can exemplary conduct govern more effectively than rules and punishment?</p>
+          <p class="concepts">
+            Core ideas: <span lang="zh-Hans">德</span> (moral power),
+            <span lang="zh-Hans">为政以德</span> (governing through virtue),
+            education and the Confucian legacy
+          </p>
+          <details>
+            <summary>Preview the five-minute route</summary>
+            <ol>
+              <li>Contrast moral example with coercive government.</li>
+              <li>Read Confucius charitably, then raise the strongest modern objection.</li>
+              <li>Assemble one concept map connecting person, relationship, and state.</li>
+            </ol>
+          </details>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="outcomes">
+      <h2 id="outcomes">By the end</h2>
+      <ul class="outcomes">
+        <li>Explain how the major concepts support one another instead of reciting them separately.</li>
+        <li>Interpret a short <cite>Analects</cite> passage with attention to philosophical tension.</li>
+        <li>Distinguish Confucius’s own project from later slogans associated with “Confucianism.”</li>
+        <li>Form a defensible view of one strength and one limitation in his ethical vision.</li>
+      </ul>
+    </section>
+
+    <p class="closing">
+      Next: Session 1 will begin with a saying you probably remember, then make it strange again.
+    </p>
+  </main>
+</body>
+</html>
+
