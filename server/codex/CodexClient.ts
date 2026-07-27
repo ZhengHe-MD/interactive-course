@@ -6,6 +6,7 @@ import type {
   CodexStatus,
   ConversationSummary,
   CoursePhase,
+  CourseSection,
   TranscriptItem,
 } from "../../shared/protocol";
 import { DESIGN_GUIDE } from "../course/designGuide";
@@ -198,7 +199,11 @@ export class CodexClient extends EventEmitter {
     }
   }
 
-  async startTurn(message: string, selections: SelectionContext[], options: { coursePhase?: CoursePhase; activePage?: string } = {}) {
+  async startTurn(
+    message: string,
+    selections: SelectionContext[],
+    options: { coursePhase?: CoursePhase; activePage?: string; activeSection?: CourseSection } = {},
+  ) {
     await this.requireReady();
     if (!this.threadId) await this.ensureConversation();
 

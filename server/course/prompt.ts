@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { CoursePhase, Selection } from "../../shared/protocol";
+import type { CoursePhase, CourseSection, Selection } from "../../shared/protocol";
 import type { UserInput } from "../codex/types";
 
 export type SelectionContext = Selection;
@@ -9,10 +9,10 @@ export type SelectionContext = Selection;
 export function buildCoursePrompt(
   message: string,
   selections: SelectionContext[],
-  options: { coursePhase?: CoursePhase; activePage?: string } = {},
+  options: { coursePhase?: CoursePhase; activePage?: string; activeSection?: CourseSection } = {},
 ) {
   const request = message.trim() || "Explain the selected part differently.";
-  const context = selections.length
+  const selectionContext = selections.length
     ? selections
         .map(
           (selection, index) => `Selection ${index + 1}
@@ -26,6 +26,10 @@ ${selection.outerHTML}`,
         )
         .join("\n\n---\n\n")
     : "No element was selected. Infer the best place in the course for this request.";
+  const activePage = options.activePage ?? selections[0]?.page ?? "syllabus.html";
+  const readingContext = options.activeSection
+    ? `Page: ${activePage}\nNearest section: ${options.activeSection.label}\nSection location: ${options.activeSection.id ? `#${options.activeSection.id}` : `h2 index ${options.activeSection.index}`}`
+    : `Page: ${activePage}\nNearest section: (no section identified)`;
 
   const coursePhase = options.coursePhase ?? "learning";
   const courseState = coursePhase === "empty"
@@ -41,7 +45,11 @@ The learner is working through a multi-page course. syllabus.html (or index.html
 ${request}
 
 Course context:
-${context}
+Reading position when the learner sent this request:
+${readingContext}
+
+Attached selection context:
+${selectionContext}
 
 ${courseState}
 

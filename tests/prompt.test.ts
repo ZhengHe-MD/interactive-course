@@ -95,9 +95,24 @@ describe("course prompt", () => {
     const prompt = buildCoursePrompt("Make the exercise clearer", [], {
       coursePhase: "learning",
       activePage: "session2.html",
+      activeSection: { id: "counterexample", index: 2, label: "A surprising counterexample" },
     });
 
+    expect(prompt).toContain("Reading position when the learner sent this request:");
+    expect(prompt).toContain("Page: session2.html");
+    expect(prompt).toContain("Nearest section: A surprising counterexample");
+    expect(prompt).toContain("Section location: #counterexample");
     expect(prompt).toContain("currently viewing session2.html");
     expect(prompt).toContain("use that page");
+  });
+
+  it("still records page-level context when no section can be identified", () => {
+    const prompt = buildCoursePrompt("Can you explain this?", [], {
+      coursePhase: "syllabus",
+      activePage: "syllabus.html",
+    });
+
+    expect(prompt).toContain("Page: syllabus.html");
+    expect(prompt).toContain("Nearest section: (no section identified)");
   });
 });

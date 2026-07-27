@@ -6,6 +6,7 @@ import type {
   CodexStatus,
   ConversationSummary,
   CourseOutline,
+  CourseSection,
   CourseSummary,
   Selection,
   ServerMessage,
@@ -282,7 +283,7 @@ function reducer(state: StudioState, action: Action): StudioState {
 }
 
 export type StudioActions = {
-  sendTurn: (text: string, selections: Selection[], page: string) => void;
+  sendTurn: (text: string, selections: Selection[], page: string, section?: CourseSection) => void;
   startCourse: (topic: string) => void;
   openCourse: (courseId: string) => void;
   newConversation: () => void;
@@ -359,8 +360,8 @@ export function useStudio(): { state: StudioState; actions: StudioActions } {
       if (live?.readyState === WebSocket.OPEN) live.send(JSON.stringify(message));
     };
     return {
-      sendTurn(text, selections, page) {
-        post({ type: "turn.start", message: text, selections, page });
+      sendTurn(text, selections, page, section) {
+        post({ type: "turn.start", message: text, selections, page, section });
         dispatch({ type: "send", id: uid(), agentId: uid(), text, selections });
       },
       startCourse(topic) {

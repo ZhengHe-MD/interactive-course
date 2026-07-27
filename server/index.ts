@@ -338,6 +338,7 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
         {
           coursePhase: await course.getCoursePhase(),
           activePage: message.type === "turn.start" ? message.page : "syllabus.html",
+          activeSection: message.type === "turn.start" ? message.section : undefined,
         },
       );
       activeTurn = turn.id;

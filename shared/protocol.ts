@@ -106,7 +106,7 @@ export type TranscriptItem =
 // ---- browser → server ----------------------------------------------------
 
 export type ClientMessage =
-  | { type: "turn.start"; message: string; selections: Selection[]; page: string }
+  | { type: "turn.start"; message: string; selections: Selection[]; page: string; section?: CourseSection }
   | { type: "course.start"; topic: string }
   | { type: "course.open"; courseId: string }
   | { type: "conversation.new" }
