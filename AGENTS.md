@@ -13,3 +13,10 @@ A local web app where a learner co-designs personalized interactive HTML courses
 - Courses are plain HTML/CSS/JS directories. Never add a build step to a course.
 - The agent backend is Codex `app-server`, behind a thin seam. Don't widen the seam.
 - Quality over cost.
+
+## Where the agent's instructions live
+
+- `server/course/designGuide.ts` — standing instructions: taste, pedagogy, the no-build rule, the course-first answer contract. Sent once, when the thread starts.
+- `server/course/prompt.ts` — per-turn state: the selected element, and which of `empty` / `syllabus` / `learning` the course is in. The phase is read back out of the course's own `<meta name="course-studio-phase">` on every turn.
+
+Keep the split. Taste belongs in the guide; sequencing belongs in the prompt.

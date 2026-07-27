@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import { WebSocket, WebSocketServer } from "ws";
 import { CodexClient } from "./codex/CodexClient";
-import { CourseManager } from "./course/CourseManager";
-import type { Activity, ClientMessage, CourseOutline, ServerMessage } from "../shared/protocol";
+import { CourseManager, EMPTY_OUTLINE } from "./course/CourseManager";
+import type { Activity, ClientMessage, ServerMessage } from "../shared/protocol";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, "..");
@@ -42,20 +42,11 @@ async function checkpoints() {
   }
 }
 
-const emptyOutline: CourseOutline = {
-  phase: "empty",
-  hasContent: false,
-  title: "What will you learn?",
-  topic: "New course",
-  sections: [],
-  upNext: [],
-};
-
 async function outline() {
   try {
     return await course.getOutline();
   } catch {
-    return emptyOutline;
+    return EMPTY_OUTLINE;
   }
 }
 

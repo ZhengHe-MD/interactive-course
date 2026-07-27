@@ -9,6 +9,16 @@ const execFileAsync = promisify(execFile);
 
 type ChangeListener = (path: string) => void;
 
+/** What the studio shows before the course has been born. */
+export const EMPTY_OUTLINE: CourseOutline = {
+  phase: "empty",
+  hasContent: false,
+  title: "What will you learn?",
+  topic: "New course",
+  sections: [],
+  upNext: [],
+};
+
 /**
  * Optional, agent-written metadata. Nothing requires it, so every field is
  * treated as untrusted: the outline falls back to what the HTML itself says.
@@ -87,16 +97,7 @@ export class CourseManager {
    */
   async getOutline(): Promise<CourseOutline> {
     const [html, manifest] = await Promise.all([this.readEntry(), this.readManifest()]);
-    if (html === null) {
-      return {
-        phase: "empty",
-        hasContent: false,
-        title: "What will you learn?",
-        topic: "New course",
-        sections: [],
-        upNext: [],
-      };
-    }
+    if (html === null) return EMPTY_OUTLINE;
 
     const phase = readPhase(html);
     const derived = deriveMeta(html);

@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { relative } from "node:path";
+import { basename, isAbsolute, relative } from "node:path";
 import type { CodexStatus, CoursePhase } from "../../shared/protocol";
 import { DESIGN_GUIDE } from "../course/designGuide";
 import { buildCoursePrompt, writeSelectionImages, type SelectionContext } from "../course/prompt";
@@ -41,10 +41,6 @@ export class CodexClient extends EventEmitter {
 
   getStatus() {
     return this.status;
-  }
-
-  getActiveTurn() {
-    return this.activeTurn;
   }
 
   async connect(): Promise<CodexStatus> {
@@ -171,6 +167,13 @@ export class CodexClient extends EventEmitter {
     }
   }
 
+  /** A short, learner-facing name for a file the agent touched. */
+  private courseRelative(path: string) {
+    if (!isAbsolute(path)) return path;
+    const inside = relative(this.courseDirectory, path);
+    return inside && !inside.startsWith("..") ? inside : basename(path);
+  }
+
   private failActiveTurn(message: string) {
     const turnId = this.activeTurn;
     if (!turnId) return;
@@ -216,7 +219,7 @@ export class CodexClient extends EventEmitter {
       const id = item.id ?? `${item.type}-${turnId ?? "turn"}`;
       if (item.type === "fileChange") {
         const changedPath = item.changes?.[0]?.path;
-        const file = changedPath ? relative(this.courseDirectory, changedPath) : undefined;
+        const file = changedPath ? this.courseRelative(changedPath) : undefined;
         this.emit("activity", {
           turnId,
           activity: { id, kind: "edit", label: done ? "Course updated" : "Editing the course…", file, done },
