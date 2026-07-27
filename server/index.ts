@@ -6,11 +6,14 @@ import express from "express";
 import { WebSocket, WebSocketServer } from "ws";
 import { CodexClient } from "./codex/CodexClient";
 import { CourseManager } from "./course/CourseManager";
-import type { ClientMessage, ServerMessage } from "../shared/protocol";
+import type { Activity, ClientMessage, CourseOutline, ServerMessage } from "../shared/protocol";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, "..");
-const courseRelativePath = "courses/current";
+// Courses live in the studio repository so they are versioned and shareable with
+// it. COURSE_ID selects which one is open; the default is the working course.
+const courseId = process.env.COURSE_STUDIO_COURSE ?? "current";
+const courseRelativePath = `courses/${courseId}`;
 const courseDirectory = join(repositoryRoot, courseRelativePath);
 const port = Number(process.env.COURSE_STUDIO_PORT ?? 4310);
 
@@ -36,6 +39,23 @@ async function checkpoints() {
     return await course.listCheckpoints();
   } catch {
     return [];
+  }
+}
+
+const emptyOutline: CourseOutline = {
+  phase: "empty",
+  hasContent: false,
+  title: "What will you learn?",
+  topic: "New course",
+  sections: [],
+  upNext: [],
+};
+
+async function outline() {
+  try {
+    return await course.getOutline();
+  } catch {
+    return emptyOutline;
   }
 }
 
@@ -95,7 +115,9 @@ websocket.on("connection", async (socket) => {
     type: "session",
     codex: codex.getStatus(),
     checkpoints: await checkpoints(),
+    course: await outline(),
     courseVersion,
+    turnActive: activeTurn !== null,
   });
   socket.on("close", () => sockets.delete(socket));
   socket.on("message", (raw) => void handleClientMessage(socket, raw.toString()));
@@ -115,17 +137,30 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
       send(socket, { type: "error", message: "The course agent is already working on a turn." });
       return;
     }
+    // Claim the slot before awaiting, so two quick sends cannot both get through.
+    activeTurn = "pending";
     try {
-      broadcast({ type: "activity", label: "Reading your course context…" });
+      broadcast({
+        type: "activity",
+        activity: { id: "prepare", kind: "reasoning", label: "Reading your course context…" },
+      });
       const turn = await codex.startTurn(message.message, message.selections, {
         coursePhase: await course.getCoursePhase(),
       });
       activeTurn = turn.id;
       broadcast({ type: "turn.accepted", turnId: turn.id });
+      broadcast({ type: "activity", activity: { id: "prepare", kind: "reasoning", label: "Reading your course context…", done: true } });
     } catch (error) {
       activeTurn = null;
+      broadcast({ type: "activity", activity: { id: "prepare", kind: "reasoning", label: "Reading your course context…", done: true } });
       broadcast({ type: "error", message: error instanceof Error ? error.message : "Could not start the turn." });
     }
+  }
+
+  if (message.type === "turn.interrupt") {
+    if (!activeTurn) return;
+    broadcast({ type: "system", message: "Stopping the current turn…" });
+    await codex.interrupt();
   }
 
   if (message.type === "checkpoint.revert") {
@@ -142,7 +177,7 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
       courseVersion = Date.now();
       broadcast({ type: "system", message: checkpoint.label });
       broadcast({ type: "checkpoints", checkpoints: await checkpoints() });
-      broadcast({ type: "course.changed", courseVersion });
+      broadcast({ type: "course.changed", courseVersion, course: await outline() });
     } catch (error) {
       send(socket, { type: "error", message: error instanceof Error ? error.message : "Could not restore the checkpoint." });
     }
@@ -151,13 +186,18 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
 
 codex.on("status", (status) => broadcast({ type: "codex.status", status }));
 codex.on("agentDelta", ({ turnId, delta }) => broadcast({ type: "agent.delta", turnId, delta }));
-codex.on("activity", (activity) => broadcast({ type: "activity", ...activity }));
+codex.on("activity", ({ turnId, activity }: { turnId?: string; activity: Activity }) =>
+  broadcast({ type: "activity", turnId, activity }),
+);
+codex.on("notice", (message: string) => broadcast({ type: "system", message }));
 codex.on("turnCompleted", (turn) => void handleTurnCompleted(turn));
 codex.on("diagnostic", (message) => {
   if (process.env.COURSE_STUDIO_DEBUG) console.error(`[codex] ${message}`);
 });
 
 async function handleTurnCompleted(turn: { turnId: string; status: string; error?: string }) {
+  // Clear the slot first: a failed checkpoint must never leave the studio stuck.
+  activeTurn = null;
   try {
     if (turn.status === "completed") await course.createCheckpoint("Agent course update", { allowEmpty: true });
     broadcast({ type: "checkpoints", checkpoints: await checkpoints() });
@@ -165,20 +205,26 @@ async function handleTurnCompleted(turn: { turnId: string; status: string; error
     broadcast({ type: "error", message: checkpointError instanceof Error ? checkpointError.message : "Checkpoint failed." });
   }
   broadcast({ type: "turn.completed", ...turn });
-  activeTurn = null;
 }
 
 course.onChange((path) => {
   if (changeTimer) clearTimeout(changeTimer);
   changeTimer = setTimeout(() => {
-    courseVersion = Date.now();
-    broadcast({ type: "course.changed", courseVersion, path: relative(courseDirectory, path) });
+    void (async () => {
+      courseVersion = Date.now();
+      broadcast({
+        type: "course.changed",
+        courseVersion,
+        course: await outline(),
+        path: relative(courseDirectory, path),
+      });
+    })();
   }, 120);
 });
 course.watch();
 
 server.listen(port, "127.0.0.1", () => {
-  console.log(`Course Studio server: http://127.0.0.1:${port}`);
+  console.log(`Course Studio server: http://127.0.0.1:${port} (${courseRelativePath})`);
   void codex.connect();
 });
 

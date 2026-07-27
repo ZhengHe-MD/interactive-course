@@ -3,14 +3,28 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import chokidar, { type FSWatcher } from "chokidar";
-import type { Checkpoint } from "../../shared/protocol";
+import type { Checkpoint, CourseOutline, CoursePhase, CourseSection } from "../../shared/protocol";
 
 const execFileAsync = promisify(execFile);
 
 type ChangeListener = (path: string) => void;
 
-export type CoursePhase = "empty" | "syllabus" | "learning";
+/**
+ * Optional, agent-written metadata. Nothing requires it, so every field is
+ * treated as untrusted: the outline falls back to what the HTML itself says.
+ */
+type Manifest = {
+  title?: unknown;
+  topic?: unknown;
+  upNext?: unknown;
+};
 
+/**
+ * Owns one course's files and its git-backed timeline (DESIGN.md decisions 4 and
+ * 9). Checkpoints are path-scoped commits in the studio repository, and revert is
+ * forward-only — it restores the previous tree and commits that, so undo is
+ * itself undoable and no history is ever rewritten.
+ */
 export class CourseManager {
   private watcher: FSWatcher | null = null;
   private listeners = new Set<ChangeListener>();
@@ -21,7 +35,7 @@ export class CourseManager {
   ) {}
 
   get courseDirectory() {
-    return `${this.repositoryRoot}/${this.courseRelativePath}`;
+    return join(this.repositoryRoot, this.courseRelativePath);
   }
 
   private get checkpointPrefix() {
@@ -40,16 +54,60 @@ export class CourseManager {
     return Boolean(await this.git(["status", "--porcelain", "--", this.courseRelativePath]));
   }
 
-  async getCoursePhase(): Promise<CoursePhase> {
+  /** The course's entry page, or null when the course has not been born yet. */
+  private async readEntry(): Promise<string | null> {
     try {
-      const html = await readFile(join(this.courseDirectory, "index.html"), "utf8");
-      const phaseTag = html.match(/<meta\b[^>]*\bname=["']course-studio-phase["'][^>]*>/i)?.[0];
-      const phase = phaseTag?.match(/\bcontent=["'](syllabus|learning)["']/i)?.[1]?.toLowerCase();
-      return phase === "syllabus" ? "syllabus" : "learning";
+      return await readFile(join(this.courseDirectory, "index.html"), "utf8");
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return "empty";
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
       throw error;
     }
+  }
+
+  private async readManifest(): Promise<Manifest> {
+    try {
+      const raw = await readFile(join(this.courseDirectory, "course.json"), "utf8");
+      const parsed: unknown = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? (parsed as Manifest) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  async getCoursePhase(): Promise<CoursePhase> {
+    const html = await this.readEntry();
+    return html === null ? "empty" : readPhase(html);
+  }
+
+  /**
+   * Everything the studio chrome renders around the preview. Derived from the
+   * course HTML so the agent never has to maintain a separate index, with an
+   * optional `course.json` allowed to override the title and name lessons that
+   * do not exist yet.
+   */
+  async getOutline(): Promise<CourseOutline> {
+    const [html, manifest] = await Promise.all([this.readEntry(), this.readManifest()]);
+    if (html === null) {
+      return {
+        phase: "empty",
+        hasContent: false,
+        title: "What will you learn?",
+        topic: "New course",
+        sections: [],
+        upNext: [],
+      };
+    }
+
+    const phase = readPhase(html);
+    const derived = deriveMeta(html);
+    return {
+      phase,
+      hasContent: true,
+      title: text(manifest.title) || derived.title,
+      topic: text(manifest.topic) || derived.topic || (phase === "syllabus" ? "Proposed syllabus" : "Your course"),
+      sections: derived.sections,
+      upNext: strings(manifest.upNext),
+    };
   }
 
   async createCheckpoint(label: string, options: { allowEmpty?: boolean } = {}): Promise<Checkpoint | null> {
@@ -127,4 +185,55 @@ export class CourseManager {
     await this.watcher?.close();
     this.watcher = null;
   }
+}
+
+/** Course phase, stored in the course itself so it survives a studio restart. */
+export function readPhase(html: string): CoursePhase {
+  const phaseTag = html.match(/<meta\b[^>]*\bname=["']course-studio-phase["'][^>]*>/i)?.[0];
+  const phase = phaseTag?.match(/\bcontent=["'](syllabus|learning)["']/i)?.[1]?.toLowerCase();
+  return phase === "syllabus" ? "syllabus" : "learning";
+}
+
+/**
+ * Read a title, a topic, and a table of contents straight out of the course
+ * page. Headings keep their `id` when they have one so the studio can scroll to
+ * them precisely; the index is carried too, so id-less headings still navigate.
+ */
+export function deriveMeta(html: string): { title: string; topic: string; sections: CourseSection[] } {
+  const metaTitle = metaContent(html, "course-title");
+  const firstH1 = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(html)?.[1];
+  const titleTag = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1];
+  const title = clean(metaTitle) || clean(firstH1) || clean(titleTag) || "Untitled course";
+
+  const sections: CourseSection[] = [];
+  const heading = /<h2\b([^>]*)>([\s\S]*?)<\/h2>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = heading.exec(html))) {
+    const label = clean(match[2]);
+    if (!label) continue;
+    const id = /\bid\s*=\s*["']([^"']+)["']/i.exec(match[1])?.[1];
+    sections.push({ id, index: sections.length, label });
+  }
+
+  return { title, topic: clean(metaContent(html, "course-topic")), sections };
+}
+
+function metaContent(html: string, name: string) {
+  const tag = html.match(new RegExp(`<meta\\b[^>]*\\bname=["']${name}["'][^>]*>`, "i"))?.[0];
+  return tag?.match(/\bcontent=["']([^"']*)["']/i)?.[1];
+}
+
+function clean(value: string | undefined) {
+  return (value ?? "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+}
+
+function text(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+// The agent may write upNext as a string, an array, or not at all — normalize.
+function strings(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string" && item.trim() !== "");
+  if (typeof value === "string" && value.trim()) return [value.trim()];
+  return [];
 }

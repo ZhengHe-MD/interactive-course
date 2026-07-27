@@ -22,20 +22,6 @@
     return !document.body.hasAttribute("data-course-studio-empty") && (inspect || altInspect);
   }
 
-  function outline() {
-    const empty = document.body.hasAttribute("data-course-studio-empty");
-    const title = document.querySelector('meta[name="course-title"]')?.content
-      || document.querySelector("main h1, h1")?.textContent?.trim()
-      || document.title
-      || "Untitled course";
-    const topic = empty ? "New course" : document.querySelector('meta[name="course-topic"]')?.content
-      || document.querySelector("[data-course-topic]")?.textContent?.trim()
-      || "Your course";
-    const headings = [...document.querySelectorAll("main h2, [data-course-section-title]")];
-    const sections = [...new Set(headings.map((heading) => heading.textContent?.replace(/\s+/g, " ").trim()).filter(Boolean))].slice(0, 8);
-    return { empty, title, topic, sections };
-  }
-
   function validTarget(target) {
     if (!(target instanceof Element)) return null;
     if (target.closest("[data-course-studio-ui]")) return null;
@@ -209,13 +195,16 @@
     if (event.data.type === "scroll.restore" && Number.isFinite(event.data.top)) {
       window.scrollTo({ top: event.data.top, behavior: "instant" });
     }
-    if (event.data.type === "scroll.toSection" && Number.isInteger(event.data.index)) {
-      const headings = [...document.querySelectorAll("main h2, [data-course-section-title]")];
-      headings[event.data.index]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (event.data.type === "scroll.toSection") {
+      // The studio derives its table of contents from the course HTML on the
+      // server. Prefer the heading's own id; fall back to its position.
+      const target = (event.data.id && document.getElementById(event.data.id))
+        || (Number.isInteger(event.data.index) ? document.querySelectorAll("h2")[event.data.index] : null);
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   });
 
   document.querySelector("[data-course-studio-start]")?.addEventListener("click", () => post("empty.start"));
 
-  post("ready", { title: document.title, top: window.scrollY, course: outline() });
+  post("ready", { title: document.title, top: window.scrollY });
 })();
