@@ -5,6 +5,7 @@ import type {
   ClientMessage,
   CodexStatus,
   CourseOutline,
+  CourseSummary,
   Selection,
   ServerMessage,
 } from "../shared/protocol";
@@ -32,6 +33,8 @@ export type StudioState = {
   connected: boolean;
   codex: CodexStatus;
   checkpoints: Checkpoint[];
+  courseId: string;
+  courses: CourseSummary[];
   course: CourseOutline;
   courseVersion: number;
   courseChanged: boolean;
@@ -47,6 +50,8 @@ const initialState: StudioState = {
   connected: false,
   codex: { state: "starting" },
   checkpoints: [],
+  courseId: "current",
+  courses: [],
   course: emptyCourse,
   courseVersion: Date.now(),
   courseChanged: false,
@@ -60,6 +65,7 @@ type Action =
   | { type: "connection"; connected: boolean }
   | { type: "server"; message: ServerMessage }
   | { type: "send"; id: string; agentId: string; text: string; selections: Selection[] }
+  | { type: "start"; id: string; agentId: string; topic: string }
   | { type: "changed.clear" };
 
 function patchAgent(
@@ -74,11 +80,38 @@ function patchAgent(
   };
 }
 
-/** Transient activities disappear when they finish; a finished edit is news. */
 function mergeActivity(activities: Activity[], next: Activity): Activity[] {
-  const rest = activities.filter((activity) => activity.id !== next.id);
-  if (next.done && next.kind !== "edit") return rest;
-  return [...rest, next];
+  // The optimistic row prevents dead air before app-server accepts the turn.
+  // Replace it as soon as real Codex metadata arrives, then retain completed
+  // rows so the learner can understand what happened after the spinner stops.
+  const rest = activities.filter((activity) => {
+    if (activity.id === next.id || activity.id === "turn-starting") return false;
+    // `prepare` is a studio-side preflight row. Keep the generic turn status
+    // beside its completion until Codex emits an actual item.
+    if (activity.id === "turn-working" && next.id !== "prepare") return false;
+    return true;
+  });
+  return [...rest, next].slice(-16);
+}
+
+const startingActivity: Activity = {
+  id: "turn-starting",
+  kind: "reasoning",
+  label: "Starting",
+};
+
+const workingActivity: Activity = {
+  id: "turn-working",
+  kind: "reasoning",
+  label: "Working",
+};
+
+export function mergeTurnActivity(activities: Activity[], next: Activity, hasText: boolean): Activity[] {
+  const merged = mergeActivity(activities, next);
+  const hasLiveActivity = merged.some((activity) => !activity.done);
+  return next.done && !hasLiveActivity && !hasText
+    ? [...merged, workingActivity].slice(-16)
+    : merged;
 }
 
 function reducer(state: StudioState, action: Action): StudioState {
@@ -98,7 +131,20 @@ function reducer(state: StudioState, action: Action): StudioState {
           text: action.text,
           selections: action.selections.map(({ tag, text }) => ({ tag, text })),
         },
-        { kind: "agent", id: action.agentId, text: "", activities: [] },
+        { kind: "agent", id: action.agentId, text: "", activities: [startingActivity] },
+      ],
+    };
+  }
+
+  if (action.type === "start") {
+    return {
+      ...state,
+      working: true,
+      pendingId: action.agentId,
+      turnMessages: {},
+      items: [
+        { kind: "user", id: action.id, text: action.topic, selections: [] },
+        { kind: "agent", id: action.agentId, text: "", activities: [startingActivity] },
       ],
     };
   }
@@ -110,6 +156,8 @@ function reducer(state: StudioState, action: Action): StudioState {
         ...state,
         codex: message.codex,
         checkpoints: message.checkpoints,
+        courseId: message.courseId,
+        courses: message.courses,
         course: message.course,
         courseVersion: message.courseVersion,
         working: message.turnActive,
@@ -118,19 +166,48 @@ function reducer(state: StudioState, action: Action): StudioState {
       return { ...state, codex: message.status };
     case "checkpoints":
       return { ...state, checkpoints: message.checkpoints };
-    case "turn.accepted":
-      return state.pendingId
-        ? { ...state, turnMessages: { ...state.turnMessages, [message.turnId]: state.pendingId } }
-        : state;
+    case "courses":
+      return { ...state, courseId: message.courseId, courses: message.courses };
+    case "course.opened":
+      return {
+        ...state,
+        codex: message.codex,
+        checkpoints: message.checkpoints,
+        courseId: message.courseId,
+        courses: message.courses,
+        course: message.course,
+        courseVersion: message.courseVersion,
+        courseChanged: false,
+        items: [welcome],
+        working: false,
+        pendingId: null,
+        turnMessages: {},
+      };
+    case "turn.accepted": {
+      if (!state.pendingId) return state;
+      const mapped = {
+        ...state,
+        turnMessages: { ...state.turnMessages, [message.turnId]: state.pendingId },
+      };
+      return patchAgent(mapped, state.pendingId, (item) => ({
+        activities: mergeActivity(item.activities, workingActivity),
+      }));
+    }
     case "agent.delta":
       return patchAgent(state, state.turnMessages[message.turnId] ?? state.pendingId, (item) => ({
         text: item.text + message.delta,
+        // Visible streamed text is its own progress signal.
+        activities: item.activities.filter((activity) => activity.id !== "turn-working"),
       }));
     case "activity":
       return patchAgent(
         state,
         (message.turnId && state.turnMessages[message.turnId]) || state.pendingId,
-        (item) => ({ activities: mergeActivity(item.activities, message.activity) }),
+        (item) => {
+          return {
+            activities: mergeTurnActivity(item.activities, message.activity, Boolean(item.text)),
+          };
+        },
       );
     case "course.changed":
       return {
@@ -142,7 +219,9 @@ function reducer(state: StudioState, action: Action): StudioState {
     case "turn.completed": {
       const id = state.turnMessages[message.turnId] ?? state.pendingId;
       const next = patchAgent(state, id, (item) => ({
-        activities: item.activities.filter((activity) => activity.done),
+        activities: item.activities
+          .filter((activity) => activity.id !== "turn-starting" && activity.id !== "turn-working")
+          .map((activity) => ({ ...activity, done: true })),
         failed: message.status !== "completed",
         text:
           item.text ||
@@ -178,6 +257,8 @@ function reducer(state: StudioState, action: Action): StudioState {
 
 export type StudioActions = {
   sendTurn: (text: string, selections: Selection[]) => void;
+  startCourse: (topic: string) => void;
+  openCourse: (courseId: string) => void;
   interrupt: () => void;
   revert: () => void;
 };
@@ -232,6 +313,11 @@ export function useStudio(): { state: StudioState; actions: StudioActions } {
         post({ type: "turn.start", message: text, selections });
         dispatch({ type: "send", id: uid(), agentId: uid(), text, selections });
       },
+      startCourse(topic) {
+        post({ type: "course.start", topic });
+        dispatch({ type: "start", id: uid(), agentId: uid(), topic });
+      },
+      openCourse: (courseId) => post({ type: "course.open", courseId }),
       interrupt: () => post({ type: "turn.interrupt" }),
       revert: () => post({ type: "checkpoint.revert" }),
     };

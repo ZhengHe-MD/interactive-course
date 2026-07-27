@@ -13,6 +13,8 @@ type Props = {
   inspecting: boolean;
   courseChanged: boolean;
   codex: CodexStatus;
+  startingTopic?: string;
+  working: boolean;
   onSelection: (selection: Selection) => void;
   onInspectCancelled: () => void;
   onStartRequested: () => void;
@@ -24,7 +26,7 @@ type Props = {
  * `postMessage`, pinned to this origin in both directions.
  */
 export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
-  { courseVersion, inspecting, courseChanged, codex, onSelection, onInspectCancelled, onStartRequested },
+  { courseVersion, inspecting, courseChanged, codex, startingTopic, working, onSelection, onInspectCancelled, onStartRequested },
   ref,
 ) {
   const frame = useRef<HTMLIFrameElement | null>(null);
@@ -64,10 +66,25 @@ export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
 
   return (
     <div className={`preview-stage ${inspecting ? "is-inspecting" : ""}`}>
-      <iframe ref={frame} title="Interactive course preview" src={`/course/index.html?v=${courseVersion}`} />
-      {courseChanged && (
+      {startingTopic ? (
+        <section className="course-starting-card" aria-live="polite">
+          <span>New course</span>
+          <h1>{startingTopic}</h1>
+          <div className={working ? "course-starting-progress active" : "course-starting-progress"} />
+          <strong>{working ? "Designing your starting point…" : "Ready for your next direction"}</strong>
+          <p>This is a separate course. Your previous course is saved and available from the course switcher.</p>
+        </section>
+      ) : (
+        <iframe ref={frame} title="Interactive course preview" src={`/course/index.html?v=${courseVersion}`} />
+      )}
+      {courseChanged && !startingTopic && (
         <div className="reload-toast">
-          <Check size={15} /> Course reloaded
+          <Check size={15} /> Course updated
+        </div>
+      )}
+      {inspecting && (
+        <div className="inspect-hint">
+          Click any part of the lesson to attach it <span>· Esc to cancel</span>
         </div>
       )}
       {codex.state === "error" && (

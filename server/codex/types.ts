@@ -46,6 +46,11 @@ export type TurnStartParams = {
   input: UserInput[];
 };
 
+export type TurnInterruptParams = {
+  threadId: string;
+  turnId: string;
+};
+
 // ---- notifications we consume -------------------------------------------
 
 export type FileChange = {
@@ -65,9 +70,18 @@ export type ThreadItem = {
   type: string;
   id?: string;
   text?: string;
+  summary?: string[];
+  content?: string[];
   changes?: FileChange[];
   status?: string;
   command?: string;
+  query?: string;
+  server?: string;
+  tool?: string;
+  namespace?: string | null;
+  prompt?: string | null;
+  path?: string;
+  durationMs?: number | null;
 };
 
 export type ItemNotification = {
@@ -81,6 +95,28 @@ export type AgentMessageDeltaNotification = {
   turnId?: string;
   itemId?: string;
   delta?: string;
+};
+
+export type ReasoningSummaryTextDeltaNotification = {
+  threadId?: string;
+  turnId?: string;
+  itemId?: string;
+  delta?: string;
+  summaryIndex?: number;
+};
+
+export type McpToolCallProgressNotification = {
+  threadId?: string;
+  turnId?: string;
+  itemId?: string;
+  message?: string;
+};
+
+export type TurnPlanUpdatedNotification = {
+  threadId?: string;
+  turnId?: string;
+  explanation?: string | null;
+  plan?: Array<{ step: string; status: "pending" | "inProgress" | "completed" }>;
 };
 
 export type TurnCompletedNotification = {

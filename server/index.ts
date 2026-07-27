@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,25 +6,28 @@ import express from "express";
 import { WebSocket, WebSocketServer } from "ws";
 import { CodexClient } from "./codex/CodexClient";
 import { CourseManager, EMPTY_OUTLINE } from "./course/CourseManager";
+import { allocateCourseId, isCourseId, listCourses } from "./course/library";
 import type { Activity, ClientMessage, ServerMessage } from "../shared/protocol";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, "..");
 // Courses live in the studio repository so they are versioned and shareable with
 // it. COURSE_ID selects which one is open; the default is the working course.
-const courseId = process.env.COURSE_STUDIO_COURSE ?? "current";
-const courseRelativePath = `courses/${courseId}`;
-const courseDirectory = join(repositoryRoot, courseRelativePath);
+const requestedCourseId = process.env.COURSE_STUDIO_COURSE ?? "current";
+let courseId = isCourseId(requestedCourseId) ? requestedCourseId : "current";
+let courseRelativePath = `courses/${courseId}`;
+let courseDirectory = join(repositoryRoot, courseRelativePath);
 const port = Number(process.env.COURSE_STUDIO_PORT ?? 4310);
 
 const app = express();
 const server = createServer(app);
 const sockets = new Set<WebSocket>();
-const course = new CourseManager(repositoryRoot, courseRelativePath);
-const codex = new CodexClient(courseDirectory);
+let course = new CourseManager(repositoryRoot, courseRelativePath);
+let codex = new CodexClient(courseDirectory);
 let courseVersion = Date.now();
 let activeTurn: string | null = null;
 let changeTimer: NodeJS.Timeout | null = null;
+let stopCourseChange: (() => void) | null = null;
 
 function send(socket: WebSocket, message: ServerMessage) {
   if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
@@ -48,6 +51,72 @@ async function outline() {
   } catch {
     return EMPTY_OUTLINE;
   }
+}
+
+async function courses() {
+  return listCourses(repositoryRoot, courseId);
+}
+
+async function broadcastCourses() {
+  broadcast({ type: "courses", courseId, courses: await courses() });
+}
+
+function wireCodex(client: CodexClient) {
+  client.on("status", (status) => broadcast({ type: "codex.status", status }));
+  client.on("agentDelta", ({ turnId, delta }) => broadcast({ type: "agent.delta", turnId, delta }));
+  client.on("activity", ({ turnId, activity }: { turnId?: string; activity: Activity }) =>
+    broadcast({ type: "activity", turnId, activity }),
+  );
+  client.on("notice", (message: string) => broadcast({ type: "system", message }));
+  client.on("turnCompleted", (turn) => void handleTurnCompleted(turn));
+  client.on("diagnostic", (message) => {
+    if (process.env.COURSE_STUDIO_DEBUG) console.error(`[codex] ${message}`);
+  });
+}
+
+function watchCourse(manager: CourseManager) {
+  stopCourseChange?.();
+  stopCourseChange = manager.onChange((path) => {
+    if (changeTimer) clearTimeout(changeTimer);
+    changeTimer = setTimeout(() => {
+      void (async () => {
+        courseVersion = Date.now();
+        broadcast({
+          type: "course.changed",
+          courseVersion,
+          course: await outline(),
+          path: relative(courseDirectory, path),
+        });
+        await broadcastCourses();
+      })();
+    }, 120);
+  });
+  manager.watch();
+}
+
+async function activateCourse(nextCourseId: string) {
+  if (!isCourseId(nextCourseId)) throw new Error("That course could not be opened.");
+
+  // Capture any manual edits before the active directory changes. The normal
+  // agent path is already checkpointed, so this is usually a no-op.
+  await course.createCheckpoint("Saved before switching courses");
+  if (changeTimer) clearTimeout(changeTimer);
+  changeTimer = null;
+  stopCourseChange?.();
+  stopCourseChange = null;
+  await course.close();
+  codex.removeAllListeners();
+  codex.close();
+
+  courseId = nextCourseId;
+  courseRelativePath = `courses/${courseId}`;
+  courseDirectory = join(repositoryRoot, courseRelativePath);
+  await mkdir(courseDirectory, { recursive: true });
+  course = new CourseManager(repositoryRoot, courseRelativePath);
+  codex = new CodexClient(courseDirectory);
+  wireCodex(codex);
+  watchCourse(course);
+  courseVersion = Date.now();
 }
 
 function safeCoursePath(requestPath: string) {
@@ -93,7 +162,9 @@ app.use("/course", async (request, response, next) => {
     next();
   }
 });
-app.use("/course", express.static(courseDirectory, { etag: false, lastModified: false, maxAge: 0 }));
+app.use("/course", (request, response, next) => {
+  express.static(courseDirectory, { etag: false, lastModified: false, maxAge: 0 })(request, response, next);
+});
 
 const distDirectory = join(repositoryRoot, "dist");
 app.use(express.static(distDirectory));
@@ -107,6 +178,8 @@ websocket.on("connection", async (socket) => {
     codex: codex.getStatus(),
     checkpoints: await checkpoints(),
     course: await outline(),
+    courseId,
+    courses: await courses(),
     courseVersion,
     turnActive: activeTurn !== null,
   });
@@ -123,7 +196,34 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
     return;
   }
 
-  if (message.type === "turn.start") {
+  if (message.type === "course.open") {
+    if (activeTurn) {
+      send(socket, { type: "error", message: "Wait for the course agent to finish before switching courses." });
+      return;
+    }
+    try {
+      const available = await courses();
+      if (!available.some((entry) => entry.id === message.courseId)) {
+        throw new Error("That course no longer exists.");
+      }
+      if (message.courseId !== courseId) await activateCourse(message.courseId);
+      const status = await codex.connect();
+      broadcast({
+        type: "course.opened",
+        courseId,
+        courses: await courses(),
+        course: await outline(),
+        courseVersion,
+        checkpoints: await checkpoints(),
+        codex: status,
+      });
+    } catch (error) {
+      send(socket, { type: "error", message: error instanceof Error ? error.message : "Could not open the course." });
+    }
+    return;
+  }
+
+  if (message.type === "turn.start" || message.type === "course.start") {
     if (activeTurn) {
       send(socket, { type: "error", message: "The course agent is already working on a turn." });
       return;
@@ -131,13 +231,32 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
     // Claim the slot before awaiting, so two quick sends cannot both get through.
     activeTurn = "pending";
     try {
+      if (message.type === "course.start") {
+        // Verify Codex first: a missing CLI must never move the learner away
+        // from the course they were reading.
+        const currentStatus = await codex.connect();
+        if (currentStatus.state !== "ready") throw new Error(currentStatus.message ?? "Codex is unavailable.");
+
+        const nextCourseId = await allocateCourseId(repositoryRoot, message.topic);
+        await activateCourse(nextCourseId);
+        const nextStatus = await codex.connect();
+        if (nextStatus.state !== "ready") throw new Error(nextStatus.message ?? "Codex is unavailable.");
+
+        broadcast({ type: "checkpoints", checkpoints: await checkpoints() });
+        await broadcastCourses();
+        broadcast({ type: "course.changed", courseVersion, course: await outline() });
+      }
       broadcast({
         type: "activity",
         activity: { id: "prepare", kind: "reasoning", label: "Reading your course context…" },
       });
-      const turn = await codex.startTurn(message.message, message.selections, {
-        coursePhase: await course.getCoursePhase(),
-      });
+      const turn = await codex.startTurn(
+        message.type === "course.start" ? message.topic : message.message,
+        message.type === "course.start" ? [] : message.selections,
+        {
+          coursePhase: await course.getCoursePhase(),
+        },
+      );
       activeTurn = turn.id;
       broadcast({ type: "turn.accepted", turnId: turn.id });
       broadcast({ type: "activity", activity: { id: "prepare", kind: "reasoning", label: "Reading your course context…", done: true } });
@@ -146,6 +265,7 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
       broadcast({ type: "activity", activity: { id: "prepare", kind: "reasoning", label: "Reading your course context…", done: true } });
       broadcast({ type: "error", message: error instanceof Error ? error.message : "Could not start the turn." });
     }
+    return;
   }
 
   if (message.type === "turn.interrupt") {
@@ -175,51 +295,35 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
   }
 }
 
-codex.on("status", (status) => broadcast({ type: "codex.status", status }));
-codex.on("agentDelta", ({ turnId, delta }) => broadcast({ type: "agent.delta", turnId, delta }));
-codex.on("activity", ({ turnId, activity }: { turnId?: string; activity: Activity }) =>
-  broadcast({ type: "activity", turnId, activity }),
-);
-codex.on("notice", (message: string) => broadcast({ type: "system", message }));
-codex.on("turnCompleted", (turn) => void handleTurnCompleted(turn));
-codex.on("diagnostic", (message) => {
-  if (process.env.COURSE_STUDIO_DEBUG) console.error(`[codex] ${message}`);
-});
-
 async function handleTurnCompleted(turn: { turnId: string; status: string; error?: string }) {
   // Clear the slot first: a failed checkpoint must never leave the studio stuck.
   activeTurn = null;
   try {
     if (turn.status === "completed") await course.createCheckpoint("Agent course update", { allowEmpty: true });
     broadcast({ type: "checkpoints", checkpoints: await checkpoints() });
+    await broadcastCourses();
   } catch (checkpointError) {
     broadcast({ type: "error", message: checkpointError instanceof Error ? checkpointError.message : "Checkpoint failed." });
   }
   broadcast({ type: "turn.completed", ...turn });
 }
 
-course.onChange((path) => {
-  if (changeTimer) clearTimeout(changeTimer);
-  changeTimer = setTimeout(() => {
-    void (async () => {
-      courseVersion = Date.now();
-      broadcast({
-        type: "course.changed",
-        courseVersion,
-        course: await outline(),
-        path: relative(courseDirectory, path),
-      });
-    })();
-  }, 120);
-});
-course.watch();
+async function startServer() {
+  await mkdir(courseDirectory, { recursive: true });
+  wireCodex(codex);
+  watchCourse(course);
+  server.listen(port, "127.0.0.1", () => {
+    console.log(`Course Studio server: http://127.0.0.1:${port} (${courseRelativePath})`);
+    void codex.connect();
+  });
+}
 
-server.listen(port, "127.0.0.1", () => {
-  console.log(`Course Studio server: http://127.0.0.1:${port} (${courseRelativePath})`);
-  void codex.connect();
-});
+void startServer();
 
 async function shutdown() {
+  if (changeTimer) clearTimeout(changeTimer);
+  stopCourseChange?.();
+  codex.removeAllListeners();
   codex.close();
   await course.close();
   server.close();
