@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useReducer, useRef } from "react";
 import type {
   Activity,
+  AgentConfig,
+  AgentModel,
   Checkpoint,
   ClientMessage,
   CodexStatus,
@@ -8,6 +10,7 @@ import type {
   CourseOutline,
   CourseSection,
   CourseSummary,
+  Language,
   Selection,
   ServerMessage,
 } from "../shared/protocol";
@@ -27,16 +30,11 @@ const emptyCourse: CourseOutline = {
   upNext: [],
 };
 
-const welcome: ChatItem = {
-  kind: "agent",
-  id: "welcome",
-  text: "What would you like to learn today? A rough topic is enough—I’ll help you shape the goal, depth, and pace before we build the course from scratch.",
-  activities: [],
-};
-
 export type StudioState = {
   connected: boolean;
   codex: CodexStatus;
+  models: AgentModel[];
+  agentConfig: AgentConfig | null;
   checkpoints: Checkpoint[];
   courseId: string;
   courses: CourseSummary[];
@@ -56,6 +54,8 @@ export type StudioState = {
 const initialState: StudioState = {
   connected: false,
   codex: { state: "starting" },
+  models: [],
+  agentConfig: null,
   checkpoints: [],
   courseId: "current",
   courses: [],
@@ -64,7 +64,7 @@ const initialState: StudioState = {
   course: emptyCourse,
   courseVersion: Date.now(),
   courseChanged: false,
-  items: [welcome],
+  items: [],
   working: false,
   pendingId: null,
   turnMessages: {},
@@ -165,6 +165,8 @@ function reducer(state: StudioState, action: Action): StudioState {
         ...state,
         connected: true,
         codex: message.codex,
+        models: message.models,
+        agentConfig: message.agentConfig,
         checkpoints: message.checkpoints,
         courseId: message.courseId,
         courses: message.courses,
@@ -172,11 +174,13 @@ function reducer(state: StudioState, action: Action): StudioState {
         conversations: message.conversations,
         course: message.course,
         courseVersion: message.courseVersion,
-        items: message.items.length ? message.items : [welcome],
+        items: message.items,
         working: message.turnActive,
       };
     case "codex.status":
       return { ...state, codex: message.status };
+    case "agent.config":
+      return { ...state, models: message.models, agentConfig: message.agentConfig };
     case "checkpoints":
       return { ...state, checkpoints: message.checkpoints };
     case "courses":
@@ -187,6 +191,8 @@ function reducer(state: StudioState, action: Action): StudioState {
       return {
         ...state,
         codex: message.codex,
+        models: message.models,
+        agentConfig: message.agentConfig,
         checkpoints: message.checkpoints,
         courseId: message.courseId,
         courses: message.courses,
@@ -195,7 +201,7 @@ function reducer(state: StudioState, action: Action): StudioState {
         course: message.course,
         courseVersion: message.courseVersion,
         courseChanged: false,
-        items: message.items.length ? message.items : [welcome],
+        items: message.items,
         working: false,
         pendingId: null,
         turnMessages: {},
@@ -205,7 +211,9 @@ function reducer(state: StudioState, action: Action): StudioState {
         ...state,
         conversationId: message.conversationId,
         conversations: message.conversations,
-        items: message.items.length ? message.items : [welcome],
+        models: message.models,
+        agentConfig: message.agentConfig,
+        items: message.items,
         working: false,
         pendingId: null,
         turnMessages: {},
@@ -283,8 +291,8 @@ function reducer(state: StudioState, action: Action): StudioState {
 }
 
 export type StudioActions = {
-  sendTurn: (text: string, selections: Selection[], page: string, section?: CourseSection) => void;
-  startCourse: (topic: string) => void;
+  sendTurn: (text: string, selections: Selection[], page: string, section?: CourseSection, agent?: AgentConfig, language?: Language) => void;
+  startCourse: (topic: string, agent?: AgentConfig, language?: Language) => void;
   openCourse: (courseId: string) => void;
   newConversation: () => void;
   openConversation: (conversationId: string) => void;
@@ -360,12 +368,12 @@ export function useStudio(): { state: StudioState; actions: StudioActions } {
       if (live?.readyState === WebSocket.OPEN) live.send(JSON.stringify(message));
     };
     return {
-      sendTurn(text, selections, page, section) {
-        post({ type: "turn.start", message: text, selections, page, section });
+      sendTurn(text, selections, page, section, agent, language) {
+        post({ type: "turn.start", message: text, selections, page, section, agent, language });
         dispatch({ type: "send", id: uid(), agentId: uid(), text, selections });
       },
-      startCourse(topic) {
-        post({ type: "course.start", topic });
+      startCourse(topic, agent, language) {
+        post({ type: "course.start", topic, agent, language });
         dispatch({ type: "start", id: uid(), agentId: uid(), topic });
       },
       openCourse: (courseId) => post({ type: "course.open", courseId }),

@@ -1,5 +1,6 @@
 import { Bot, Check } from "lucide-react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
+import { useI18n } from "../i18n";
 import type { CodexStatus, CourseSection, Selection } from "../types";
 
 export type PreviewHandle = {
@@ -36,6 +37,7 @@ export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
   { courseId, courseVersion, pagePath = "syllabus.html", initialScrollTop = 0, inspecting, multipleSelection, courseChanged, codex, startingTopic, working, onSelection, onReadingPosition, onInspectCancelled, onStartRequested },
   ref,
 ) {
+  const { t } = useI18n();
   const frame = useRef<HTMLIFrameElement | null>(null);
   const scrollTop = useRef(0);
   const frameReady = useRef(false);
@@ -96,28 +98,28 @@ export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
     <div className={`preview-stage ${inspecting ? "is-inspecting" : ""}`}>
       {startingTopic ? (
         <section className="course-starting-card" aria-live="polite">
-          <span>New course</span>
+          <span>{t("preview.newCourse")}</span>
           <h1>{startingTopic}</h1>
           <div className={working ? "course-starting-progress active" : "course-starting-progress"} />
-          <strong>{working ? "Designing your starting point…" : "Ready for your next direction"}</strong>
-          <p>This is a separate course. Your previous course is saved and available from the course switcher.</p>
+          <strong>{working ? t("preview.designing") : t("preview.ready")}</strong>
+          <p>{t("preview.separateCourse")}</p>
         </section>
       ) : (
         <iframe
           ref={frame}
-          title="Interactive course preview"
+          title={t("preview.title")}
           src={`/course/${encodeURIComponent(pagePath)}?v=${courseVersion}`}
         />
       )}
       {courseChanged && !startingTopic && (
         <div className="reload-toast">
-          <Check size={15} /> Course updated
+          <Check size={15} /> {t("preview.updated")}
         </div>
       )}
       {inspecting && (
         <div className="inspect-hint">
-          {multipleSelection ? "Click blocks to add context" : "Click a block to replace the current context"}
-          <span>· highlight text anytime · Esc when done</span>
+          {multipleSelection ? t("preview.addContext") : t("preview.replaceContext")}
+          <span>{t("preview.inspectHelp")}</span>
         </div>
       )}
       {codex.state === "error" && (

@@ -31,6 +31,33 @@ button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .45; }
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.language-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  color: var(--muted);
+}
+.language-switch select {
+  max-width: 105px;
+  padding: 6px 20px 6px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.language-switch:hover { color: var(--accent-dark); }
 
 /* Course birth */
 .welcome-screen {
@@ -168,6 +195,10 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   font-size: 14px;
 }
 .welcome-composer button:not(:disabled):hover { background: #b2622d; }
+.welcome-agent-controls {
+  justify-content: center;
+  margin-top: 12px;
+}
 .welcome-suggestions {
   display: flex;
   flex-wrap: wrap;
@@ -307,6 +338,77 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 }
 .inspect-button { border-right: 1px solid var(--line); font-size: 14px; }
 .multiple-selection-toggle { font-size: 11px; }
+.export-button {
+  display: inline-flex;
+  min-height: 36px;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--accent-dark);
+  font-family: var(--heading);
+  font-size: 12px;
+}
+.export-button:not(:disabled):hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--paper)); }
+.spin { animation: spin .9s linear infinite; }
+.export-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--text) 42%, transparent);
+  backdrop-filter: blur(4px);
+}
+.export-dialog {
+  width: min(620px, 100%);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--paper);
+  box-shadow: var(--shadow-lg);
+}
+.export-dialog form { display: grid; gap: 14px; padding: 24px; }
+.export-dialog header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.export-dialog h2 { margin: 0; font: 400 25px/1.15 var(--heading); }
+.export-dialog header p { max-width: 52ch; margin: 8px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.export-dialog-close {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+}
+.export-dialog-close:not(:disabled):hover { background: var(--paper-2); color: var(--text); }
+.export-dialog label { margin-top: 6px; font-size: 12px; font-weight: 700; letter-spacing: .03em; }
+.export-dialog textarea {
+  width: 100%;
+  min-height: 160px;
+  padding: 14px 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  resize: vertical;
+  background: #fffdf9;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.export-dialog textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent); }
+.export-dialog textarea::placeholder { color: color-mix(in srgb, var(--muted) 72%, transparent); }
+.export-dialog-hint { margin: -4px 0 2px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.export-dialog footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+.export-dialog footer button { display: inline-flex; align-items: center; gap: 7px; padding: 9px 15px; border-radius: 999px; }
+.export-dialog-cancel { border: 1px solid var(--line); background: transparent; }
+.export-dialog-cancel:not(:disabled):hover { background: var(--paper-2); }
+.export-dialog-submit { border: 1px solid var(--accent); background: var(--accent); color: var(--bg); font-family: var(--heading); }
+.export-dialog-submit:not(:disabled):hover { background: #b2622d; }
 .inspect-button:not(:disabled):hover, .multiple-selection-toggle:not(:disabled):hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
 .inspect-button.active { border-color: var(--accent); background: var(--accent); color: var(--bg); }
 .multiple-selection-toggle.active { background: var(--sage-soft); color: #4f5c3b; }
@@ -1027,6 +1129,48 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .composer-foot > span { display: none; }
 .composer-foot button { display: grid; width: 34px; height: 34px; padding: 0; place-items: center; border: 0; border-radius: 50%; background: var(--accent); color: var(--bg); }
 .composer-foot .stop-button { background: #8c491a; }
+.agent-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  margin-top: 7px;
+}
+.agent-controls label {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  color: color-mix(in srgb, var(--text) 48%, transparent);
+  font-size: 10px;
+}
+.agent-controls label + label::before {
+  width: 1px;
+  height: 12px;
+  margin-right: 1px;
+  background: var(--line);
+  content: "";
+}
+.agent-controls select {
+  min-width: 0;
+  max-width: 148px;
+  padding: 3px 18px 3px 5px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  outline: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--text) 68%, transparent);
+  font-size: 10px;
+  text-overflow: ellipsis;
+}
+.agent-controls select:not(:disabled):hover,
+.agent-controls select:not(:disabled):focus-visible {
+  border-color: var(--line);
+  background: var(--paper-2);
+  color: var(--text);
+}
+.agent-controls select:disabled { opacity: .55; }
 .composer-promise { margin-top: 8px; color: color-mix(in srgb, var(--text) 45%, transparent); font-size: 11px; text-align: center; }
 
 .collapsed-chat { width: 100%; height: 100%; }
@@ -1047,6 +1191,8 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 
 @media (max-width: 1120px) {
   .checkpoint-label, .history-label { display: none; }
+  .export-button span { display: none; }
+  .export-button { padding-inline: 10px; }
 }
 
 @media (max-width: 780px) {

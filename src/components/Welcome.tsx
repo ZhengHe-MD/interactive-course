@@ -1,6 +1,9 @@
 import { ArrowLeft, ArrowRight, Shield } from "lucide-react";
 import { FormEvent, useRef, useState } from "react";
-import type { CourseSummary } from "../types";
+import { useI18n } from "../i18n";
+import type { AgentConfig, AgentModel, CourseSummary } from "../types";
+import { AgentControls } from "./AgentControls";
+import { LanguageSwitch } from "./LanguageSwitch";
 
 type Props = {
   connected: boolean;
@@ -8,14 +11,16 @@ type Props = {
   working: boolean;
   courseId: string;
   courses: CourseSummary[];
+  models?: AgentModel[];
+  agentConfig?: AgentConfig | null;
+  onAgentConfigChange?: (config: AgentConfig) => void;
   onBack: () => void;
   onSwitchCourse: (courseId: string) => void;
   onStart: (topic: string) => void;
 };
 
-const suggestions = ["Bayes' theorem", "Base rates & false positives", "Conditional probability"];
-
-export function Welcome({ connected, hasCourse, working, courseId, courses, onBack, onSwitchCourse, onStart }: Props) {
+export function Welcome({ connected, hasCourse, working, courseId, courses, models = [], agentConfig = null, onAgentConfigChange = () => {}, onBack, onSwitchCourse, onStart }: Props) {
+  const { t } = useI18n();
   const [topic, setTopic] = useState("");
   const composer = useRef<HTMLTextAreaElement | null>(null);
   const canStart = connected && !working && topic.trim().length > 0;
@@ -29,6 +34,7 @@ export function Welcome({ connected, hasCourse, working, courseId, courses, onBa
     setTopic(suggestion);
     window.setTimeout(() => composer.current?.focus(), 0);
   };
+  const suggestions = [t("welcome.suggestionBayes"), t("welcome.suggestionRates"), t("welcome.suggestionConditional")];
 
   return (
     <main className="welcome-screen">
@@ -40,7 +46,7 @@ export function Welcome({ connected, hasCourse, working, courseId, courses, onBa
         <div className="welcome-actions">
           {courses.length > 1 && (
             <label className="welcome-course-picker">
-              <span>Open course</span>
+              <span>{t("welcome.openCourse")}</span>
               <select
                 value={courseId}
                 disabled={working}
@@ -50,9 +56,10 @@ export function Welcome({ connected, hasCourse, working, courseId, courses, onBa
               </select>
             </label>
           )}
+          <LanguageSwitch />
           {hasCourse && (
             <button className="welcome-back" type="button" onClick={onBack}>
-              <ArrowLeft size={15} /> Back to your course
+              <ArrowLeft size={15} /> {t("welcome.back")}
             </button>
           )}
         </div>
@@ -60,12 +67,9 @@ export function Welcome({ connected, hasCourse, working, courseId, courses, onBa
 
       <section className="welcome-main">
         <div className="welcome-content">
-          <span className="welcome-tag">A course built for one person — you</span>
-          <h1>What do you want to finally understand?</h1>
-          <p>
-            Tell the design agent a topic. It writes the lesson from scratch — one section at a time — and
-            you reshape it as you read, just by selecting the part that isn&apos;t landing.
-          </p>
+          <span className="welcome-tag">{t("welcome.tag")}</span>
+          <h1>{t("welcome.title")}</h1>
+          <p>{t("welcome.description")}</p>
 
           <form className="welcome-composer" onSubmit={submit}>
             <textarea
@@ -79,16 +83,24 @@ export function Welcome({ connected, hasCourse, working, courseId, courses, onBa
                   submit();
                 }
               }}
-              placeholder="e.g. Bayes' theorem — I always get tripped up by false positives"
-              aria-label="What do you want to understand?"
+              placeholder={t("welcome.placeholder")}
+              aria-label={t("welcome.topicLabel")}
             />
             <button type="submit" disabled={!canStart}>
-              Design it <ArrowRight size={16} />
+              {t("welcome.design")} <ArrowRight size={16} />
             </button>
           </form>
 
-          <div className="welcome-suggestions" aria-label="Suggested topics">
-            <span>Try:</span>
+          <AgentControls
+            models={models}
+            value={agentConfig}
+            disabled={working}
+            className="welcome-agent-controls"
+            onChange={onAgentConfigChange}
+          />
+
+          <div className="welcome-suggestions" aria-label={t("welcome.suggestionsLabel")}>
+            <span>{t("welcome.try")}</span>
             {suggestions.map((suggestion) => (
               <button type="button" key={suggestion} onClick={() => chooseSuggestion(suggestion)}>
                 {suggestion}
@@ -96,11 +108,11 @@ export function Welcome({ connected, hasCourse, working, courseId, courses, onBa
             ))}
           </div>
 
-          {!connected && <div className="welcome-connection">Connecting to the local course agent…</div>}
+          {!connected && <div className="welcome-connection">{t("welcome.connecting")}</div>}
         </div>
       </section>
 
-      <footer className="welcome-footer">Nothing is prewritten. Your course begins empty and is authored live.</footer>
+      <footer className="welcome-footer">{t("welcome.footer")}</footer>
     </main>
   );
 }
