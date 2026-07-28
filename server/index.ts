@@ -6,8 +6,10 @@ import express from "express";
 import { WebSocket, WebSocketServer } from "ws";
 import { CodexClient } from "./codex/CodexClient";
 import { CourseManager, EMPTY_OUTLINE } from "./course/CourseManager";
+import { buildStandaloneCourse, exportFilename } from "./course/exportCourse";
+import { prepareCourseForExport } from "./course/prepareExport";
 import { allocateCourseId, isCourseId, listCourses } from "./course/library";
-import type { Activity, ClientMessage, ServerMessage } from "../shared/protocol";
+import type { Activity, AgentConfig, ClientMessage, Language, ServerMessage } from "../shared/protocol";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, "..");
@@ -26,6 +28,7 @@ let course = new CourseManager(repositoryRoot, courseRelativePath);
 let codex = new CodexClient(courseDirectory);
 let courseVersion = Date.now();
 let activeTurn: string | null = null;
+let exportActive = false;
 let changeTimer: NodeJS.Timeout | null = null;
 let stopCourseChange: (() => void) | null = null;
 
@@ -64,7 +67,7 @@ async function broadcastCourses() {
 async function conversationContext(options: { create?: boolean } = {}) {
   const status = await codex.connect();
   if (status.state !== "ready") {
-    return { conversationId: null, conversations: [], items: [] };
+    return { conversationId: null, conversations: [], items: [], models: [], agentConfig: null };
   }
   const current = options.create === false
     ? await codex.currentConversation()
@@ -73,7 +76,20 @@ async function conversationContext(options: { create?: boolean } = {}) {
     conversationId: current?.conversation.id ?? null,
     conversations: await conversationListing(current),
     items: current?.items ?? [],
+    ...await agentContext(),
   };
+}
+
+async function agentContext() {
+  try {
+    return { models: await codex.listModels(), agentConfig: codex.getAgentConfig() };
+  } catch (error) {
+    if (process.env.COURSE_STUDIO_DEBUG) {
+      console.error(`[models] ${error instanceof Error ? error.message : error}`);
+    }
+    const config = codex.getAgentConfig();
+    return { models: [], agentConfig: config.model ? config : null };
+  }
 }
 
 async function conversationListing(current: Awaited<ReturnType<CodexClient["currentConversation"]>>) {
@@ -166,6 +182,43 @@ app.get("/api/health", async (_request, response) => {
   response.json({ ok: true, codex: codex.getStatus(), checkpoints: await checkpoints(), courseVersion });
 });
 
+app.post("/api/export", express.json({ limit: "64kb" }), async (request, response) => {
+  if (activeTurn || exportActive) return response.status(409).send("Wait for the current work to finish before exporting.");
+  exportActive = true;
+  let cleanup: (() => Promise<void>) | undefined;
+  try {
+    const currentOutline = await outline();
+    if (!currentOutline.hasContent) return response.status(400).send("This course has no content to export.");
+    const body = request.body && typeof request.body === "object" ? request.body as Record<string, unknown> : {};
+    const instruction = typeof body.prompt === "string" ? body.prompt.trim().slice(0, 20_000) : "";
+    const language: Language = body.language === "zh-CN" ? "zh-CN" : "en";
+    const candidate = body.agent && typeof body.agent === "object" ? body.agent as Record<string, unknown> : null;
+    const agent: AgentConfig | undefined = candidate && typeof candidate.model === "string"
+      ? { model: candidate.model, effort: typeof candidate.effort === "string" ? candidate.effort : null }
+      : undefined;
+    const prepared = instruction
+      ? await prepareCourseForExport({ sourceDirectory: courseDirectory, instruction, agent, language })
+      : { courseDirectory, outline: currentOutline, cleanup: undefined };
+    cleanup = prepared.cleanup;
+    const html = await buildStandaloneCourse({
+      courseDirectory: prepared.courseDirectory,
+      outline: prepared.outline,
+      language,
+    });
+    const filename = exportFilename(prepared.outline.title);
+    response
+      .set("Cache-Control", "no-store")
+      .set("Content-Disposition", `attachment; filename="course.html"; filename*=UTF-8''${encodeURIComponent(filename)}`)
+      .type("html")
+      .send(html);
+  } catch (error) {
+    response.status(500).send(error instanceof Error ? error.message : "Could not export the course.");
+  } finally {
+    await cleanup?.();
+    exportActive = false;
+  }
+});
+
 app.get("/studio-preview.js", (_request, response) => {
   response.type("application/javascript").sendFile(join(here, "assets/preview-bridge.js"));
 });
@@ -211,7 +264,13 @@ app.get("/{*splat}", (_request, response) => response.sendFile(join(distDirector
 const websocket = new WebSocketServer({ server, path: "/ws" });
 websocket.on("connection", async (socket) => {
   sockets.add(socket);
-  let conversation = { conversationId: null, conversations: [], items: [] } as Awaited<ReturnType<typeof conversationContext>>;
+  let conversation = {
+    conversationId: null,
+    conversations: [],
+    items: [],
+    models: [],
+    agentConfig: null,
+  } as Awaited<ReturnType<typeof conversationContext>>;
   try {
     conversation = await conversationContext();
   } catch (error) {
@@ -242,8 +301,8 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
   }
 
   if (message.type === "course.open") {
-    if (activeTurn) {
-      send(socket, { type: "error", message: "Wait for the course agent to finish before switching courses." });
+    if (activeTurn || exportActive) {
+      send(socket, { type: "error", message: "Wait for the current work to finish before switching courses." });
       return;
     }
     try {
@@ -255,7 +314,7 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
       const status = await codex.connect();
       const conversation = status.state === "ready"
         ? await conversationContext()
-        : { conversationId: null, conversations: [], items: [] };
+        : { conversationId: null, conversations: [], items: [], models: [], agentConfig: null };
       broadcast({
         type: "course.opened",
         courseId,
@@ -273,8 +332,8 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
   }
 
   if (message.type === "conversation.new" || message.type === "conversation.open") {
-    if (activeTurn) {
-      send(socket, { type: "error", message: "Wait for the course agent to finish before switching conversations." });
+    if (activeTurn || exportActive) {
+      send(socket, { type: "error", message: "Wait for the current work to finish before switching conversations." });
       return;
     }
     try {
@@ -292,6 +351,7 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
         conversationId: next.conversation.id,
         conversations: await conversationListing(next),
         items: next.items,
+        ...await agentContext(),
       });
     } catch (error) {
       send(socket, { type: "error", message: error instanceof Error ? error.message : "Could not open the conversation." });
@@ -300,6 +360,10 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
   }
 
   if (message.type === "turn.start" || message.type === "course.start") {
+    if (exportActive) {
+      send(socket, { type: "error", message: "Wait for the course export to finish before starting another turn." });
+      return;
+    }
     if (activeTurn) {
       send(socket, { type: "error", message: "The course agent is already working on a turn." });
       return;
@@ -326,6 +390,7 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
           conversationId: nextConversation.conversation.id,
           conversations: await conversationListing(nextConversation),
         });
+        broadcast({ type: "agent.config", ...await agentContext() });
         broadcast({ type: "course.changed", courseVersion, course: await outline() });
       }
       broadcast({
@@ -339,6 +404,8 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
           coursePhase: await course.getCoursePhase(),
           activePage: message.type === "turn.start" ? message.page : "syllabus.html",
           activeSection: message.type === "turn.start" ? message.section : undefined,
+          agent: message.agent,
+          language: message.language,
         },
       );
       activeTurn = turn.id;
@@ -359,8 +426,8 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
   }
 
   if (message.type === "checkpoint.revert") {
-    if (activeTurn) {
-      send(socket, { type: "error", message: "Wait for the current turn to finish before reverting." });
+    if (activeTurn || exportActive) {
+      send(socket, { type: "error", message: "Wait for the current work to finish before reverting." });
       return;
     }
     try {

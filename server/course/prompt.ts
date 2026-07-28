@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { CoursePhase, CourseSection, Selection } from "../../shared/protocol";
+import type { CoursePhase, CourseSection, Language, Selection } from "../../shared/protocol";
 import type { UserInput } from "../codex/types";
 
 export type SelectionContext = Selection;
@@ -9,7 +9,7 @@ export type SelectionContext = Selection;
 export function buildCoursePrompt(
   message: string,
   selections: SelectionContext[],
-  options: { coursePhase?: CoursePhase; activePage?: string; activeSection?: CourseSection } = {},
+  options: { coursePhase?: CoursePhase; activePage?: string; activeSection?: CourseSection; language?: Language } = {},
 ) {
   const request = message.trim() || "Explain the selected part differently.";
   const selectionContext = selections.length
@@ -32,6 +32,10 @@ ${selection.outerHTML}`,
     : `Page: ${activePage}\nNearest section: (no section identified)`;
 
   const coursePhase = options.coursePhase ?? "learning";
+  const language = options.language ?? "en";
+  const languageName = language === "zh-CN" ? "Simplified Chinese" : "English";
+  const languageInstruction = `Language preference:
+The learner selected ${languageName} (${language}) for this turn. Reply in ${languageName}. Write newly created course content in ${languageName} and set new pages to <html lang="${language}">. Preserve learner-authored text, quotations, code, filenames, commands, API names, and proper nouns when translating them would reduce accuracy. Do not translate or rewrite existing course material merely because the Studio language changed; preserve an existing page's established language unless the learner explicitly asks to translate it. If the learner explicitly requests a different output language, follow that request.`;
   const courseState = coursePhase === "empty"
     ? `Course state — interview:
 This course directory has no syllabus.html or legacy index.html yet. You are conducting course birth from a blank page. If the learner has only named a topic, do not create files yet: ask a compact set of questions about their goal, desired depth, current background, and time budget. Keep that interview response in chat. Once the conversation contains enough direction, create only a syllabus as syllabus.html from scratch. Mark it with <meta name="course-studio-phase" content="syllabus"> and <meta name="course-studio-page" content="syllabus">. Do not create session files or full lesson content yet. Do not copy a sample course or use a starter template.`
@@ -50,6 +54,8 @@ ${readingContext}
 
 Attached selection context:
 ${selectionContext}
+
+${languageInstruction}
 
 ${courseState}
 

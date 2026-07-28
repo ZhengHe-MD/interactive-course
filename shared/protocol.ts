@@ -31,6 +31,25 @@ export type CodexStatus = {
   message?: string;
 };
 
+/** A model and its account-specific reasoning choices, supplied by Codex. */
+export type AgentModel = {
+  model: string;
+  displayName: string;
+  description: string;
+  supportedEfforts: Array<{ effort: string; description: string }>;
+  defaultEffort: string;
+  isDefault: boolean;
+};
+
+/** The model configuration used for the current conversation. */
+export type AgentConfig = {
+  model: string;
+  effort: string | null;
+};
+
+/** Learner-selected language for Studio chrome and agent-authored material. */
+export type Language = "en" | "zh-CN";
+
 /**
  * Where the course is in its life. Stored in the course itself as
  * `<meta name="course-studio-phase">` so it survives restarts and stays
@@ -106,8 +125,8 @@ export type TranscriptItem =
 // ---- browser → server ----------------------------------------------------
 
 export type ClientMessage =
-  | { type: "turn.start"; message: string; selections: Selection[]; page: string; section?: CourseSection }
-  | { type: "course.start"; topic: string }
+  | { type: "turn.start"; message: string; selections: Selection[]; page: string; section?: CourseSection; agent?: AgentConfig; language?: Language }
+  | { type: "course.start"; topic: string; agent?: AgentConfig; language?: Language }
   | { type: "course.open"; courseId: string }
   | { type: "conversation.new" }
   | { type: "conversation.open"; conversationId: string }
@@ -120,6 +139,8 @@ export type ServerMessage =
   | {
       type: "session";
       codex: CodexStatus;
+      models: AgentModel[];
+      agentConfig: AgentConfig | null;
       checkpoints: Checkpoint[];
       course: CourseOutline;
       courseId: string;
@@ -131,6 +152,7 @@ export type ServerMessage =
       turnActive: boolean;
     }
   | { type: "codex.status"; status: CodexStatus }
+  | { type: "agent.config"; models: AgentModel[]; agentConfig: AgentConfig | null }
   | { type: "turn.accepted"; turnId: string }
   | { type: "agent.delta"; turnId: string; delta: string }
   | { type: "activity"; turnId?: string; activity: Activity }
@@ -143,6 +165,8 @@ export type ServerMessage =
       courseVersion: number;
       checkpoints: Checkpoint[];
       codex: CodexStatus;
+      models: AgentModel[];
+      agentConfig: AgentConfig | null;
       conversationId: string | null;
       conversations: ConversationSummary[];
       items: TranscriptItem[];
@@ -152,6 +176,8 @@ export type ServerMessage =
       conversationId: string;
       conversations: ConversationSummary[];
       items: TranscriptItem[];
+      models: AgentModel[];
+      agentConfig: AgentConfig | null;
     }
   | { type: "conversations"; conversationId: string | null; conversations: ConversationSummary[] }
   | { type: "courses"; courseId: string; courses: CourseSummary[] }

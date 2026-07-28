@@ -15,6 +15,9 @@ export type InitializeParams = {
 };
 
 export type ThreadStartParams = {
+  model?: string | null;
+  /** Keep export-only sessions in memory instead of adding them to history. */
+  ephemeral?: boolean;
   cwd: string;
   approvalPolicy: "untrusted" | "on-request" | "never";
   sandbox: "read-only" | "workspace-write" | "danger-full-access";
@@ -53,8 +56,16 @@ export type PersistedThread = {
   turns: PersistedTurn[];
 };
 
-export type ThreadStartResponse = { thread: PersistedThread };
-export type ThreadResumeResponse = { thread: PersistedThread };
+export type ThreadStartResponse = {
+  thread: PersistedThread;
+  model?: string;
+  reasoningEffort?: string | null;
+};
+export type ThreadResumeResponse = {
+  thread: PersistedThread;
+  model?: string;
+  reasoningEffort?: string | null;
+};
 export type ThreadReadResponse = { thread: PersistedThread };
 export type ThreadListResponse = { data: PersistedThread[]; nextCursor: string | null };
 export type ThreadListParams = {
@@ -83,6 +94,29 @@ export type UserInput =
 export type TurnStartParams = {
   threadId: string;
   input: UserInput[];
+  /** Overrides the model for this turn and subsequent turns. */
+  model?: string | null;
+  /** `app-server` calls reasoning effort `effort` on turn/start. */
+  effort?: string | null;
+};
+
+export type ModelListParams = {
+  cursor?: string | null;
+  limit?: number | null;
+  includeHidden?: boolean | null;
+};
+
+export type ModelListResponse = {
+  data: Array<{
+    model: string;
+    displayName: string;
+    description: string;
+    hidden: boolean;
+    supportedReasoningEfforts: Array<{ reasoningEffort: string; description: string }>;
+    defaultReasoningEffort: string;
+    isDefault: boolean;
+  }>;
+  nextCursor: string | null;
 };
 
 export type TurnInterruptParams = {

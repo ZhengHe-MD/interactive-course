@@ -115,4 +115,18 @@ describe("course prompt", () => {
     expect(prompt).toContain("Page: syllabus.html");
     expect(prompt).toContain("Nearest section: (no section identified)");
   });
+
+  it("gives the agent the selected Chinese language without treating it as a translation request", () => {
+    const prompt = buildCoursePrompt("继续讲解", [], {
+      coursePhase: "learning",
+      activePage: "session1.html",
+      language: "zh-CN",
+    });
+
+    expect(prompt).toContain("Simplified Chinese (zh-CN)");
+    expect(prompt).toContain("Reply in Simplified Chinese");
+    expect(prompt).toContain('<html lang="zh-CN">');
+    expect(prompt).toContain("Do not translate or rewrite existing course material merely because the Studio language changed");
+    expect(prompt).toContain("unless the learner explicitly asks to translate it");
+  });
 });
