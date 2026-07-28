@@ -1,13 +1,15 @@
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Chat, type ChatHandle } from "./components/Chat";
 import { CourseNav } from "./components/CourseNav";
+import { ExportDialog } from "./components/ExportDialog";
 import { Preview, type PreviewHandle } from "./components/Preview";
 import { readReadingPosition, writeReadingPosition, type ReadingPosition } from "./readingPosition";
 import { collapseToLatestSelection, mergeSelection } from "./selection";
 import { Toolbar } from "./components/Toolbar";
 import { Welcome } from "./components/Welcome";
+import { useI18n } from "./i18n";
 import { useStudio } from "./ws";
-import type { CoursePage, CourseSection, Selection } from "./types";
+import type { AgentConfig, CoursePage, CourseSection, Selection } from "./types";
 
 const DEFAULT_CHAT_WIDTH = 384;
 const MIN_CHAT_WIDTH = 320;
@@ -25,6 +27,7 @@ function storedChatWidth() {
 
 export function App() {
   const { state, actions } = useStudio();
+  const { language, t } = useI18n();
   const preview = useRef<PreviewHandle | null>(null);
   const chat = useRef<ChatHandle | null>(null);
   const readingSection = useRef<CourseSection | undefined>(undefined);
@@ -47,6 +50,10 @@ export function App() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [birthTopic, setBirthTopic] = useState<string | null>(null);
   const [startingNewCourse, setStartingNewCourse] = useState(false);
+  const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportPrompt, setExportPrompt] = useState("");
   const sawNewCourseEmpty = useRef(false);
   const syllabusCourse = useRef<string | null>(null);
   const studioBody = useRef<HTMLDivElement | null>(null);
@@ -57,6 +64,10 @@ export function App() {
     ?? activePage;
 
   const canInspect = state.course.hasContent && !startingNewCourse;
+
+  useEffect(() => {
+    if (state.agentConfig) setAgentConfig(state.agentConfig);
+  }, [state.agentConfig]);
 
   const stopInspecting = useCallback(() => setInspecting(false), []);
 
@@ -202,7 +213,7 @@ export function App() {
   };
 
   const send = (text: string) => {
-    actions.sendTurn(text || "Explain this differently.", selections, visiblePage, readingSection.current);
+    actions.sendTurn(text || t("app.explainDifferently"), selections, visiblePage, readingSection.current, agentConfig ?? undefined, language);
     setSelections([]);
     preview.current?.clearSelections();
   };
@@ -218,7 +229,7 @@ export function App() {
     setResumeCourseId(null);
     setActiveSection(null);
     setInspecting(false);
-    actions.startCourse(topic);
+    actions.startCourse(topic, agentConfig ?? undefined, language);
   };
 
   const switchCourse = (courseId: string) => {
@@ -229,6 +240,7 @@ export function App() {
     setShowWelcome(false);
     setSelections([]);
     setInspecting(false);
+    setExportDialogOpen(false);
     actions.openCourse(courseId);
   };
 
@@ -256,20 +268,51 @@ export function App() {
     actions.newConversation();
   };
 
+  const exportCourse = async () => {
+    if (exporting || state.working || !state.course.hasContent) return;
+    setExporting(true);
+    try {
+      const response = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: exportPrompt, language, agent: agentConfig }),
+      });
+      if (!response.ok) throw new Error(t("toolbar.exportFailed"));
+      const disposition = response.headers.get("content-disposition") ?? "";
+      const encodedName = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+      const fallbackName = /filename="([^"]+)"/i.exec(disposition)?.[1] ?? "course.html";
+      const filename = encodedName ? decodeURIComponent(encodedName) : fallbackName;
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setExportDialogOpen(false);
+      setExportPrompt("");
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : t("toolbar.exportFailed"));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const statusText = useMemo(() => {
-    if (!state.connected) return "Studio reconnecting";
-    if (state.codex.state === "starting") return "Starting Codex";
-    if (state.codex.state === "error") return "Codex needs attention";
-    return state.working ? "Agent is working" : "Codex ready";
-  }, [state.codex.state, state.connected, state.working]);
+    if (!state.connected) return t("app.reconnecting");
+    if (state.codex.state === "starting") return t("app.startingCodex");
+    if (state.codex.state === "error") return t("app.codexAttention");
+    return state.working ? t("app.agentWorking") : t("app.codexReady");
+  }, [state.codex.state, state.connected, state.working, t]);
 
   const placeholder = selections.length
-    ? "Ask about this, or tell the agent what to change…"
+    ? t("app.askSelection")
     : state.course.phase === "syllabus"
-      ? "Ask for changes, or approve the syllabus…"
+      ? t("app.askSyllabus")
       : state.course.hasContent
-      ? "Ask, or select part of the lesson…"
-      : "What would you like to learn today?";
+      ? t("app.askLesson")
+      : t("app.askTopic");
 
   const hasDesignHistory = state.items.some((item) => item.kind === "user")
     || state.conversations.some((conversation) => conversation.title !== "New conversation");
@@ -282,6 +325,9 @@ export function App() {
         working={state.working}
         courseId={state.courseId}
         courses={state.courses}
+        models={state.models}
+        agentConfig={agentConfig}
+        onAgentConfigChange={setAgentConfig}
         onBack={() => undefined}
         onSwitchCourse={switchCourse}
         onStart={startCourse}
@@ -297,6 +343,9 @@ export function App() {
         working={state.working}
         courseId={state.courseId}
         courses={state.courses}
+        models={state.models}
+        agentConfig={agentConfig}
+        onAgentConfigChange={setAgentConfig}
         onBack={returnToCourse}
         onSwitchCourse={switchCourse}
         onStart={startCourse}
@@ -305,13 +354,13 @@ export function App() {
   }
 
   const displayCourse = !state.course.hasContent && birthTopic
-    ? { ...state.course, title: birthTopic, topic: "Course outline" }
+    ? { ...state.course, title: birthTopic, topic: t("app.courseOutline") }
     : !state.course.hasContent && state.conversationId
       ? {
           ...state.course,
           title: state.conversations.find((conversation) => conversation.id === state.conversationId)?.title
             ?? state.course.title,
-          topic: "Course interview",
+          topic: t("app.courseInterview"),
         }
       : state.course;
 
@@ -338,11 +387,13 @@ export function App() {
         courseChanged={state.courseChanged}
         checkpoints={state.checkpoints}
         working={state.working}
+        exporting={exporting}
         onHome={() => setShowWelcome(true)}
         onSwitchCourse={switchCourse}
         onToggleInspect={() => setInspecting((current) => !current)}
         onToggleMultipleSelection={toggleMultipleSelection}
         onRevert={actions.revert}
+        onExport={() => setExportDialogOpen(true)}
       />
 
       <div className="studio-body" ref={studioBody}>
@@ -385,13 +436,13 @@ export function App() {
         <div
           className="chat-resizer"
           role="separator"
-          aria-label="Resize chat panel"
+          aria-label={t("app.resizeChat")}
           aria-orientation="vertical"
           aria-valuemin={MIN_CHAT_WIDTH}
           aria-valuemax={MAX_CHAT_WIDTH}
           aria-valuenow={Math.round(chatWidth)}
           tabIndex={chatOpen ? 0 : -1}
-          title="Drag to resize chat · Double-click to reset"
+          title={t("app.resizeChatTitle")}
           onDoubleClick={() => updateChatWidth(DEFAULT_CHAT_WIDTH)}
           onKeyDown={(event) => {
             if (event.key === "ArrowLeft") {
@@ -444,6 +495,9 @@ export function App() {
           conversations={state.conversations}
           open={chatOpen}
           selections={selections}
+          models={state.models}
+          agentConfig={agentConfig}
+          onAgentConfigChange={setAgentConfig}
           placeholder={placeholder}
           onToggleOpen={setChatOpen}
           onNewConversation={newConversation}
@@ -457,6 +511,14 @@ export function App() {
           onInterrupt={actions.interrupt}
         />
       </div>
+      <ExportDialog
+        open={exportDialogOpen}
+        prompt={exportPrompt}
+        exporting={exporting}
+        onPromptChange={setExportPrompt}
+        onClose={() => setExportDialogOpen(false)}
+        onExport={exportCourse}
+      />
     </div>
   );
 }

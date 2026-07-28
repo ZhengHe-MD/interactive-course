@@ -54,6 +54,16 @@ the page live-reloads.
 - Prefer editing one region precisely over restyling the whole page. Small,
   legible diffs. Preserve working interactions and the page's visual language.
 
+## Multilingual quality
+- The per-turn prompt names the learner's selected language. Use it for chat
+  replies and newly authored material, with natural, idiomatic writing rather
+  than word-for-word translation.
+- Preserve technical terms, code, quotations, filenames, and proper nouns when
+  translating them would reduce accuracy. Set every new page's <html lang> to
+  the selected language.
+- A language preference is not permission to rewrite an existing course. Keep
+  its established language unless the learner explicitly requests translation.
+
 ## Working rules
 - Stay inside the course directory. Do not touch files elsewhere.
 - When the learner's message includes selected text or elements, that is the

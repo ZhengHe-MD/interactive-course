@@ -23,11 +23,13 @@ describe("course switching UI", () => {
         courseChanged={false}
         checkpoints={[]}
         working={false}
+        exporting={false}
         onHome={() => {}}
         onSwitchCourse={() => {}}
         onToggleInspect={() => {}}
         onToggleMultipleSelection={() => {}}
         onRevert={() => {}}
+        onExport={() => {}}
       />,
     );
 
@@ -38,6 +40,7 @@ describe("course switching UI", () => {
     expect(html).toContain('role="switch"');
     expect(html).toContain('aria-label="Multiple selection"');
     expect(html).toContain('aria-checked="false"');
+    expect(html).toContain('title="Prepare and download a standalone course"');
   });
 
   it("keeps the course picker available from the new-course screen", () => {

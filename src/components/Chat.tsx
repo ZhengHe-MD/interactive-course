@@ -20,7 +20,9 @@ import {
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Activity, ChatItem, CodexStatus, ConversationSummary, CoursePhase, Selection } from "../types";
+import { useI18n, type TranslationKey } from "../i18n";
+import type { Activity, AgentConfig, AgentModel, ChatItem, CodexStatus, ConversationSummary, CoursePhase, Selection } from "../types";
+import { AgentControls } from "./AgentControls";
 
 export type ChatHandle = { focusComposer: () => void };
 
@@ -35,6 +37,9 @@ type Props = {
   conversations: ConversationSummary[];
   open: boolean;
   selections: Selection[];
+  models?: AgentModel[];
+  agentConfig?: AgentConfig | null;
+  onAgentConfigChange?: (config: AgentConfig) => void;
   onToggleOpen: (open: boolean) => void;
   onNewConversation: () => void;
   onSwitchConversation: (conversationId: string) => void;
@@ -46,6 +51,7 @@ type Props = {
 };
 
 export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
+  const { t } = useI18n();
   const { codex, statusText, connected, working, items, open, selections } = props;
   const scroller = useRef<HTMLDivElement | null>(null);
   const composer = useRef<HTMLTextAreaElement | null>(null);
@@ -97,11 +103,11 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
 
   if (!open) {
     return (
-      <aside className="chat-panel" aria-label="Course agent chat">
+      <aside className="chat-panel" aria-label={t("chat.label")}>
         <div className="collapsed-chat">
-          <button onClick={() => props.onToggleOpen(true)} aria-label="Open chat">
+          <button onClick={() => props.onToggleOpen(true)} aria-label={t("chat.open")}>
             <span className="agent-avatar"><ChevronLeft size={15} /></span>
-            <span>Design agent</span>
+            <span>{t("chat.agent")}</span>
           </button>
         </div>
       </aside>
@@ -109,19 +115,19 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
   }
 
   return (
-    <aside className="chat-panel" aria-label="Course agent chat">
+    <aside className="chat-panel" aria-label={t("chat.label")}>
       <header className="chat-header">
         <div className={`agent-avatar ${working ? "working" : ""}`}>
           <Sparkles size={13} />
         </div>
         <div className="conversation-heading">
-          <strong>Design agent</strong>
+          <strong>{t("chat.agent")}</strong>
           <select
-            aria-label="Switch conversation"
+            aria-label={t("chat.switchConversation")}
             value={props.conversationId ?? ""}
             disabled={working || props.conversations.length === 0}
             onChange={(event) => props.onSwitchConversation(event.target.value)}
-            title="Switch conversation"
+            title={t("chat.switchConversation")}
           >
             {props.conversations.map((conversation) => (
               <option key={conversation.id} value={conversation.id}>{conversation.title}</option>
@@ -129,18 +135,18 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
           </select>
         </div>
         <span className={`agent-status ${working ? "working" : codex.state}`}>
-          <i /> {working ? `working · ${formatElapsed(elapsedSeconds)}` : codex.state === "ready" ? "ready" : statusText}
+          <i /> {working ? `${t("chat.working")} · ${formatElapsed(elapsedSeconds)}` : codex.state === "ready" ? t("chat.ready") : statusText}
         </span>
         <button
           className="new-conversation-button"
           onClick={props.onNewConversation}
-          aria-label="New conversation"
-          title="New conversation"
+          aria-label={t("chat.newConversation")}
+          title={t("chat.newConversation")}
           disabled={working || !connected}
         >
           <MessageSquarePlus size={16} />
         </button>
-        <button className="collapse-chat-button" onClick={() => props.onToggleOpen(false)} aria-label="Collapse chat">
+        <button className="collapse-chat-button" onClick={() => props.onToggleOpen(false)} aria-label={t("chat.collapse")}>
           <ChevronRight size={17} />
         </button>
       </header>
@@ -153,7 +159,7 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
           <div className="starting-note">
             <span />
             <span />
-            <span /> Connecting to Codex
+            <span /> {t("chat.connectingCodex")}
           </div>
         )}
       </div>
@@ -163,31 +169,31 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
         <PhaseGuide
           phase={props.phase}
           canAct={connected && !working}
-          onApprove={() => props.onSend("I approve this syllabus. Preserve it and create Session 1 as session1.html.")}
+          onApprove={() => props.onSend(t("chat.approvePrompt"))}
         />
         {selections.length > 0 && (
           <div className="selection-stack">
             {selections.map((selection) => (
               <div className="selection-chip" key={selection.id}>
                 {selection.screenshot ? (
-                  <img src={selection.screenshot} alt="Selected course element" />
+                  <img src={selection.screenshot} alt={t("chat.selectedElement")} />
                 ) : (
                   <div className="chip-placeholder">{selection.kind === "text" ? "“ ”" : `<${selection.tag}>`}</div>
                 )}
                 <div>
-                  <span>{selection.kind === "text" ? "Quoted text" : `Block · <${selection.tag}>`}</span>
+                  <span>{selection.kind === "text" ? t("chat.quotedText") : `${t("chat.block")} · <${selection.tag}>`}</span>
                   <p>{selection.text}</p>
                 </div>
                 <div className="chip-actions">
                   {selection.canExpand && (
                     <button
                       onClick={() => props.onExpandSelection(selection.id)}
-                      title="Expand selection to parent"
+                      title={t("chat.expandSelection")}
                     >
                       <Expand size={13} />
                     </button>
                   )}
-                  <button onClick={() => props.onRemoveSelection(selection.id)} title="Remove selection">
+                  <button onClick={() => props.onRemoveSelection(selection.id)} title={t("chat.removeSelection")}>
                     <X size={13} />
                   </button>
                 </div>
@@ -210,57 +216,65 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
                 submit();
               }
             }}
-            placeholder={working ? "Agent is still working…" : props.placeholder}
+            placeholder={working ? t("chat.agentStillWorking") : props.placeholder}
             rows={1}
             disabled={working}
           />
           <div className="composer-foot">
-            <span>{working ? "the agent is working" : ""}</span>
+            <span>{working ? t("chat.agentWorking") : ""}</span>
             {working ? (
-              <button className="stop-button" onClick={props.onInterrupt} aria-label="Stop the current turn" title="Stop the agent">
+              <button className="stop-button" onClick={props.onInterrupt} aria-label={t("chat.stopTurn")} title={t("chat.stopAgent")}>
                 <Square size={12} fill="currentColor" />
               </button>
             ) : (
-              <button onClick={submit} disabled={!canSend} aria-label="Send">
+              <button onClick={submit} disabled={!canSend} aria-label={t("chat.send")}>
                 <Send size={15} />
               </button>
             )}
           </div>
         </div>
-        <div className="composer-promise">Selections are context. The course changes only when you ask.</div>
+        <AgentControls
+          models={props.models ?? []}
+          value={props.agentConfig ?? null}
+          disabled={working}
+          onChange={props.onAgentConfigChange ?? (() => {})}
+        />
+        <div className="composer-promise">{t("chat.promise")}</div>
       </div>
     </aside>
   );
 });
 
 function PhaseGuide({ phase, canAct, onApprove }: { phase: CoursePhase; canAct: boolean; onApprove: () => void }) {
+  const { t } = useI18n();
   if (phase === "learning") return null;
 
   if (phase === "syllabus") {
     return (
-      <section className="phase-guide syllabus" aria-label="Course design phase">
+      <section className="phase-guide syllabus" aria-label={t("chat.courseDesignPhase")}>
         <Milestone size={15} />
         <div>
-          <strong>Step 2 of 3 · Review the syllabus</strong>
-          <p>Ask for changes, or approve the plan to begin the first session.</p>
-          <button type="button" disabled={!canAct} onClick={onApprove}>Approve &amp; start Session 1</button>
+          <strong>{t("chat.reviewSyllabus")}</strong>
+          <p>{t("chat.reviewSyllabusDescription")}</p>
+          <button type="button" disabled={!canAct} onClick={onApprove}>{t("chat.approve")}</button>
         </div>
       </section>
     );
   }
 
   return (
-    <section className="phase-guide" aria-label="Course design phase">
+    <section className="phase-guide" aria-label={t("chat.courseDesignPhase")}>
       <Milestone size={15} />
       <div>
-        <strong>Step 1 of 3 · Shape the course</strong>
-        <p>Answer the agent’s questions; it will turn your direction into a syllabus.</p>
+        <strong>{t("chat.shapeCourse")}</strong>
+        <p>{t("chat.shapeCourseDescription")}</p>
       </div>
     </section>
   );
 }
 
 function Message({ item, hideActivities = false }: { item: ChatItem; hideActivities?: boolean }) {
+  const { t } = useI18n();
   if (item.kind === "system") {
     return (
       <div className={`system-message ${item.failed ? "failed" : ""}`}>
@@ -278,7 +292,7 @@ function Message({ item, hideActivities = false }: { item: ChatItem; hideActivit
             <div className="message-selections">
               {item.selections.map((selection, index) => (
                 <span key={`${selection.tag}-${index}`}>
-                  {selection.kind === "text" ? "Quote" : `<${selection.tag}>`} · {selection.text.slice(0, 34)}
+                  {selection.kind === "text" ? t("chat.quote") : `<${selection.tag}>`} · {selection.text.slice(0, 34)}
                 </span>
               ))}
             </div>
@@ -293,7 +307,7 @@ function Message({ item, hideActivities = false }: { item: ChatItem; hideActivit
     <article className={`message agent ${item.failed ? "failed" : ""}`}>
       <div className="message-content">
         {!hideActivities && item.activities.length > 0 && (
-          <ActivityTimeline activities={item.activities} label="Completed agent activity" />
+          <ActivityTimeline activities={item.activities} label={t("chat.completedActivity")} />
         )}
         {item.text && (
           <div className="markdown-content">
@@ -313,32 +327,33 @@ function Message({ item, hideActivities = false }: { item: ChatItem; hideActivit
 }
 
 function WorkingBanner({ activities }: { activities: Activity[] }) {
+  const { t } = useI18n();
   const latest = activities.at(-1);
   const latestDetail = latest
-    ? latest.detail || latest.file || (latest.done ? "Moving to the next step…" : "In progress")
-    : "Waiting for the first activity…";
+    ? latest.detail || latest.file || (latest.done ? t("activity.nextStep") : t("activity.inProgress"))
+    : t("activity.waiting");
 
   return (
-    <details className="working-banner" aria-label="Agent work details">
+    <details className="working-banner" aria-label={t("activity.details")}>
       <summary>
-        <span className="working-banner-spinner" aria-label="Agent working" />
+        <span className="working-banner-spinner" aria-label={t("activity.agentWorking")} />
         <span className="working-banner-copy" aria-live="polite">
-          <strong>{latest?.label ?? "Starting the request"}</strong>
+          <strong>{latest ? localizeActivityLabel(latest.label, t) : t("activity.startingRequest")}</strong>
           <small>{latestDetail}</small>
         </span>
         <ChevronRight className="working-banner-chevron" size={15} aria-hidden="true" />
       </summary>
-      <div className="working-activity-list" aria-label="Agent activity history" aria-live="polite">
+      <div className="working-activity-list" aria-label={t("activity.history")} aria-live="polite">
         {activities.length > 0 ? (
           activities.map((activity) => <ActivityLine key={activity.id} activity={activity} />)
         ) : (
           <div className="activity live">
             <span className="activity-kind" aria-hidden="true"><Sparkles size={14} /></span>
             <span className="activity-copy">
-              <strong>Starting the request</strong>
-              <span className="activity-detail">Waiting for the first activity…</span>
+              <strong>{t("activity.startingRequest")}</strong>
+              <span className="activity-detail">{t("activity.waiting")}</span>
             </span>
-            <span className="activity-spinner" aria-label="In progress" />
+            <span className="activity-spinner" aria-label={t("activity.inProgress")} />
           </div>
         )}
       </div>
@@ -355,6 +370,7 @@ function ActivityTimeline({ activities, label }: { activities: Activity[]; label
 }
 
 function ActivityLine({ activity }: { activity: Activity }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const hasLongDetail = Boolean(activity.detail && (activity.detail.length > 220 || activity.detail.split("\n").length > 4));
 
@@ -365,7 +381,7 @@ function ActivityLine({ activity }: { activity: Activity }) {
       </span>
       <span className="activity-copy">
         <strong>
-          {activity.label}
+          {localizeActivityLabel(activity.label, t)}
           {activity.file ? ` · ${activity.file}` : ""}
         </strong>
         {activity.detail && (
@@ -375,13 +391,13 @@ function ActivityLine({ activity }: { activity: Activity }) {
         )}
         {hasLongDetail && (
           <button className="activity-more" type="button" onClick={() => setExpanded((current) => !current)}>
-            {expanded ? "Show less" : "Show more"}
+            {expanded ? t("activity.showLess") : t("activity.showMore")}
           </button>
         )}
       </span>
       {activity.done
-        ? <Check className="activity-check" size={13} aria-label="Completed" />
-        : <span className="activity-spinner" aria-label="In progress" />}
+        ? <Check className="activity-check" size={13} aria-label={t("activity.completed")} />
+        : <span className="activity-spinner" aria-label={t("activity.inProgress")} />}
     </div>
   );
 }
@@ -399,4 +415,41 @@ function ActivityIcon({ activity }: { activity: Activity }) {
 function formatElapsed(seconds: number) {
   if (seconds < 60) return `${seconds}s`;
   return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+
+function localizeActivityLabel(label: string, t: (key: TranslationKey) => string) {
+  const labels: Record<string, TranslationKey> = {
+    Starting: "activity.starting",
+    Working: "activity.working",
+    Thinking: "activity.thinking",
+    "Thought through the request": "activity.thoughtThrough",
+    "Plan complete": "activity.planComplete",
+    Planning: "activity.planning",
+    "Plan ready": "activity.planReady",
+    "Using a tool": "activity.usingTool",
+    "Updated the course": "activity.updatedCourse",
+    "Editing the course": "activity.editingCourse",
+    "Ran a command": "activity.ranCommand",
+    "Running a command": "activity.runningCommand",
+    "Searched the web": "activity.searchedWeb",
+    "Searching the web": "activity.searchingWeb",
+    "Finished delegated work": "activity.finishedDelegation",
+    "Delegating work": "activity.delegating",
+    "Sub-agent finished": "activity.subagentFinished",
+    "Sub-agent working": "activity.subagentWorking",
+    "Inspected an image": "activity.inspectedImage",
+    "Inspecting an image": "activity.inspectingImage",
+    "Generated an image": "activity.generatedImage",
+    "Generating an image": "activity.generatingImage",
+    "Wait finished": "activity.waitFinished",
+    Waiting: "activity.waitingShort",
+    "Context organized": "activity.contextOrganized",
+    "Organizing context": "activity.organizingContext",
+  };
+  const key = labels[label];
+  if (key) return t(key);
+  if (label.startsWith("Planning · ")) return label.replace("Planning", t("activity.planning"));
+  if (label.startsWith("Used ")) return label.replace("Used", t("activity.usedPrefix"));
+  if (label.startsWith("Using ")) return label.replace("Using", t("activity.usingPrefix"));
+  return label;
 }

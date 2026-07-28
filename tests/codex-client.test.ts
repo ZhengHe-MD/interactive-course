@@ -97,3 +97,38 @@ describe("Codex activity streaming", () => {
     });
   });
 });
+
+describe("temporary Codex conversations", () => {
+  it("can keep export-only work out of persisted conversation history", async () => {
+    const requests: Array<{ method: string; params: unknown }> = [];
+    const client = new CodexClient("/tmp/course-studio-export-test");
+    Object.assign(client, {
+      status: { state: "ready" },
+      peer: {
+        request: async (method: string, params: unknown) => {
+          requests.push({ method, params });
+          return {
+            thread: {
+              id: "temporary-thread",
+              createdAt: 1,
+              updatedAt: 1,
+              turns: [],
+            },
+          };
+        },
+      },
+    });
+
+    await client.newConversation({ ephemeral: true });
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      method: "thread/start",
+      params: {
+        cwd: "/tmp/course-studio-export-test",
+        ephemeral: true,
+        sandbox: "workspace-write",
+      },
+    });
+  });
+});

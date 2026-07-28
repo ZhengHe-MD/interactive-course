@@ -3,6 +3,8 @@ import type { TranscriptItem } from "../shared/protocol";
 export type {
   Activity,
   ActivityKind,
+  AgentConfig,
+  AgentModel,
   Checkpoint,
   CodexStatus,
   ConversationSummary,
@@ -11,6 +13,7 @@ export type {
   CoursePhase,
   CourseSection,
   CourseSummary,
+  Language,
   Selection,
   TranscriptItem,
   ServerMessage,

@@ -3,10 +3,13 @@ import { EventEmitter } from "node:events";
 import { basename, isAbsolute, relative } from "node:path";
 import type {
   Activity,
+  AgentConfig,
+  AgentModel,
   CodexStatus,
   ConversationSummary,
   CoursePhase,
   CourseSection,
+  Language,
   TranscriptItem,
 } from "../../shared/protocol";
 import { DESIGN_GUIDE } from "../course/designGuide";
@@ -18,6 +21,8 @@ import type {
   ErrorNotification,
   ItemNotification,
   McpToolCallProgressNotification,
+  ModelListParams,
+  ModelListResponse,
   ReasoningSummaryTextDeltaNotification,
   ThreadStartParams,
   ThreadStartResponse,
@@ -49,6 +54,8 @@ export class CodexClient extends EventEmitter {
   private reasoningSummaries = new Map<string, string[]>();
   private toolActivities = new Map<string, Activity>();
   private activeTurn: string | null = null;
+  private models: AgentModel[] | null = null;
+  private agentConfig: AgentConfig = { model: "", effort: null };
 
   constructor(
     private courseDirectory: string,
@@ -59,6 +66,10 @@ export class CodexClient extends EventEmitter {
 
   getStatus() {
     return this.status;
+  }
+
+  getAgentConfig() {
+    return this.agentConfig;
   }
 
   async connect(): Promise<CodexStatus> {
@@ -127,7 +138,7 @@ export class CodexClient extends EventEmitter {
     }
   }
 
-  async newConversation() {
+  async newConversation(options: { ephemeral?: boolean } = {}) {
     await this.requireReady();
     const params: ThreadStartParams = {
       cwd: this.courseDirectory,
@@ -135,11 +146,48 @@ export class CodexClient extends EventEmitter {
       sandbox: "workspace-write",
       serviceName: "Course Studio",
       developerInstructions: DESIGN_GUIDE,
+      ...(options.ephemeral ? { ephemeral: true } : {}),
     };
     const thread = await this.peer!.request<ThreadStartResponse>("thread/start", params);
     this.threadId = thread.thread.id;
     this.conversationSnapshot = snapshot(thread.thread);
+    this.captureAgentConfig(thread);
     return this.conversationSnapshot;
+  }
+
+  async listModels(): Promise<AgentModel[]> {
+    await this.requireReady();
+    if (this.models) return this.models;
+
+    const models: AgentModel[] = [];
+    let cursor: string | null = null;
+    do {
+      const params: ModelListParams = { cursor, limit: 100, includeHidden: false };
+      const response = await this.peer!.request<ModelListResponse>("model/list", params);
+      models.push(...response.data
+        .filter((model) => !model.hidden)
+        .map((model) => ({
+          model: model.model,
+          displayName: model.displayName,
+          description: model.description,
+          supportedEfforts: model.supportedReasoningEfforts.map((effort) => ({
+            effort: effort.reasoningEffort,
+            description: effort.description,
+          })),
+          defaultEffort: model.defaultReasoningEffort,
+          isDefault: model.isDefault,
+        })));
+      cursor = response.nextCursor;
+    } while (cursor);
+
+    this.models = models;
+    if (!this.agentConfig.model) {
+      const defaultModel = models.find((model) => model.isDefault) ?? models[0];
+      if (defaultModel) {
+        this.agentConfig = { model: defaultModel.model, effort: defaultModel.defaultEffort };
+      }
+    }
+    return models;
   }
 
   async listConversations(): Promise<ConversationSummary[]> {
@@ -161,6 +209,7 @@ export class CodexClient extends EventEmitter {
     });
     this.threadId = response.thread.id;
     this.conversationSnapshot = snapshot(response.thread);
+    this.captureAgentConfig(response);
     return this.conversationSnapshot;
   }
 
@@ -202,7 +251,13 @@ export class CodexClient extends EventEmitter {
   async startTurn(
     message: string,
     selections: SelectionContext[],
-    options: { coursePhase?: CoursePhase; activePage?: string; activeSection?: CourseSection } = {},
+    options: {
+      coursePhase?: CoursePhase;
+      activePage?: string;
+      activeSection?: CourseSection;
+      agent?: AgentConfig;
+      language?: Language;
+    } = {},
   ) {
     await this.requireReady();
     if (!this.threadId) await this.ensureConversation();
@@ -215,7 +270,7 @@ export class CodexClient extends EventEmitter {
     const images = await writeSelectionImages(selections);
 
     try {
-      const turn = await this.send([text, ...images.inputs]);
+      const turn = await this.send([text, ...images.inputs], options.agent);
       this.activeTurn = turn.id;
       return turn;
     } catch (error) {
@@ -224,7 +279,7 @@ export class CodexClient extends EventEmitter {
       if (images.inputs.length === 0) throw error;
       this.emit("diagnostic", `Retrying the turn without selection screenshots: ${describe(error)}`);
       this.emit("notice", "Sent your selection without its screenshot — Codex rejected the image.");
-      const turn = await this.send([text]);
+      const turn = await this.send([text], options.agent);
       this.activeTurn = turn.id;
       return turn;
     } finally {
@@ -232,13 +287,39 @@ export class CodexClient extends EventEmitter {
     }
   }
 
-  private async send(input: UserInput[]) {
+  private async send(input: UserInput[], requested?: AgentConfig) {
+    const agent = await this.validateAgentConfig(requested);
     const response = await this.peer!.request<TurnStartResponse>(
       "turn/start",
-      { threadId: this.threadId, input },
+      {
+        threadId: this.threadId,
+        input,
+        ...(agent.model ? { model: agent.model } : {}),
+        ...(agent.effort ? { effort: agent.effort } : {}),
+      },
       60_000,
     );
+    this.agentConfig = agent;
     return response.turn;
+  }
+
+  private captureAgentConfig(response: { model?: string; reasoningEffort?: string | null }) {
+    if (!response.model) return;
+    this.agentConfig = { model: response.model, effort: response.reasoningEffort ?? null };
+  }
+
+  private async validateAgentConfig(requested?: AgentConfig) {
+    const agent = requested ?? this.agentConfig;
+    if (!agent.model) return agent;
+    if (agent.model === this.agentConfig.model && agent.effort === this.agentConfig.effort) return agent;
+
+    const models = await this.listModels();
+    const model = models.find((candidate) => candidate.model === agent.model);
+    if (!model) throw new Error("That model is not available for this Codex account.");
+    if (agent.effort && !model.supportedEfforts.some((option) => option.effort === agent.effort)) {
+      throw new Error(`${model.displayName} does not support the selected thinking effort.`);
+    }
+    return agent;
   }
 
   /** Ask Codex to stop the turn in flight. Best effort — never throws. */
