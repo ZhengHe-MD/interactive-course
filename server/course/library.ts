@@ -1,16 +1,14 @@
 import { mkdir, readdir } from "node:fs/promises";
-import { join } from "node:path";
 import type { CourseSummary } from "../../shared/protocol";
 import { CourseManager } from "./CourseManager";
 
-export async function listCourses(repositoryRoot: string, currentCourseId: string): Promise<CourseSummary[]> {
-  const coursesDirectory = join(repositoryRoot, "courses");
-  await mkdir(coursesDirectory, { recursive: true });
-  const entries = await readdir(coursesDirectory, { withFileTypes: true });
+export async function listCourses(libraryRoot: string, currentCourseId: string): Promise<CourseSummary[]> {
+  await mkdir(libraryRoot, { recursive: true });
+  const entries = await readdir(libraryRoot, { withFileTypes: true });
   const directories = entries.filter((entry) => entry.isDirectory() && isCourseId(entry.name));
 
   const courses = await Promise.all(directories.map(async (entry) => {
-    const manager = new CourseManager(repositoryRoot, `courses/${entry.name}`);
+    const manager = new CourseManager(libraryRoot, entry.name);
     const outline = await manager.getOutline();
     return {
       id: entry.name,
@@ -27,10 +25,9 @@ export async function listCourses(repositoryRoot: string, currentCourseId: strin
   });
 }
 
-export async function allocateCourseId(repositoryRoot: string, topic: string) {
-  const coursesDirectory = join(repositoryRoot, "courses");
-  await mkdir(coursesDirectory, { recursive: true });
-  const existing = new Set(await readdir(coursesDirectory));
+export async function allocateCourseId(libraryRoot: string, topic: string) {
+  await mkdir(libraryRoot, { recursive: true });
+  const existing = new Set(await readdir(libraryRoot));
   const base = slug(topic) || "course";
   let candidate = base;
   let suffix = 2;

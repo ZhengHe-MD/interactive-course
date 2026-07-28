@@ -13,7 +13,7 @@ Course Studio is a local workspace where a learner and Codex co-design an intera
 - A course-birth flow that starts with a blank directory, asks what the learner wants to learn, and builds the syllabus and lessons from their answers.
 - A design guide ([`server/course/designGuide.ts`](server/course/designGuide.ts)) carried into every session, so the agent knows the studio's taste and pedagogy. Edit it freely — it is meant to compound.
 
-Courses deliberately have no build step. [`courses/current`](courses/current) begins without course material; Course Studio shows its own empty state while the agent interviews the learner, then creates `syllabus.html` as ordinary HTML. Once approved, that syllabus remains available while lessons are added as `session1.html`, `session2.html`, and later pages. Existing `index.html` courses remain readable as legacy syllabi.
+Courses deliberately have no build step. Learner material is stored outside this source repository in `~/.courses/<course-id>` by default. The course library is its own Git repository, so checkpoints and reverts remain available without mixing generated material into Course Studio's history. A new course begins without course material; Course Studio shows its own empty state while the agent interviews the learner, then creates `syllabus.html` as ordinary HTML. Once approved, that syllabus remains available while lessons are added as `session1.html`, `session2.html`, and later pages. Existing `index.html` courses remain readable as legacy syllabi.
 
 ## Publish a finished course as a TIL
 
@@ -39,11 +39,12 @@ npm start
 
 Then open <http://127.0.0.1:4310>.
 
-Four environment variables tune the run:
+Five environment variables tune the run:
 
 | Variable | Default | What it does |
 |---|---|---|
-| `COURSE_STUDIO_COURSE` | `current` | Which directory under `courses/` is open |
+| `COURSE_STUDIO_LIBRARY` | `~/.courses` | Directory that owns course material and its independent Git history |
+| `COURSE_STUDIO_COURSE` | `current` | Which course directory in the external library is open |
 | `COURSE_STUDIO_PORT` | `4310` | Studio server port |
 | `CODEX_BIN` | `codex` | Path to the Codex CLI — useful for testing against a stub |
 | `COURSE_STUDIO_DEBUG` | unset | Print app-server diagnostics to the server console |

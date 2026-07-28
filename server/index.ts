@@ -9,22 +9,23 @@ import { CourseManager, EMPTY_OUTLINE } from "./course/CourseManager";
 import { buildStandaloneCourse, exportFilename } from "./course/exportCourse";
 import { prepareCourseForExport } from "./course/prepareExport";
 import { allocateCourseId, isCourseId, listCourses } from "./course/library";
+import { ensureCourseLibrary, resolveCourseLibraryRoot } from "./course/storage";
 import type { Activity, AgentConfig, ClientMessage, Language, ServerMessage } from "../shared/protocol";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, "..");
-// Courses live in the studio repository so they are versioned and shareable with
-// it. COURSE_ID selects which one is open; the default is the working course.
+const courseLibraryRoot = resolveCourseLibraryRoot(repositoryRoot);
+// Learner material lives in its own library and Git history, independent of the
+// Studio source checkout. COURSE_STUDIO_COURSE selects the open directory.
 const requestedCourseId = process.env.COURSE_STUDIO_COURSE ?? "current";
 let courseId = isCourseId(requestedCourseId) ? requestedCourseId : "current";
-let courseRelativePath = `courses/${courseId}`;
-let courseDirectory = join(repositoryRoot, courseRelativePath);
+let courseDirectory = join(courseLibraryRoot, courseId);
 const port = Number(process.env.COURSE_STUDIO_PORT ?? 4310);
 
 const app = express();
 const server = createServer(app);
 const sockets = new Set<WebSocket>();
-let course = new CourseManager(repositoryRoot, courseRelativePath);
+let course = new CourseManager(courseLibraryRoot, courseId);
 let codex = new CodexClient(courseDirectory);
 let courseVersion = Date.now();
 let activeTurn: string | null = null;
@@ -57,7 +58,7 @@ async function outline() {
 }
 
 async function courses() {
-  return listCourses(repositoryRoot, courseId);
+  return listCourses(courseLibraryRoot, courseId);
 }
 
 async function broadcastCourses() {
@@ -157,10 +158,9 @@ async function activateCourse(nextCourseId: string) {
   codex.close();
 
   courseId = nextCourseId;
-  courseRelativePath = `courses/${courseId}`;
-  courseDirectory = join(repositoryRoot, courseRelativePath);
+  courseDirectory = join(courseLibraryRoot, courseId);
   await mkdir(courseDirectory, { recursive: true });
-  course = new CourseManager(repositoryRoot, courseRelativePath);
+  course = new CourseManager(courseLibraryRoot, courseId);
   codex = new CodexClient(courseDirectory);
   wireCodex(codex);
   watchCourse(course);
@@ -377,7 +377,7 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
         const currentStatus = await codex.connect();
         if (currentStatus.state !== "ready") throw new Error(currentStatus.message ?? "Codex is unavailable.");
 
-        const nextCourseId = await allocateCourseId(repositoryRoot, message.topic);
+        const nextCourseId = await allocateCourseId(courseLibraryRoot, message.topic);
         await activateCourse(nextCourseId);
         const nextStatus = await codex.connect();
         if (nextStatus.state !== "ready") throw new Error(nextStatus.message ?? "Codex is unavailable.");
@@ -461,11 +461,12 @@ async function handleTurnCompleted(turn: { turnId: string; status: string; error
 }
 
 async function startServer() {
+  await ensureCourseLibrary(courseLibraryRoot);
   await mkdir(courseDirectory, { recursive: true });
   wireCodex(codex);
   watchCourse(course);
   server.listen(port, "127.0.0.1", () => {
-    console.log(`Course Studio server: http://127.0.0.1:${port} (${courseRelativePath})`);
+    console.log(`Course Studio server: http://127.0.0.1:${port} (${courseDirectory})`);
     void codex.connect();
   });
 }

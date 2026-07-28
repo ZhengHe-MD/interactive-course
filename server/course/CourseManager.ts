@@ -32,7 +32,7 @@ type Manifest = {
 
 /**
  * Owns one course's files and its git-backed timeline (DESIGN.md decisions 4 and
- * 9). Checkpoints are path-scoped commits in the studio repository, and revert is
+ * 9). Checkpoints are path-scoped commits in the course library repository, and revert is
  * forward-only — it restores the previous tree and commits that, so undo is
  * itself undoable and no history is ever rewritten.
  */
@@ -41,28 +41,32 @@ export class CourseManager {
   private listeners = new Set<ChangeListener>();
 
   constructor(
-    readonly repositoryRoot: string,
-    readonly courseRelativePath: string,
+    readonly libraryRoot: string,
+    readonly courseId: string,
   ) {}
 
   get courseDirectory() {
-    return join(this.repositoryRoot, this.courseRelativePath);
+    return join(this.libraryRoot, this.courseId);
   }
 
   private get checkpointPrefix() {
-    return `course(${this.courseRelativePath}):`;
+    return `course(${this.courseId}):`;
+  }
+
+  private get legacyCheckpointPrefix() {
+    return `course(courses/${this.courseId}):`;
   }
 
   private async git(args: string[]) {
     const { stdout } = await execFileAsync("git", args, {
-      cwd: this.repositoryRoot,
+      cwd: this.libraryRoot,
       maxBuffer: 10 * 1024 * 1024,
     });
     return stdout.trim();
   }
 
   async isDirty() {
-    return Boolean(await this.git(["status", "--porcelain", "--", this.courseRelativePath]));
+    return Boolean(await this.git(["status", "--porcelain", "--", this.courseId]));
   }
 
   /** The course's entry page, or null when the course has not been born yet. */
@@ -151,7 +155,7 @@ export class CourseManager {
     const dirty = await this.isDirty();
     if (!dirty && !options.allowEmpty) return null;
 
-    if (dirty) await this.git(["add", "-A", "--", this.courseRelativePath]);
+    if (dirty) await this.git(["add", "-A", "--", this.courseId]);
     const commitArgs = [
       "-c",
       "user.name=Course Studio",
@@ -164,7 +168,7 @@ export class CourseManager {
       // Before the interview produces syllabus.html, Git has no path matching the
       // course directory. `--only` creates a genuinely empty checkpoint and,
       // unlike an unscoped commit, cannot consume unrelated staged changes.
-      ...(!dirty && options.allowEmpty ? ["--only"] : ["--", this.courseRelativePath]),
+      ...(!dirty && options.allowEmpty ? ["--only"] : ["--", this.courseId]),
     ];
     await this.git(commitArgs);
 
@@ -172,12 +176,22 @@ export class CourseManager {
   }
 
   async listCheckpoints(limit = 12): Promise<Checkpoint[]> {
-    const [courseHistory, namedCheckpoints, history] = await Promise.all([
-      this.git(["log", "--format=%H", "--", this.courseRelativePath]),
+    try {
+      await this.git(["rev-parse", "--verify", "HEAD"]);
+    } catch {
+      return [];
+    }
+    const [courseHistory, namedCheckpoints, legacyNamedCheckpoints, history] = await Promise.all([
+      this.git(["log", "--format=%H", "--", this.courseId]),
       this.git(["log", "--format=%H", "--fixed-strings", `--grep=${this.checkpointPrefix}`]),
+      this.git(["log", "--format=%H", "--fixed-strings", `--grep=${this.legacyCheckpointPrefix}`]),
       this.git(["rev-list", "--topo-order", "HEAD"]),
     ]);
-    const candidates = new Set([...courseHistory.split("\n"), ...namedCheckpoints.split("\n")].filter(Boolean));
+    const candidates = new Set([
+      ...courseHistory.split("\n"),
+      ...namedCheckpoints.split("\n"),
+      ...legacyNamedCheckpoints.split("\n"),
+    ].filter(Boolean));
     const ids = history.split("\n").filter((id) => candidates.has(id)).slice(0, limit);
     const output = await Promise.all(ids.map((id) => this.git(["show", "-s", "--format=%H%x00%s%x00%cI", id])));
 
@@ -185,9 +199,10 @@ export class CourseManager {
       const [id, rawLabel, createdAt] = line.split("\0");
       return {
         id,
-        label: rawLabel.startsWith(this.checkpointPrefix)
-          ? rawLabel.slice(this.checkpointPrefix.length).trim()
-          : rawLabel,
+        label: [this.checkpointPrefix, this.legacyCheckpointPrefix].reduce(
+          (label, prefix) => label.startsWith(prefix) ? label.slice(prefix.length).trim() : label,
+          rawLabel,
+        ),
         createdAt,
       };
     });
@@ -199,8 +214,8 @@ export class CourseManager {
     const target = checkpoints[1];
     if (!latest || !target) return null;
 
-    await this.git(["clean", "-fd", "--", this.courseRelativePath]);
-    await this.git(["restore", `--source=${target.id}`, "--worktree", "--", this.courseRelativePath]);
+    await this.git(["clean", "-fd", "--", this.courseId]);
+    await this.git(["restore", `--source=${target.id}`, "--worktree", "--", this.courseId]);
     return this.createCheckpoint(`Reverted “${latest.label}”`, { allowEmpty: true });
   }
 

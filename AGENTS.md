@@ -12,6 +12,7 @@ A local web app where a learner co-designs personalized interactive HTML courses
 ## Hard rules
 
 - Courses are plain HTML/CSS/JS directories. Never add a build step to a course.
+- Learner course material lives in the external course library (`~/.courses` by default), never in this repository.
 - The agent backend is Codex `app-server`, behind a thin seam. Don't widen the seam.
 - Quality over cost.
 - English and Simplified Chinese are first-class. Follow `docs/language-policy.md`; every new learner-visible Studio string ships in both languages.
