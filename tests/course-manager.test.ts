@@ -13,26 +13,26 @@ afterEach(async () => {
 
 async function repository() {
   const root = await mkdtemp(join(tmpdir(), "course-studio-test-"));
-  execFileSync("mkdir", ["-p", "courses/demo"], { cwd: root });
+  execFileSync("mkdir", ["-p", "demo"], { cwd: root });
   return root;
 }
 
 describe("CourseManager", () => {
   it("detects empty, syllabus, and learning phases from the course directory", async () => {
     const root = await repository();
-    const manager = new CourseManager(root, "courses/demo");
+    const manager = new CourseManager(root, "demo");
     managers.push(manager);
 
     expect(await manager.getCoursePhase()).toBe("empty");
-    await writeFile(join(root, "courses/demo/index.html"), '<meta name="course-studio-phase" content="syllabus"><h1>Plan</h1>');
+    await writeFile(join(root, "demo/index.html"), '<meta name="course-studio-phase" content="syllabus"><h1>Plan</h1>');
     expect(await manager.getCoursePhase()).toBe("syllabus");
-    await writeFile(join(root, "courses/demo/index.html"), "<h1>Lesson one</h1>");
+    await writeFile(join(root, "demo/index.html"), "<h1>Lesson one</h1>");
     expect(await manager.getCoursePhase()).toBe("learning");
   });
 
   it("reports an unborn course rather than inventing an outline", async () => {
     const root = await repository();
-    const manager = new CourseManager(root, "courses/demo");
+    const manager = new CourseManager(root, "demo");
     managers.push(manager);
 
     const outline = await manager.getOutline();
@@ -44,11 +44,11 @@ describe("CourseManager", () => {
 
   it("derives the outline from the course HTML", async () => {
     const root = await repository();
-    const manager = new CourseManager(root, "courses/demo");
+    const manager = new CourseManager(root, "demo");
     managers.push(manager);
 
     await writeFile(
-      join(root, "courses/demo/index.html"),
+      join(root, "demo/index.html"),
       `<title>Silicon to CPU — Syllabus</title>
        <meta name="course-studio-phase" content="syllabus">
        <h1>From Silicon to a Simple CPU</h1>
@@ -78,12 +78,12 @@ describe("CourseManager", () => {
 
   it("lets an optional course.json name lessons that do not exist yet", async () => {
     const root = await repository();
-    const manager = new CourseManager(root, "courses/demo");
+    const manager = new CourseManager(root, "demo");
     managers.push(manager);
 
-    await writeFile(join(root, "courses/demo/index.html"), "<h1>Lesson one</h1>");
+    await writeFile(join(root, "demo/index.html"), "<h1>Lesson one</h1>");
     await writeFile(
-      join(root, "courses/demo/course.json"),
+      join(root, "demo/course.json"),
       JSON.stringify({ title: "Bayes, for you", topic: "Probability", upNext: ["Naive Bayes", 7] }),
     );
 
@@ -95,19 +95,19 @@ describe("CourseManager", () => {
 
   it("keeps the syllabus and generated sessions as separate navigable pages", async () => {
     const root = await repository();
-    const manager = new CourseManager(root, "courses/demo");
+    const manager = new CourseManager(root, "demo");
     managers.push(manager);
 
     await writeFile(
-      join(root, "courses/demo/syllabus.html"),
+      join(root, "demo/syllabus.html"),
       '<meta name="course-studio-phase" content="learning"><meta name="course-studio-page" content="syllabus"><h1>Confucius</h1><h2 id="arc">Course arc</h2>',
     );
     await writeFile(
-      join(root, "courses/demo/session1.html"),
+      join(root, "demo/session1.html"),
       '<meta name="course-studio-page" content="lesson"><meta name="course-page-title" content="Practice"><h1>Becoming human</h1><h2 id="question">Opening question</h2>',
     );
     await writeFile(
-      join(root, "courses/demo/session2.html"),
+      join(root, "demo/session2.html"),
       '<meta name="course-studio-page" content="lesson"><meta name="course-page-title" content="Relationships"><h1>The relational self</h1>',
     );
 
@@ -122,11 +122,11 @@ describe("CourseManager", () => {
 
   it("survives a course.json the agent wrote badly", async () => {
     const root = await repository();
-    const manager = new CourseManager(root, "courses/demo");
+    const manager = new CourseManager(root, "demo");
     managers.push(manager);
 
-    await writeFile(join(root, "courses/demo/index.html"), "<h1>Lesson one</h1>");
-    await writeFile(join(root, "courses/demo/course.json"), "{ not json at all");
+    await writeFile(join(root, "demo/index.html"), "<h1>Lesson one</h1>");
+    await writeFile(join(root, "demo/course.json"), "{ not json at all");
 
     const outline = await manager.getOutline();
     expect(outline.title).toBe("Lesson one");
@@ -136,24 +136,24 @@ describe("CourseManager", () => {
   it("checkpoints course edits and restores the previous course state", async () => {
     const root = await mkdtemp(join(tmpdir(), "course-studio-test-"));
     execFileSync("git", ["init", "-q"], { cwd: root });
-    execFileSync("mkdir", ["-p", "courses/demo"], { cwd: root });
-    await writeFile(join(root, "courses/demo/index.html"), "<h1>First</h1>\n");
+    execFileSync("mkdir", ["-p", "demo"], { cwd: root });
+    await writeFile(join(root, "demo/index.html"), "<h1>First</h1>\n");
     execFileSync("git", ["add", "."], { cwd: root });
     execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "feat: add demo course"], { cwd: root });
 
-    const manager = new CourseManager(root, "courses/demo");
+    const manager = new CourseManager(root, "demo");
     managers.push(manager);
-    await writeFile(join(root, "courses/demo/index.html"), "<h1>Second</h1>\n");
+    await writeFile(join(root, "demo/index.html"), "<h1>Second</h1>\n");
 
     const checkpoint = await manager.createCheckpoint("Made the title concrete");
     expect(checkpoint?.label).toBe("Made the title concrete");
     expect(await manager.isDirty()).toBe(false);
 
-    await writeFile(join(root, "courses/demo/stray.html"), "partial turn\n");
+    await writeFile(join(root, "demo/stray.html"), "partial turn\n");
     const reverted = await manager.revertLast();
     expect(reverted?.label).toBe("Reverted “Made the title concrete”");
-    expect(await readFile(join(root, "courses/demo/index.html"), "utf8")).toBe("<h1>First</h1>\n");
-    await expect(readFile(join(root, "courses/demo/stray.html"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(join(root, "demo/index.html"), "utf8")).toBe("<h1>First</h1>\n");
+    await expect(readFile(join(root, "demo/stray.html"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
 
     // Undo is itself undoable: the reverted state is a checkpoint, not a rewrite.
     const labels = (await manager.listCheckpoints(3)).map(({ label }) => label);
@@ -163,13 +163,13 @@ describe("CourseManager", () => {
   it("records a checkpoint for a successful turn with no file edits", async () => {
     const root = await mkdtemp(join(tmpdir(), "course-studio-test-"));
     execFileSync("git", ["init", "-q"], { cwd: root });
-    execFileSync("mkdir", ["-p", "courses/demo"], { cwd: root });
-    await writeFile(join(root, "courses/demo/index.html"), "<h1>First</h1>\n");
+    execFileSync("mkdir", ["-p", "demo"], { cwd: root });
+    await writeFile(join(root, "demo/index.html"), "<h1>First</h1>\n");
     execFileSync("git", ["add", "."], { cwd: root });
     execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "feat: add demo course"], { cwd: root });
-    execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-qm", "course(courses/other): Unrelated checkpoint"], { cwd: root });
+    execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-qm", "course(other): Unrelated checkpoint"], { cwd: root });
 
-    const manager = new CourseManager(root, "courses/demo");
+    const manager = new CourseManager(root, "demo");
     managers.push(manager);
     const checkpoint = await manager.createCheckpoint("Answered in chat", { allowEmpty: true });
 
@@ -180,12 +180,12 @@ describe("CourseManager", () => {
   it("does not add a course checkpoint for a chat-only answer by default", async () => {
     const root = await mkdtemp(join(tmpdir(), "course-studio-test-"));
     execFileSync("git", ["init", "-q"], { cwd: root });
-    execFileSync("mkdir", ["-p", "courses/demo"], { cwd: root });
-    await writeFile(join(root, "courses/demo/index.html"), "<h1>First</h1>\n");
+    execFileSync("mkdir", ["-p", "demo"], { cwd: root });
+    await writeFile(join(root, "demo/index.html"), "<h1>First</h1>\n");
     execFileSync("git", ["add", "."], { cwd: root });
     execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "feat: add demo course"], { cwd: root });
 
-    const manager = new CourseManager(root, "courses/demo");
+    const manager = new CourseManager(root, "demo");
     managers.push(manager);
     const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
 
@@ -193,14 +193,28 @@ describe("CourseManager", () => {
     expect(execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim()).toBe(head);
   });
 
+  it("keeps checkpoint labels readable after moving a course out of the Studio repository", async () => {
+    const root = await mkdtemp(join(tmpdir(), "course-studio-test-"));
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    execFileSync("mkdir", ["-p", "demo"], { cwd: root });
+    await writeFile(join(root, "demo/index.html"), "<h1>First</h1>\n");
+    execFileSync("git", ["add", "."], { cwd: root });
+    execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "course(courses/demo): Agent course update"], { cwd: root });
+
+    const manager = new CourseManager(root, "demo");
+    managers.push(manager);
+
+    expect((await manager.listCheckpoints(1))[0]?.label).toBe("Agent course update");
+  });
+
   it("records a chat-only checkpoint before the course has any files", async () => {
     const root = await mkdtemp(join(tmpdir(), "course-studio-test-"));
     execFileSync("git", ["init", "-q"], { cwd: root });
-    execFileSync("mkdir", ["-p", "courses/aristotle"], { cwd: root });
+    execFileSync("mkdir", ["-p", "aristotle"], { cwd: root });
     await writeFile(join(root, "unrelated.txt"), "keep staged\n");
     execFileSync("git", ["add", "unrelated.txt"], { cwd: root });
 
-    const manager = new CourseManager(root, "courses/aristotle");
+    const manager = new CourseManager(root, "aristotle");
     managers.push(manager);
     const checkpoint = await manager.createCheckpoint("Agent course update", { allowEmpty: true });
 
@@ -209,6 +223,17 @@ describe("CourseManager", () => {
       .toContain("A  unrelated.txt");
     expect(execFileSync("git", ["show", "--format=", "--name-only", "HEAD"], { cwd: root, encoding: "utf8" }).trim())
       .toBe("");
+  });
+
+  it("has an empty timeline before the external library's first checkpoint", async () => {
+    const root = await mkdtemp(join(tmpdir(), "course-studio-test-"));
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    execFileSync("mkdir", ["-p", "new-course"], { cwd: root });
+    const manager = new CourseManager(root, "new-course");
+    managers.push(manager);
+
+    await expect(manager.listCheckpoints()).resolves.toEqual([]);
+    await expect(manager.revertLast()).resolves.toBeNull();
   });
 });
 

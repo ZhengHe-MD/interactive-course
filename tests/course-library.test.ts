@@ -6,11 +6,11 @@ import { allocateCourseId, isCourseId, listCourses } from "../server/course/libr
 
 async function library() {
   const root = await mkdtemp(join(tmpdir(), "course-library-test-"));
-  await mkdir(join(root, "courses/current"), { recursive: true });
-  await mkdir(join(root, "courses/ev-batteries"), { recursive: true });
-  await writeFile(join(root, "courses/current/index.html"), "<h1>From Silicon to a Simple CPU</h1>");
+  await mkdir(join(root, "current"), { recursive: true });
+  await mkdir(join(root, "ev-batteries"), { recursive: true });
+  await writeFile(join(root, "current/index.html"), "<h1>From Silicon to a Simple CPU</h1>");
   await writeFile(
-    join(root, "courses/ev-batteries/index.html"),
+    join(root, "ev-batteries/index.html"),
     '<meta name="course-studio-phase" content="syllabus"><h1>EV Battery Fundamentals</h1>',
   );
   return root;
