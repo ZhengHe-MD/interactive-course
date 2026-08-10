@@ -214,10 +214,21 @@
     if (!active()) return;
     if (suppressBlockClick) return;
     const target = validTarget(event.target);
-    if (!target) return;
+    if (!target) {
+      clearHover();
+      clearActiveSelections();
+      return;
+    }
     event.preventDefault();
     event.stopImmediatePropagation();
     clearHover();
+    if (!altInspect && selections.size === 1) {
+      const currentElement = [...selections.values()][0]?.element;
+      if (currentElement === target) {
+        clearActiveSelections();
+        return;
+      }
+    }
     void selectBlock(target);
   }, true);
 
@@ -230,6 +241,7 @@
       inspect = false;
       altInspect = false;
       clearHover();
+      clearActiveSelections();
       document.documentElement.style.cursor = "";
       post("inspect.cancelled");
     }
@@ -252,6 +264,22 @@
     });
   }, { passive: true });
 
+  let suppressSelectionChange = false;
+
+  function clearActiveSelections() {
+    if (selections.size === 0) return;
+    selections.clear();
+    post("selection.cleared");
+  }
+
+  document.addEventListener("selectionchange", () => {
+    if (suppressSelectionChange || document.body.hasAttribute("data-course-studio-empty")) return;
+    const nativeSelection = window.getSelection();
+    if (nativeSelection && (nativeSelection.isCollapsed || nativeSelection.rangeCount === 0 || !nativeSelection.toString().trim())) {
+      clearActiveSelections();
+    }
+  });
+
   window.addEventListener("message", (event) => {
     if (event.origin !== window.location.origin || event.data?.source !== "course-studio") return;
     if (event.data.type === "inspect") {
@@ -266,11 +294,15 @@
     }
     if (event.data.type === "selection.remove") {
       selections.delete(event.data.id);
+      suppressSelectionChange = true;
       window.getSelection()?.removeAllRanges();
+      window.setTimeout(() => { suppressSelectionChange = false; }, 0);
     }
     if (event.data.type === "selection.clear") {
       selections.clear();
+      suppressSelectionChange = true;
       window.getSelection()?.removeAllRanges();
+      window.setTimeout(() => { suppressSelectionChange = false; }, 0);
     }
     if (event.data.type === "scroll.restore" && Number.isFinite(event.data.top)) {
       window.scrollTo({ top: event.data.top, behavior: "instant" });

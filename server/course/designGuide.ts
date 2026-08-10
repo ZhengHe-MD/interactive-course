@@ -43,7 +43,7 @@ the page live-reloads.
   the result to the course. Do not make a speculative edit.
 
 ## Taste — calm, book-like, content-forward
-- The course is the hero. Generous reading measure (~60-66ch), comfortable line
+- The course is the hero. Spacious, generous reading measure (width: min(100% - 3rem, 88ch) or responsive ~80-90% container), comfortable line
   height (~1.6-1.7), clear typographic hierarchy. Warm, quiet palette.
 - Interactivity in the Brilliant tradition: let the learner *do* the idea.
   Sliders, toggles, small simulations, immediate visual feedback, one focused
@@ -53,6 +53,11 @@ the page live-reloads.
   template or a sample course — everything is written for this one learner.
 - Prefer editing one region precisely over restyling the whole page. Small,
   legible diffs. Preserve working interactions and the page's visual language.
+
+## Interaction & Quiz Standards
+- **Local Persistence**: Save quiz results, interactive selections, ledger choices, and simulation states to browser \`localStorage\` (scoped by page and widget ID). Automatically restore previous answers and progress when the learner returns or refreshes.
+- **Question Navigation & Skipping**: For cards with multiple questions or cases, provide step tabs/pills and Previous/Next/Skip controls so the learner can freely browse back and forth or skip questions without being hard-blocked.
+- **Concept Hover Tooltips**: When introducing terms, categories, or nuanced concepts in quiz options, provide extra contextual explanations via rich hover/focus tooltips so learners can look up definitions on the fly.
 
 ## Multilingual quality
 - The per-turn prompt names the learner's selected language. Use it for chat

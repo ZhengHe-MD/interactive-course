@@ -624,28 +624,28 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 
 /* Course canvas */
 .workspace { grid-column: 2; min-width: 0; min-height: 0; overflow: hidden; background: var(--bg); }
-.preview-stage { position: relative; width: 100%; height: 100%; min-height: 0; padding: 38px 34px 42px; }
+.preview-stage { position: relative; width: 100%; height: 100%; min-height: 0; padding: 20px 24px 28px; }
 .preview-stage iframe {
   display: block;
-  width: min(780px, 100%);
+  width: min(1280px, 94%);
   height: 100%;
   margin: 0 auto;
   border: 0;
-  border-radius: 28px;
+  border-radius: 24px;
   background: var(--paper);
   box-shadow: var(--shadow-lg);
 }
 .preview-stage.is-inspecting iframe { box-shadow: 0 0 0 2px var(--accent), var(--shadow-lg); }
 .course-starting-card {
   display: flex;
-  width: min(780px, 100%);
+  width: min(1280px, 94%);
   height: 100%;
   margin: 0 auto;
   padding: 64px;
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  border-radius: 28px;
+  border-radius: 24px;
   background: var(--paper);
   box-shadow: var(--shadow-lg);
   text-align: center;
