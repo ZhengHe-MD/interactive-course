@@ -1,4 +1,5 @@
-import { Check, ChevronRight, Download, Inspect, Layers3, LoaderCircle, RotateCcw, Shield } from "lucide-react";
+import { Check, ChevronRight, Download, Inspect, Layers3, LoaderCircle, RotateCcw, Shield, Upload } from "lucide-react";
+import { useRef } from "react";
 import { useI18n } from "../i18n";
 import type { Checkpoint, CourseSummary } from "../types";
 import { LanguageSwitch } from "./LanguageSwitch";
@@ -14,12 +15,14 @@ type Props = {
   checkpoints: Checkpoint[];
   working: boolean;
   exporting: boolean;
+  importing?: boolean;
   onHome: () => void;
   onSwitchCourse: (courseId: string) => void;
   onToggleInspect: () => void;
   onToggleMultipleSelection: () => void;
   onRevert: () => void;
   onExport: () => void;
+  onImportFile?: (file: File) => void;
 };
 
 export function Toolbar({
@@ -33,14 +36,17 @@ export function Toolbar({
   checkpoints,
   working,
   exporting,
+  importing = false,
   onHome,
   onSwitchCourse,
   onToggleInspect,
   onToggleMultipleSelection,
   onRevert,
   onExport,
+  onImportFile,
 }: Props) {
   const { t } = useI18n();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const currentCheckpoint = checkpoints[0]?.label ?? (working ? t("toolbar.designing") : t("toolbar.created"));
 
   return (
@@ -109,6 +115,29 @@ export function Toolbar({
         </button>
       </div>
       <LanguageSwitch />
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept=".zip,.course.zip"
+        style={{ display: "none" }}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) {
+            onImportFile?.(file);
+            event.target.value = "";
+          }
+        }}
+      />
+      <button
+        className="import-button"
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={working || exporting || importing}
+        title={t("toolbar.importTitle")}
+      >
+        {importing ? <LoaderCircle className="spin" size={15} /> : <Upload size={15} />}
+        <span>{importing ? t("toolbar.importing") : t("toolbar.import")}</span>
+      </button>
       <button
         className="export-button"
         type="button"

@@ -101,6 +101,32 @@ export type ConversationSummary = {
   title: string;
   createdAt: string;
   updatedAt: string;
+  readOnly?: boolean;
+};
+
+/** A curated turn stored in the course directory's conversations.json. */
+export type StoredTurn = {
+  id: string;
+  prompt: string;
+  response: string;
+  reasoning: string[];
+  createdAt: string;
+  page?: string;
+};
+
+/** A curated conversation session stored in conversations.json. */
+export type StoredConversation = {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  turns: StoredTurn[];
+};
+
+/** The versioned root schema for conversations.json. */
+export type StoredConversationsData = {
+  version: 1;
+  conversations: StoredConversation[];
 };
 
 export type ActivityKind = "reasoning" | "plan" | "edit" | "command" | "search" | "tool";

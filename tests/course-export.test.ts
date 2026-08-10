@@ -76,6 +76,84 @@ describe("standalone course export", () => {
     expect(() => new Function(runtime!)).not.toThrow();
   });
 
+  it("embeds conversation history in the standalone HTML with a toggleable Co-Design Companion drawer", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "course-export-test-"));
+    temporaryDirectories.push(directory);
+    await writeFile(join(directory, "syllabus.html"), "<!doctype html><html><head><title>Syllabus</title></head><body><main><h1>Plan</h1></main></body></html>");
+    await writeFile(
+      join(directory, "conversations.json"),
+      JSON.stringify({
+        version: 1,
+        conversations: [
+          {
+            id: "conv-1",
+            title: "Course Conception",
+            createdAt: "2026-08-10T20:00:00Z",
+            updatedAt: "2026-08-10T20:05:00Z",
+            turns: [
+              {
+                id: "turn-1",
+                prompt: "Can you create an interactive logic simulator?",
+                response: "I've structured a 4-step logic simulator...",
+                reasoning: ["Model gates visually", "Include truth tables"],
+                createdAt: "2026-08-10T20:00:15Z",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const outline: CourseOutline = {
+      phase: "learning",
+      hasContent: true,
+      title: "Interactive Digital Logic",
+      topic: "Build intuition for logic gates.",
+      pages: [{ path: "syllabus.html", title: "Syllabus", kind: "syllabus", sections: [] }],
+      sections: [],
+      upNext: [],
+    };
+
+    const html = await buildStandaloneCourse({
+      courseDirectory: directory,
+      outline,
+      language: "en",
+    });
+
+    expect(html).toContain("cs-companion-toggle");
+    expect(html).toContain("Co-Design Notes");
+    expect(html).toContain("cs-companion-drawer");
+    expect(html).toContain("Can you create an interactive logic simulator?");
+    expect(html).toContain("I've structured a 4-step logic simulator...");
+    expect(html).toContain("Model gates visually");
+  });
+
+  it("renders bilingual labels for the Co-Design Companion in Simplified Chinese", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "course-export-test-"));
+    temporaryDirectories.push(directory);
+    await writeFile(join(directory, "syllabus.html"), "<!doctype html><html><head><title>教学大纲</title></head><body><main><h1>大纲</h1></main></body></html>");
+
+    const outline: CourseOutline = {
+      phase: "learning",
+      hasContent: true,
+      title: "数字逻辑",
+      topic: "构建逻辑门直觉。",
+      pages: [{ path: "syllabus.html", title: "教学大纲", kind: "syllabus", sections: [] }],
+      sections: [],
+      upNext: [],
+    };
+
+    const html = await buildStandaloneCourse({
+      courseDirectory: directory,
+      outline,
+      language: "zh-CN",
+    });
+
+    expect(html).toContain("共同设计对话");
+    expect(html).toContain("课程内容");
+    expect(html).toContain("独立课程导出");
+  });
+
   it("creates a portable filename from the course title", () => {
     expect(exportFilename("Practice & Humanity")).toBe("practice-humanity.html");
     expect(exportFilename("论语：仁与礼")).toBe("论语-仁与礼.html");

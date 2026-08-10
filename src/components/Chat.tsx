@@ -130,7 +130,9 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
             title={t("chat.switchConversation")}
           >
             {props.conversations.map((conversation) => (
-              <option key={conversation.id} value={conversation.id}>{conversation.title}</option>
+              <option key={conversation.id} value={conversation.id}>
+                {conversation.title}{conversation.readOnly ? ` · ${t("chat.readOnly")}` : ""}
+              </option>
             ))}
           </select>
         </div>

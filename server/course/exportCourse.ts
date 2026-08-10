@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import type { CourseOutline, Language } from "../../shared/protocol";
+import { readStoredConversations } from "./conversations";
 
 type ExportPage = { path: string; title: string; html: string };
 type AssetBase = { kind: "file" | "url"; value: string };
@@ -15,6 +16,13 @@ const copy = {
     previous: "Previous",
     next: "Next",
     standalone: "Standalone course export",
+    companionTitle: "Co-Design Notes & Q&A",
+    companionToggle: "Co-Design Notes",
+    companionClose: "Close",
+    companionEmpty: "No co-design conversations recorded for this course.",
+    reasoningTitle: "Design Rationale",
+    learnerPrompt: "Learner",
+    agentResponse: "AI Mentor",
   },
   "zh-CN": {
     eyebrow: "一门在学习过程中共同设计的课程",
@@ -22,6 +30,13 @@ const copy = {
     previous: "上一页",
     next: "下一页",
     standalone: "独立课程导出",
+    companionTitle: "共同设计对话与问答",
+    companionToggle: "共同设计对话",
+    companionClose: "关闭",
+    companionEmpty: "此课程暂无共同设计对话记录。",
+    reasoningTitle: "设计思路与考量",
+    learnerPrompt: "学习者",
+    agentResponse: "AI 导师",
   },
 } as const;
 
@@ -33,22 +48,25 @@ export async function buildStandaloneCourse(options: {
 }) {
   const { courseDirectory, outline, language } = options;
   const labels = copy[language];
-  const pages: ExportPage[] = await Promise.all(outline.pages.map(async (page) => ({
-    path: page.path,
-    title: page.title,
-    html: await inlinePageAssets(
-      await readFile(join(courseDirectory, page.path), "utf8"),
-      courseDirectory,
-      dirname(join(courseDirectory, page.path)),
-    ),
-  })));
+  const [pages, storedConversations] = await Promise.all([
+    Promise.all(outline.pages.map(async (page) => ({
+      path: page.path,
+      title: page.title,
+      html: await inlinePageAssets(
+        await readFile(join(courseDirectory, page.path), "utf8"),
+        courseDirectory,
+        dirname(join(courseDirectory, page.path)),
+      ),
+    }))),
+    readStoredConversations(courseDirectory),
+  ]);
   if (!pages.length) throw new Error("This course has no HTML pages to export.");
 
   const exportedAt = options.exportedAt ?? new Date();
   const date = exportedAt.toISOString().slice(0, 10);
   const title = outline.title || pages[0].title;
   const summary = outline.topic || `${labels.standalone}: ${title}`;
-  const data = scriptJson({ pages });
+  const data = scriptJson({ pages, conversations: storedConversations.conversations, labels });
 
   return `<!doctype html>
 <html lang="${language}">
@@ -70,6 +88,11 @@ export async function buildStandaloneCourse(options: {
       <h1>${escapeHtml(title)}</h1>
       <p class="cs-export-topic">${escapeHtml(summary)}</p>
     </div>
+    <div class="cs-export-actions">
+      <button id="cs-companion-toggle" class="cs-companion-toggle" type="button">
+        💬 ${escapeHtml(labels.companionToggle)}
+      </button>
+    </div>
   </header>
   <div class="cs-export-layout">
     <nav class="cs-export-nav" aria-label="${escapeAttribute(labels.contents)}">
@@ -88,6 +111,15 @@ export async function buildStandaloneCourse(options: {
     </main>
   </div>
 </div>
+
+<aside id="cs-companion-drawer" class="cs-companion-drawer" aria-label="${escapeAttribute(labels.companionTitle)}" hidden>
+  <div class="cs-companion-header">
+    <strong>${escapeHtml(labels.companionTitle)}</strong>
+    <button id="cs-companion-close" class="cs-companion-close" type="button" aria-label="${escapeAttribute(labels.companionClose)}">✕</button>
+  </div>
+  <div id="cs-companion-content" class="cs-companion-content"></div>
+</aside>
+<div id="cs-companion-backdrop" class="cs-companion-backdrop" hidden></div>
 <!-- /til:body -->
 <script>
 (() => {
@@ -97,6 +129,11 @@ export async function buildStandaloneCourse(options: {
   const pageTitle = document.getElementById("cs-page-title");
   const previous = document.getElementById("cs-previous");
   const next = document.getElementById("cs-next");
+  const companionToggle = document.getElementById("cs-companion-toggle");
+  const companionDrawer = document.getElementById("cs-companion-drawer");
+  const companionClose = document.getElementById("cs-companion-close");
+  const companionBackdrop = document.getElementById("cs-companion-backdrop");
+  const companionContent = document.getElementById("cs-companion-content");
   let activeIndex = Math.max(0, data.pages.findIndex((page) => location.hash.slice(1) === encodeURIComponent(page.path)));
   let observer;
 
@@ -110,6 +147,79 @@ export async function buildStandaloneCourse(options: {
       return button;
     }));
   }
+
+  function renderCompanion() {
+    if (!data.conversations || !data.conversations.length) {
+      companionContent.innerHTML = '<p class="cs-companion-empty">' + escapeHtml(data.labels.companionEmpty) + '</p>';
+      return;
+    }
+    companionContent.innerHTML = "";
+    data.conversations.forEach((conv) => {
+      const sessionDiv = document.createElement("div");
+      sessionDiv.className = "cs-companion-session";
+      const title = document.createElement("h3");
+      title.className = "cs-companion-session-title";
+      title.textContent = conv.title || "Session";
+      sessionDiv.appendChild(title);
+
+      conv.turns.forEach((turn) => {
+        const turnDiv = document.createElement("div");
+        turnDiv.className = "cs-companion-turn";
+
+        if (turn.prompt) {
+          const userBlock = document.createElement("div");
+          userBlock.className = "cs-turn-block cs-turn-user";
+          userBlock.innerHTML = '<span class="cs-turn-author">' + escapeHtml(data.labels.learnerPrompt) + '</span><div class="cs-turn-text">' + escapeHtml(turn.prompt) + '</div>';
+          turnDiv.appendChild(userBlock);
+        }
+
+        if (turn.reasoning && turn.reasoning.length) {
+          const details = document.createElement("details");
+          details.className = "cs-turn-reasoning";
+          const summary = document.createElement("summary");
+          summary.textContent = "💡 " + data.labels.reasoningTitle + " (" + turn.reasoning.length + ")";
+          details.appendChild(summary);
+          const list = document.createElement("ul");
+          turn.reasoning.forEach((item) => {
+            const li = document.createElement("li");
+            li.textContent = item;
+            list.appendChild(li);
+          });
+          details.appendChild(list);
+          turnDiv.appendChild(details);
+        }
+
+        if (turn.response) {
+          const agentBlock = document.createElement("div");
+          agentBlock.className = "cs-turn-block cs-turn-agent";
+          agentBlock.innerHTML = '<span class="cs-turn-author">' + escapeHtml(data.labels.agentResponse) + '</span><div class="cs-turn-text">' + escapeHtml(turn.response) + '</div>';
+          turnDiv.appendChild(agentBlock);
+        }
+
+        sessionDiv.appendChild(turnDiv);
+      });
+      companionContent.appendChild(sessionDiv);
+    });
+  }
+
+  function setCompanionOpen(open) {
+    if (open) {
+      companionDrawer.removeAttribute("hidden");
+      companionBackdrop.removeAttribute("hidden");
+      companionToggle.classList.add("active");
+    } else {
+      companionDrawer.setAttribute("hidden", "");
+      companionBackdrop.setAttribute("hidden", "");
+      companionToggle.classList.remove("active");
+    }
+  }
+
+  companionToggle?.addEventListener("click", () => {
+    const isHidden = companionDrawer.hasAttribute("hidden");
+    setCompanionOpen(isHidden);
+  });
+  companionClose?.addEventListener("click", () => setCompanionOpen(false));
+  companionBackdrop?.addEventListener("click", () => setCompanionOpen(false));
 
   function wireCourseLinks(doc) {
     doc.addEventListener("click", (event) => {
@@ -152,6 +262,11 @@ export async function buildStandaloneCourse(options: {
     window.scrollTo({ top: 0, behavior: "instant" });
   }
 
+  function escapeHtml(str) {
+    return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  renderCompanion();
   previous.addEventListener("click", () => showPage(activeIndex - 1));
   next.addEventListener("click", () => showPage(activeIndex + 1));
   window.addEventListener("hashchange", () => {
@@ -311,15 +426,14 @@ function escapeAttribute(value: string) {
   return escapeHtml(value).replace(/"/g, "&quot;");
 }
 
-// The personal-site indexer intentionally reads metadata as plain source text
-// before escaping it. Keep ampersands literal so titles are not double-escaped,
-// while removing the characters that could terminate an HTML tag or attribute.
 function tilMetadata(value: string) {
   return value.replace(/[<>]/g, "").replace(/"/g, "'").replace(/[\r\n]+/g, " ");
 }
 
 const exportShellCss = `
 :root{color-scheme:light;--paper:#f5f0e7;--ink:#292521;--muted:#716b64;--line:#d8cfc1;--accent:#a65331;--panel:#fffdf8;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink)}button{font:inherit}.cs-export-shell{min-height:100vh}.cs-export-header{display:flex;align-items:end;justify-content:space-between;gap:32px;padding:42px clamp(22px,5vw,72px) 30px;border-bottom:1px solid var(--line);background:rgba(255,253,248,.72)}.cs-export-eyebrow{margin:0 0 10px;color:var(--accent);font-size:12px;font-weight:750;letter-spacing:.12em;text-transform:uppercase}.cs-export-header h1{max-width:18ch;margin:0;font-family:Georgia,"Noto Serif SC",serif;font-size:clamp(30px,5vw,60px);font-weight:500;line-height:1.02}.cs-export-topic{max-width:65ch;margin:14px 0 0;color:var(--muted);line-height:1.55}.cs-export-layout{display:grid;grid-template-columns:250px minmax(0,1fr);max-width:1500px;margin:0 auto}.cs-export-nav{position:sticky;top:0;align-self:start;height:100vh;padding:30px 18px;border-right:1px solid var(--line);overflow:auto}.cs-export-nav>strong{display:block;padding:0 10px 14px;font-size:12px;letter-spacing:.08em;text-transform:uppercase}.cs-export-nav button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:0;border-radius:8px;background:transparent;color:var(--muted);text-align:left;cursor:pointer}.cs-export-nav button:hover,.cs-export-nav button.active{background:var(--panel);color:var(--ink)}.cs-export-reader{min-width:0;padding:24px clamp(14px,3vw,42px) 60px}.cs-export-pagebar{display:flex;justify-content:space-between;gap:20px;padding:0 2px 16px;color:var(--muted);font-size:13px}.cs-export-pagebar span:first-child{color:var(--ink);font-weight:700}.cs-export-reader iframe{display:block;width:100%;min-height:520px;border:1px solid var(--line);border-radius:12px;background:white;box-shadow:0 10px 32px rgba(53,45,34,.08)}.cs-export-pager{display:flex;justify-content:space-between;padding-top:18px}.cs-export-pager button{padding:9px 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel);cursor:pointer}.cs-export-pager button:disabled{opacity:.35;cursor:default}@media(max-width:760px){.cs-export-header{display:block}.cs-export-layout{display:block}.cs-export-nav{position:static;width:auto;height:auto;border-right:0;border-bottom:1px solid var(--line)}.cs-export-nav #cs-page-list{display:flex;overflow:auto}.cs-export-nav button{min-width:180px}.cs-export-reader{padding-inline:10px}.cs-export-pagebar{padding-inline:6px}}
-@media print{.cs-export-nav,.cs-export-pager{display:none}.cs-export-layout{display:block}.cs-export-reader{padding:0}.cs-export-reader iframe{border:0;box-shadow:none}.cs-export-header{padding:20px}}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink)}button{font:inherit}.cs-export-shell{min-height:100vh}.cs-export-header{display:flex;align-items:end;justify-content:space-between;gap:32px;padding:42px clamp(22px,5vw,72px) 30px;border-bottom:1px solid var(--line);background:rgba(255,253,248,.72)}.cs-export-eyebrow{margin:0 0 10px;color:var(--accent);font-size:12px;font-weight:750;letter-spacing:.12em;text-transform:uppercase}.cs-export-header h1{max-width:18ch;margin:0;font-family:Georgia,"Noto Serif SC",serif;font-size:clamp(30px,5vw,60px);font-weight:500;line-height:1.02}.cs-export-topic{max-width:65ch;margin:14px 0 0;color:var(--muted);line-height:1.55}.cs-export-actions{display:flex;gap:10px;align-items:center}.cs-companion-toggle{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--line);border-radius:20px;background:var(--panel);color:var(--ink);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s ease}.cs-companion-toggle:hover,.cs-companion-toggle.active{background:var(--accent);color:#fff;border-color:var(--accent)}.cs-export-layout{display:grid;grid-template-columns:250px minmax(0,1fr);max-width:1500px;margin:0 auto}.cs-export-nav{position:sticky;top:0;align-self:start;height:100vh;padding:30px 18px;border-right:1px solid var(--line);overflow:auto}.cs-export-nav>strong{display:block;padding:0 10px 14px;font-size:12px;letter-spacing:.08em;text-transform:uppercase}.cs-export-nav button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:0;border-radius:8px;background:transparent;color:var(--muted);text-align:left;cursor:pointer}.cs-export-nav button:hover,.cs-export-nav button.active{background:var(--panel);color:var(--ink)}.cs-export-reader{min-width:0;padding:24px clamp(14px,3vw,42px) 60px}.cs-export-pagebar{display:flex;justify-content:space-between;gap:20px;padding:0 2px 16px;color:var(--muted);font-size:13px}.cs-export-pagebar span:first-child{color:var(--ink);font-weight:700}.cs-export-reader iframe{display:block;width:100%;min-height:520px;border:1px solid var(--line);border-radius:12px;background:white;box-shadow:0 10px 32px rgba(53,45,34,.08)}.cs-export-pager{display:flex;justify-content:space-between;padding-top:18px}.cs-export-pager button{padding:9px 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel);cursor:pointer}.cs-export-pager button:disabled{opacity:.35;cursor:default}
+.cs-companion-drawer{position:fixed;top:0;right:0;width:min(440px,90vw);height:100vh;background:#fff;border-left:1px solid var(--line);box-shadow:-8px 0 32px rgba(0,0,0,.12);z-index:900;display:flex;flex-direction:column;animation:cs-slide-in .2s ease-out}.cs-companion-header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--line);background:var(--panel)}.cs-companion-close{border:0;background:transparent;font-size:18px;cursor:pointer;color:var(--muted);padding:4px 8px;border-radius:4px}.cs-companion-close:hover{background:rgba(0,0,0,.05);color:var(--ink)}.cs-companion-content{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:24px}.cs-companion-empty{color:var(--muted);font-size:14px;text-align:center;margin-top:40px}.cs-companion-session-title{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px;padding-bottom:6px;border-bottom:1px dashed var(--line)}.cs-companion-turn{display:flex;flex-direction:column;gap:10px;margin-bottom:18px}.cs-turn-block{padding:12px 14px;border-radius:10px;font-size:14px;line-height:1.55}.cs-turn-user{background:#f0eae1;color:var(--ink);border:1px solid #e2d7c7}.cs-turn-agent{background:#fffdf8;color:var(--ink);border:1px solid var(--line)}.cs-turn-author{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}.cs-turn-text{white-space:pre-wrap}.cs-turn-reasoning{margin:2px 0;font-size:12px;color:var(--muted);background:rgba(166,83,49,.06);border:1px solid rgba(166,83,49,.2);border-radius:8px;padding:6px 10px}.cs-turn-reasoning summary{cursor:pointer;font-weight:600;color:var(--accent)}.cs-turn-reasoning ul{margin:6px 0 0;padding-left:18px;line-height:1.4}.cs-companion-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:800;backdrop-filter:blur(2px)}@keyframes cs-slide-in{from{transform:translateX(100%)}to{transform:translateX(0)}}
+@media(max-width:760px){.cs-export-header{display:block}.cs-export-actions{margin-top:16px}.cs-export-layout{display:block}.cs-export-nav{position:static;width:auto;height:auto;border-right:0;border-bottom:1px solid var(--line)}.cs-export-nav #cs-page-list{display:flex;overflow:auto}.cs-export-nav button{min-width:180px}.cs-export-reader{padding-inline:10px}.cs-export-pagebar{padding-inline:6px}}
+@media print{.cs-export-nav,.cs-export-pager,.cs-companion-toggle,.cs-companion-drawer,.cs-companion-backdrop{display:none}.cs-export-layout{display:block}.cs-export-reader{padding:0}.cs-export-reader iframe{border:0;box-shadow:none}.cs-export-header{padding:20px}}
 `;

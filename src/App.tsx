@@ -2,6 +2,7 @@ import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState }
 import { Chat, type ChatHandle } from "./components/Chat";
 import { CourseNav } from "./components/CourseNav";
 import { ExportDialog } from "./components/ExportDialog";
+import { ImportConflictModal } from "./components/ImportConflictModal";
 import { Preview, type PreviewHandle } from "./components/Preview";
 import { readReadingPosition, writeReadingPosition, type ReadingPosition } from "./readingPosition";
 import { collapseToLatestSelection, mergeSelection } from "./selection";
@@ -52,8 +53,13 @@ export function App() {
   const [startingNewCourse, setStartingNewCourse] = useState(false);
   const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"standalone" | "package">("standalone");
   const [exportPrompt, setExportPrompt] = useState("");
+  const [conflictModalOpen, setConflictModalOpen] = useState(false);
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
+  const [pendingCourseId, setPendingCourseId] = useState("");
   const sawNewCourseEmpty = useRef(false);
   const syllabusCourse = useRef<string | null>(null);
   const studioBody = useRef<HTMLDivElement | null>(null);
@@ -282,19 +288,97 @@ export function App() {
     actions.newConversation();
   };
 
+  const handleImportFile = async (file: File) => {
+    if (importing || state.working) return;
+    if (!file.name.toLowerCase().endsWith(".zip")) {
+      window.alert(t("toolbar.importFailed"));
+      return;
+    }
+    const candidate = file.name
+      .replace(/\.course\.zip$/i, "")
+      .replace(/\.zip$/i, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/^-|-$/g, "") || "course";
+
+    try {
+      const checkRes = await fetch(`/api/package/check/${encodeURIComponent(candidate)}`);
+      const checkData = (await checkRes.json()) as { exists: boolean };
+      if (checkData.exists) {
+        setPendingImportFile(file);
+        setPendingCourseId(candidate);
+        setConflictModalOpen(true);
+        return;
+      }
+      await uploadCoursePackage(file, candidate, "copy");
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : t("toolbar.importFailed"));
+    }
+  };
+
+  const uploadCoursePackage = async (file: File, requestedId: string, onConflict: "replace" | "copy") => {
+    setImporting(true);
+    try {
+      const response = await fetch(`/api/package/import?requestedId=${encodeURIComponent(requestedId)}&onConflict=${onConflict}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/zip" },
+        body: file,
+      });
+      if (!response.ok) throw new Error(await response.text() || t("toolbar.importFailed"));
+      const result = (await response.json()) as { ok: boolean; courseId: string };
+      setConflictModalOpen(false);
+      setPendingImportFile(null);
+      setPendingCourseId("");
+      actions.openCourse(result.courseId);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : t("toolbar.importFailed"));
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleResolveConflict = (action: "replace" | "copy") => {
+    if (!pendingImportFile) return;
+    void uploadCoursePackage(pendingImportFile, pendingCourseId, action);
+  };
+
+  useEffect(() => {
+    const handleDragOver = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes("Files")) {
+        e.preventDefault();
+      }
+    };
+    const handleDrop = (e: DragEvent) => {
+      const file = e.dataTransfer?.files?.[0];
+      if (file && file.name.toLowerCase().endsWith(".zip")) {
+        e.preventDefault();
+        void handleImportFile(file);
+      }
+    };
+    window.addEventListener("dragover", handleDragOver);
+    window.addEventListener("drop", handleDrop);
+    return () => {
+      window.removeEventListener("dragover", handleDragOver);
+      window.removeEventListener("drop", handleDrop);
+    };
+  }, [handleImportFile]);
+
   const exportCourse = async () => {
     if (exporting || state.working || !state.course.hasContent) return;
     setExporting(true);
     try {
-      const response = await fetch("/api/export", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: exportPrompt, language, agent: agentConfig }),
-      });
+      const endpoint = exportFormat === "package" ? "/api/package/export" : "/api/export";
+      const response = exportFormat === "package"
+        ? await fetch(endpoint)
+        : await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: exportPrompt, language, agent: agentConfig }),
+          });
       if (!response.ok) throw new Error(t("toolbar.exportFailed"));
       const disposition = response.headers.get("content-disposition") ?? "";
       const encodedName = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
-      const fallbackName = /filename="([^"]+)"/i.exec(disposition)?.[1] ?? "course.html";
+      const fallbackName = /filename="([^"]+)"/i.exec(disposition)?.[1] ?? (exportFormat === "package" ? `${state.courseId}.course.zip` : "course.html");
       const filename = encodedName ? decodeURIComponent(encodedName) : fallbackName;
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement("a");
@@ -402,12 +486,14 @@ export function App() {
         checkpoints={state.checkpoints}
         working={state.working}
         exporting={exporting}
+        importing={importing}
         onHome={() => setShowWelcome(true)}
         onSwitchCourse={switchCourse}
         onToggleInspect={toggleInspect}
         onToggleMultipleSelection={toggleMultipleSelection}
         onRevert={actions.revert}
         onExport={() => setExportDialogOpen(true)}
+        onImportFile={handleImportFile}
       />
 
       <div className="studio-body" ref={studioBody}>
@@ -528,11 +614,23 @@ export function App() {
       </div>
       <ExportDialog
         open={exportDialogOpen}
+        format={exportFormat}
         prompt={exportPrompt}
         exporting={exporting}
+        onFormatChange={setExportFormat}
         onPromptChange={setExportPrompt}
         onClose={() => setExportDialogOpen(false)}
         onExport={exportCourse}
+      />
+      <ImportConflictModal
+        open={conflictModalOpen}
+        courseId={pendingCourseId}
+        onResolve={handleResolveConflict}
+        onClose={() => {
+          setConflictModalOpen(false);
+          setPendingImportFile(null);
+          setPendingCourseId("");
+        }}
       />
     </div>
   );

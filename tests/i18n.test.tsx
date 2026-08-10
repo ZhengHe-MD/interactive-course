@@ -57,13 +57,15 @@ describe("Studio localization", () => {
     expect(html).toContain('title="准备并下载独立课程文件"');
   });
 
-  it("offers an optional export-only prompt in Simplified Chinese", () => {
+  it("offers export format options and optional prompt in Simplified Chinese", () => {
     const html = renderToStaticMarkup(
       <I18nProvider initialLanguage="zh-CN">
         <ExportDialog
           open
+          format="standalone"
           prompt=""
           exporting={false}
+          onFormatChange={() => {}}
           onPromptChange={() => {}}
           onClose={() => {}}
           onExport={() => {}}
@@ -71,9 +73,10 @@ describe("Studio localization", () => {
       </I18nProvider>,
     );
 
-    expect(html).toContain("准备最终导出版本");
+    expect(html).toContain("导出课程");
+    expect(html).toContain("独立 HTML 阅读器");
+    expect(html).toContain("可编辑课程包");
     expect(html).toContain("导出要求（可选）");
     expect(html).toContain("留空将按原样导出");
-    expect(html).toContain("将整门课程翻译为简体中文");
   });
 });

@@ -6,11 +6,18 @@ import express from "express";
 import { WebSocket, WebSocketServer } from "ws";
 import { CodexClient } from "./codex/CodexClient";
 import { CourseManager, EMPTY_OUTLINE } from "./course/CourseManager";
+import {
+  appendStoredTurn,
+  curateStoredTurn,
+  mergeConversationSummaries,
+  readStoredConversations,
+} from "./course/conversations";
+import { exportCoursePackage, importCoursePackage } from "./course/packageCourse";
 import { buildStandaloneCourse, exportFilename } from "./course/exportCourse";
 import { prepareCourseForExport } from "./course/prepareExport";
 import { allocateCourseId, isCourseId, listCourses } from "./course/library";
 import { ensureCourseLibrary, resolveCourseLibraryRoot } from "./course/storage";
-import type { Activity, AgentConfig, ClientMessage, Language, ServerMessage } from "../shared/protocol";
+import type { Activity, AgentConfig, ClientMessage, Language, ServerMessage, TranscriptItem } from "../shared/protocol";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, "..");
@@ -94,11 +101,12 @@ async function agentContext() {
 }
 
 async function conversationListing(current: Awaited<ReturnType<CodexClient["currentConversation"]>>) {
-  const conversations = await codex.listConversations();
-  if (current && !conversations.some((entry) => entry.id === current.conversation.id)) {
-    return [current.conversation, ...conversations];
-  }
-  return conversations;
+  const codexConversations = await codex.listConversations();
+  const base = current && !codexConversations.some((entry) => entry.id === current.conversation.id)
+    ? [current.conversation, ...codexConversations]
+    : codexConversations;
+  const storedData = await readStoredConversations(courseDirectory);
+  return mergeConversationSummaries(base, storedData);
 }
 
 async function broadcastConversations() {
@@ -228,6 +236,52 @@ app.post("/api/export", express.json({ limit: "64kb" }), async (request, respons
   }
 });
 
+app.get("/api/package/export", async (_request, response) => {
+  if (activeTurn || exportActive) return response.status(409).send("Wait for current work to finish before packaging.");
+  try {
+    const buffer = await exportCoursePackage(courseDirectory);
+    const outlineData = await outline();
+    const filename = `${exportFilename(outlineData.title || courseId).replace(/\.html$/, "")}.course.zip`;
+    response
+      .set("Cache-Control", "no-store")
+      .set("Content-Disposition", `attachment; filename="${courseId}.course.zip"; filename*=UTF-8''${encodeURIComponent(filename)}`)
+      .type("application/zip")
+      .send(buffer);
+  } catch (error) {
+    response.status(500).send(error instanceof Error ? error.message : "Could not package the course.");
+  }
+});
+
+app.get("/api/package/check/:targetId", async (request, response) => {
+  const targetId = request.params.targetId;
+  if (!isCourseId(targetId)) return response.status(400).json({ error: "Invalid course ID" });
+  const list = await courses();
+  const exists = list.some((c) => c.id === targetId);
+  response.json({ exists });
+});
+
+app.post("/api/package/import", express.raw({ type: "*/*", limit: "100mb" }), async (request, response) => {
+  if (activeTurn || exportActive) return response.status(409).send("Wait for current work to finish before importing.");
+  try {
+    const zipBuffer = request.body as Buffer;
+    if (!zipBuffer || !Buffer.isBuffer(zipBuffer) || !zipBuffer.length) {
+      return response.status(400).send("No package data provided.");
+    }
+    const requestedId = typeof request.query.requestedId === "string" ? request.query.requestedId : undefined;
+    const onConflict = request.query.onConflict === "replace" ? "replace" : "copy";
+    const result = await importCoursePackage({
+      libraryRoot: courseLibraryRoot,
+      zipBuffer,
+      requestedId,
+      onConflict,
+    });
+    await broadcastCourses();
+    response.json({ ok: true, courseId: result.courseId });
+  } catch (error) {
+    response.status(500).send(error instanceof Error ? error.message : "Could not import the course package.");
+  }
+});
+
 app.get("/studio-preview.js", (_request, response) => {
   response.type("application/javascript").sendFile(join(here, "assets/preview-bridge.js"));
 });
@@ -348,8 +402,37 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
     try {
       if (message.type === "conversation.open") {
         const available = await codex.listConversations();
-        if (!available.some((entry) => entry.id === message.conversationId)) {
-          throw new Error("That conversation no longer exists in this course.");
+        const inCodex = available.some((entry) => entry.id === message.conversationId);
+        if (!inCodex) {
+          const storedData = await readStoredConversations(courseDirectory);
+          const storedConv = storedData.conversations.find((c) => c.id === message.conversationId);
+          if (!storedConv) {
+            throw new Error("That conversation no longer exists in this course.");
+          }
+          const items: TranscriptItem[] = [];
+          for (const turn of storedConv.turns) {
+            if (turn.prompt) {
+              items.push({ kind: "user", id: `${turn.id}-user`, text: turn.prompt, selections: [] });
+            }
+            if (turn.response) {
+              const activities: Activity[] = turn.reasoning.map((r, i) => ({
+                id: `${turn.id}-reasoning-${i}`,
+                kind: "reasoning",
+                label: "Thinking",
+                detail: r,
+                done: true,
+              }));
+              items.push({ kind: "agent", id: `${turn.id}-agent`, text: turn.response, activities });
+            }
+          }
+          broadcast({
+            type: "conversation.opened",
+            conversationId: storedConv.id,
+            conversations: await conversationListing(null),
+            items,
+            ...await agentContext(),
+          });
+          return;
         }
       }
       const next = message.type === "conversation.new"
@@ -492,7 +575,25 @@ async function handleTurnCompleted(turn: { turnId: string; status: string; error
   // Clear the slot first: a failed checkpoint must never leave the studio stuck.
   activeTurn = null;
   try {
-    if (turn.status === "completed") await course.createCheckpoint("Agent course update");
+    if (turn.status === "completed") {
+      await course.createCheckpoint("Agent course update");
+      try {
+        const currentConv = await codex.currentConversation();
+        if (currentConv) {
+          const curated = curateStoredTurn({
+            turnId: turn.turnId,
+            items: currentConv.items,
+          });
+          await appendStoredTurn(courseDirectory, {
+            conversationId: currentConv.conversation.id,
+            title: currentConv.conversation.title,
+            turn: curated,
+          });
+        }
+      } catch (convErr) {
+        if (process.env.COURSE_STUDIO_DEBUG) console.error(`[conv-save] ${convErr}`);
+      }
+    }
     courseVersion = Date.now();
     broadcast({
       type: "course.changed",
