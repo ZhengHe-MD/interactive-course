@@ -234,6 +234,30 @@ export class CodexClient extends EventEmitter {
     return conversations[0] ? this.openConversation(conversations[0].id) : this.newConversation();
   }
 
+  async getThread(threadId: string): Promise<import("./types").PersistedThread | null> {
+    await this.requireReady();
+    try {
+      const response = await this.peer!.request<ThreadReadResponse>("thread/read", {
+        threadId,
+        includeTurns: true,
+      });
+      return response.thread;
+    } catch {
+      return null;
+    }
+  }
+
+  async getAllThreads(): Promise<import("./types").PersistedThread[]> {
+    await this.requireReady();
+    const list = await this.listConversations();
+    const threads: import("./types").PersistedThread[] = [];
+    for (const item of list) {
+      const thread = await this.getThread(item.id);
+      if (thread) threads.push(thread);
+    }
+    return threads;
+  }
+
   private async readConversation(conversationId: string) {
     const response = await this.peer!.request<ThreadReadResponse>("thread/read", {
       threadId: conversationId,

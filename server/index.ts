@@ -12,6 +12,7 @@ import {
   mergeConversationSummaries,
   readStoredConversations,
   storedConversationToTranscriptItems,
+  syncConversationsWithCodex,
 } from "./course/conversations";
 import { exportCoursePackage, importCoursePackage } from "./course/packageCourse";
 import { buildStandaloneCourse, exportFilename } from "./course/exportCourse";
@@ -74,11 +75,26 @@ async function broadcastCourses() {
   broadcast({ type: "courses", courseId, courses: await courses() });
 }
 
+async function syncCourseConversations(dir = courseDirectory) {
+  try {
+    const status = await codex.connect();
+    if (status.state === "ready") {
+      const threads = await codex.getAllThreads();
+      if (threads.length) {
+        await syncConversationsWithCodex(dir, threads);
+      }
+    }
+  } catch (error) {
+    if (process.env.COURSE_STUDIO_DEBUG) console.error(`[conv-sync] ${error}`);
+  }
+}
+
 async function conversationContext(options: { create?: boolean } = {}) {
   const status = await codex.connect();
   if (status.state !== "ready") {
     return { conversationId: null, conversations: [], items: [], models: [], agentConfig: null };
   }
+  await syncCourseConversations(courseDirectory);
   const current = options.create === false
     ? await codex.currentConversation()
     : await codex.ensureConversation();
@@ -215,6 +231,7 @@ app.post("/api/export", express.json({ limit: "64kb" }), async (request, respons
     const agent: AgentConfig | undefined = candidate && typeof candidate.model === "string"
       ? { model: candidate.model, effort: typeof candidate.effort === "string" ? candidate.effort : null }
       : undefined;
+    await syncCourseConversations(courseDirectory);
     const prepared = instruction
       ? await prepareCourseForExport({ sourceDirectory: courseDirectory, instruction, agent, language })
       : { courseDirectory, outline: currentOutline, cleanup: undefined };
@@ -241,6 +258,7 @@ app.post("/api/export", express.json({ limit: "64kb" }), async (request, respons
 const handlePackageExport = async (_request: express.Request, response: express.Response) => {
   if (activeTurn || exportActive) return response.status(409).send("Wait for current work to finish before packaging.");
   try {
+    await syncCourseConversations(courseDirectory);
     const buffer = await exportCoursePackage(courseDirectory);
     const outlineData = await outline();
     const filename = `${exportFilename(outlineData.title || courseId).replace(/\.html$/, "")}.course.zip`;
@@ -584,22 +602,7 @@ async function handleTurnCompleted(turn: { turnId: string; status: string; error
   try {
     if (turn.status === "completed") {
       await course.createCheckpoint("Agent course update");
-      try {
-        const currentConv = await codex.currentConversation();
-        if (currentConv) {
-          const curated = curateStoredTurn({
-            turnId: turn.turnId,
-            items: currentConv.items,
-          });
-          await appendStoredTurn(courseDirectory, {
-            conversationId: currentConv.conversation.id,
-            title: currentConv.conversation.title,
-            turn: curated,
-          });
-        }
-      } catch (convErr) {
-        if (process.env.COURSE_STUDIO_DEBUG) console.error(`[conv-save] ${convErr}`);
-      }
+      await syncCourseConversations(courseDirectory);
     }
     courseVersion = Date.now();
     broadcast({

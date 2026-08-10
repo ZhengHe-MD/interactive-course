@@ -7,9 +7,12 @@ import {
   curateStoredTurn,
   mergeConversationSummaries,
   readStoredConversations,
+  storedConversationFromThread,
   storedConversationToTranscriptItems,
+  syncConversationsWithCodex,
 } from "../server/course/conversations";
 import type { ConversationSummary, TranscriptItem } from "../shared/protocol";
+import type { PersistedThread } from "../server/codex/types";
 
 const temporaryDirectories: string[] = [];
 
@@ -182,5 +185,53 @@ describe("course conversations persistence", () => {
     expect(curated.prompt).toBe("Second prompt");
     expect(curated.response).toBe("Second response");
     expect(curated.reasoning).toEqual(["Latest reasoning"]);
+  });
+
+  it("converts a PersistedThread to a StoredConversation and synchronizes with disk", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "course-conv-sync-"));
+    temporaryDirectories.push(directory);
+
+    const thread: PersistedThread = {
+      id: "thread-123",
+      name: "Quantum Computing Basics",
+      createdAt: 1723300000,
+      updatedAt: 1723300500,
+      turns: [
+        {
+          id: "turn-q1",
+          status: "completed",
+          items: [
+            {
+              type: "userMessage",
+              content: [{ type: "text" as const, text: "Learner request:\nWhat is a qubit?\n\nCourse context:\nPage: syllabus.html", text_elements: [] }],
+            },
+            {
+              type: "reasoning",
+              summary: ["Model superposition state", "Formulate Bloch sphere"],
+            },
+            {
+              type: "agentMessage",
+              text: "A qubit is a two-state quantum mechanical system.",
+            },
+          ],
+        },
+      ],
+    };
+
+    const conv = storedConversationFromThread(thread);
+    expect(conv.id).toBe("thread-123");
+    expect(conv.title).toBe("Quantum Computing Basics");
+    expect(conv.turns).toHaveLength(1);
+    expect(conv.turns[0].prompt).toBe("What is a qubit?");
+    expect(conv.turns[0].response).toBe("A qubit is a two-state quantum mechanical system.");
+    expect(conv.turns[0].reasoning).toEqual(["Model superposition state", "Formulate Bloch sphere"]);
+
+    const synced = await syncConversationsWithCodex(directory, [thread]);
+    expect(synced.conversations).toHaveLength(1);
+    expect(synced.conversations[0].id).toBe("thread-123");
+
+    const diskData = await readStoredConversations(directory);
+    expect(diskData.conversations).toHaveLength(1);
+    expect(diskData.conversations[0].turns[0].prompt).toBe("What is a qubit?");
   });
 });
