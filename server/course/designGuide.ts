@@ -54,6 +54,11 @@ the page live-reloads.
 - Prefer editing one region precisely over restyling the whole page. Small,
   legible diffs. Preserve working interactions and the page's visual language.
 
+## Interaction & Quiz Standards
+- **Local Persistence**: Save quiz results, interactive selections, ledger choices, and simulation states to browser \`localStorage\` (scoped by page and widget ID). Automatically restore previous answers and progress when the learner returns or refreshes.
+- **Question Navigation & Skipping**: For cards with multiple questions or cases, provide step tabs/pills and Previous/Next/Skip controls so the learner can freely browse back and forth or skip questions without being hard-blocked.
+- **Concept Hover Tooltips**: When introducing terms, categories, or nuanced concepts in quiz options, provide extra contextual explanations via rich hover/focus tooltips so learners can look up definitions on the fly.
+
 ## Multilingual quality
 - The per-turn prompt names the learner's selected language. Use it for chat
   replies and newly authored material, with natural, idiomatic writing rather
