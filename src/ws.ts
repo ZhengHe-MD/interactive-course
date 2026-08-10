@@ -51,7 +51,7 @@ export type StudioState = {
   turnMessages: Record<string, string>;
 };
 
-const initialState: StudioState = {
+export const initialState: StudioState = {
   connected: false,
   codex: { state: "starting" },
   models: [],
@@ -123,17 +123,51 @@ export function mergeTurnActivity(activities: Activity[], next: Activity, hasTex
     : merged;
 }
 
-function reducer(state: StudioState, action: Action): StudioState {
+function finalizeActivities(activities: Activity[]): Activity[] {
+  return activities
+    .filter((activity) => activity.id !== "turn-starting" && activity.id !== "turn-working")
+    .map((activity) => ({
+      ...activity,
+      label: activity.label === "Thinking" ? "Thought through the request" : activity.label,
+      done: true,
+    }));
+}
+
+export function reducer(state: StudioState, action: Action): StudioState {
   if (action.type === "connection") return { ...state, connected: action.connected };
   if (action.type === "changed.clear") return { ...state, courseChanged: false };
 
   if (action.type === "send") {
+    const updatedTurnMessages = { ...state.turnMessages };
+    for (const key of Object.keys(updatedTurnMessages)) {
+      updatedTurnMessages[key] = action.agentId;
+    }
+
+    // Clean up existing items:
+    // If the immediately preceding agent message had NO text (e.g. steered before response started),
+    // remove that placeholder so we don't leave an empty orphan bubble in the chat.
+    // If it had text, finalize all its activities (remove working spinners and mark completed).
+    let existingItems = state.items;
+    const lastItem = existingItems.at(-1);
+    if (state.working && lastItem?.kind === "agent" && !lastItem.text.trim()) {
+      existingItems = existingItems.slice(0, -1);
+    } else if (state.working) {
+      existingItems = existingItems.map((item) => {
+        if (item.kind !== "agent") return item;
+        return {
+          ...item,
+          activities: finalizeActivities(item.activities),
+        };
+      });
+    }
+
     return {
       ...state,
       working: true,
       pendingId: action.agentId,
+      turnMessages: updatedTurnMessages,
       items: [
-        ...state.items,
+        ...existingItems,
         {
           kind: "user",
           id: action.id,
@@ -218,7 +252,8 @@ function reducer(state: StudioState, action: Action): StudioState {
         pendingId: null,
         turnMessages: {},
       };
-    case "turn.accepted": {
+    case "turn.accepted":
+    case "turn.steered": {
       if (!state.pendingId) return state;
       const mapped = {
         ...state,
@@ -252,37 +287,52 @@ function reducer(state: StudioState, action: Action): StudioState {
         courseChanged: true,
       };
     case "turn.completed": {
-      const id = state.turnMessages[message.turnId] ?? state.pendingId;
-      const next = patchAgent(state, id, (item) => ({
-        activities: item.activities
-          .filter((activity) => activity.id !== "turn-starting" && activity.id !== "turn-working")
-          .map((activity) => ({ ...activity, done: true })),
-        failed: message.status !== "completed",
-        text:
-          item.text ||
-          (message.status === "completed"
-            ? "The course is updated."
-            : message.error || "The turn did not complete."),
-      }));
-      const turnMessages = { ...next.turnMessages };
+      const activeId = state.turnMessages[message.turnId] ?? state.pendingId;
+      const nextItems = state.items.map((item) => {
+        if (item.kind !== "agent") return item;
+        const isCurrent = item.id === activeId;
+        return {
+          ...item,
+          activities: finalizeActivities(item.activities),
+          failed: isCurrent ? message.status !== "completed" : item.failed,
+          text:
+            item.text ||
+            (isCurrent
+              ? (message.status === "completed"
+                ? "The course is updated."
+                : message.error || "The turn did not complete.")
+              : item.text),
+        };
+      });
+      const turnMessages = { ...state.turnMessages };
       delete turnMessages[message.turnId];
-      return { ...next, turnMessages, pendingId: null, working: false };
+      return { ...state, items: nextItems, turnMessages, pendingId: null, working: false };
     }
     case "system":
       return { ...state, items: [...state.items, { kind: "system", id: uid(), text: message.message }] };
     case "error": {
+      const nextItems = state.items.map((item) => {
+        if (item.kind !== "agent") return item;
+        if (item.id === state.pendingId) {
+          return {
+            ...item,
+            text: message.message,
+            failed: true,
+            activities: [],
+          };
+        }
+        return {
+          ...item,
+          activities: finalizeActivities(item.activities),
+        };
+      });
       if (state.pendingId) {
-        const next = patchAgent(state, state.pendingId, () => ({
-          text: message.message,
-          failed: true,
-          activities: [],
-        }));
-        return { ...next, pendingId: null, working: false };
+        return { ...state, items: nextItems, pendingId: null, working: false };
       }
       return {
         ...state,
         working: false,
-        items: [...state.items, { kind: "system", id: uid(), text: message.message, failed: true }],
+        items: [...nextItems, { kind: "system", id: uid(), text: message.message, failed: true }],
       };
     }
     default:
@@ -362,6 +412,9 @@ export function useStudio(): { state: StudioState; actions: StudioActions } {
     return () => window.clearTimeout(timer);
   }, [state.courseChanged, state.courseVersion]);
 
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   const actions = useMemo<StudioActions>(() => {
     const post = (message: ClientMessage) => {
       const live = socket.current;
@@ -369,7 +422,16 @@ export function useStudio(): { state: StudioState; actions: StudioActions } {
     };
     return {
       sendTurn(text, selections, page, section, agent, language) {
-        post({ type: "turn.start", message: text, selections, page, section, agent, language });
+        const isWorking = stateRef.current.working;
+        post({
+          type: isWorking ? "turn.steer" : "turn.start",
+          message: text,
+          selections,
+          page,
+          section,
+          agent,
+          language,
+        });
         dispatch({ type: "send", id: uid(), agentId: uid(), text, selections });
       },
       startCourse(topic, agent, language) {

@@ -143,6 +143,14 @@ function watchCourse(manager: CourseManager) {
   manager.watch();
 }
 
+async function waitForTurnReady(timeoutMs = 5000) {
+  const start = Date.now();
+  while (activeTurn === "pending" && Date.now() - start < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return activeTurn;
+}
+
 async function activateCourse(nextCourseId: string) {
   if (!isCourseId(nextCourseId)) throw new Error("That course could not be opened.");
 
@@ -153,6 +161,7 @@ async function activateCourse(nextCourseId: string) {
   changeTimer = null;
   stopCourseChange?.();
   stopCourseChange = null;
+  activeTurn = null;
   await course.close();
   codex.removeAllListeners();
   codex.close();
@@ -359,15 +368,48 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
     return;
   }
 
-  if (message.type === "turn.start" || message.type === "course.start") {
+  if (message.type === "turn.start" || message.type === "turn.steer" || message.type === "course.start") {
     if (exportActive) {
-      send(socket, { type: "error", message: "Wait for the course export to finish before starting another turn." });
+      send(socket, { type: "error", message: "Wait for the course export to finish before sending instructions." });
       return;
     }
-    if (activeTurn) {
-      send(socket, { type: "error", message: "The course agent is already working on a turn." });
-      return;
+
+    if (activeTurn === "pending") {
+      await waitForTurnReady();
     }
+
+    if (activeTurn && message.type !== "course.start") {
+      try {
+        broadcast({
+          type: "activity",
+          activity: { id: "steer", kind: "reasoning", label: "Steering the agent…" },
+        });
+        const response = await codex.steerTurn(
+          message.message,
+          message.selections,
+          {
+            coursePhase: await course.getCoursePhase(),
+            activePage: message.page,
+            activeSection: message.section,
+            agent: message.agent,
+            language: message.language,
+          },
+        );
+        broadcast({ type: "turn.steered", turnId: response.turnId });
+        broadcast({ type: "activity", activity: { id: "steer", kind: "reasoning", label: "Steering the agent…", done: true } });
+        return;
+      } catch (error) {
+        broadcast({ type: "activity", activity: { id: "steer", kind: "reasoning", label: "Steering the agent…", done: true } });
+        const errMsg = error instanceof Error ? error.message : String(error);
+        if (!errMsg.toLowerCase().includes("no active turn to steer")) {
+          send(socket, { type: "error", message: errMsg || "Could not steer the turn." });
+          return;
+        }
+        // If the active turn completed in the instant before steer reached the server,
+        // seamlessly fall through to start a new turn.
+      }
+    }
+
     // Claim the slot before awaiting, so two quick sends cannot both get through.
     activeTurn = "pending";
     try {
@@ -402,8 +444,8 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
         message.type === "course.start" ? [] : message.selections,
         {
           coursePhase: await course.getCoursePhase(),
-          activePage: message.type === "turn.start" ? message.page : "syllabus.html",
-          activeSection: message.type === "turn.start" ? message.section : undefined,
+          activePage: message.type === "turn.start" || message.type === "turn.steer" ? message.page : "syllabus.html",
+          activeSection: message.type === "turn.start" || message.type === "turn.steer" ? message.section : undefined,
           agent: message.agent,
           language: message.language,
         },

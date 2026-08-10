@@ -124,6 +124,17 @@ export type TurnInterruptParams = {
   turnId: string;
 };
 
+export type TurnSteerParams = {
+  threadId: string;
+  expectedTurnId: string;
+  input: UserInput[];
+  clientUserMessageId?: string | null;
+};
+
+export type TurnSteerResponse = {
+  turnId: string;
+};
+
 // ---- notifications we consume -------------------------------------------
 
 export type FileChange = {

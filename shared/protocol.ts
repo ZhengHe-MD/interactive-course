@@ -126,6 +126,7 @@ export type TranscriptItem =
 
 export type ClientMessage =
   | { type: "turn.start"; message: string; selections: Selection[]; page: string; section?: CourseSection; agent?: AgentConfig; language?: Language }
+  | { type: "turn.steer"; message: string; selections: Selection[]; page: string; section?: CourseSection; agent?: AgentConfig; language?: Language }
   | { type: "course.start"; topic: string; agent?: AgentConfig; language?: Language }
   | { type: "course.open"; courseId: string }
   | { type: "conversation.new" }
@@ -154,6 +155,7 @@ export type ServerMessage =
   | { type: "codex.status"; status: CodexStatus }
   | { type: "agent.config"; models: AgentModel[]; agentConfig: AgentConfig | null }
   | { type: "turn.accepted"; turnId: string }
+  | { type: "turn.steered"; turnId: string }
   | { type: "agent.delta"; turnId: string; delta: string }
   | { type: "activity"; turnId?: string; activity: Activity }
   | { type: "course.changed"; courseVersion: number; course: CourseOutline; path?: string }

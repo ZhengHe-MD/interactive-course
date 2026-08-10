@@ -1125,7 +1125,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   line-height: 1.5;
 }
 .composer-box textarea::placeholder { color: color-mix(in srgb, var(--text) 44%, transparent); }
-.composer-foot { display: flex; flex: none; align-items: center; }
+.composer-foot { display: flex; flex: none; align-items: center; gap: 6px; }
 .composer-foot > span { display: none; }
 .composer-foot button { display: grid; width: 34px; height: 34px; padding: 0; place-items: center; border: 0; border-radius: 50%; background: var(--accent); color: var(--bg); }
 .composer-foot .stop-button { background: #8c491a; }

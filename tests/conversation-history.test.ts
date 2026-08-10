@@ -86,4 +86,74 @@ describe("conversation history", () => {
       },
     ]);
   });
+
+  it("reconstructs steered turns with interleaved user and agent messages in chronological order", () => {
+    const prompt1 = buildCoursePrompt("Write chapter 1", []);
+    const prompt2 = buildCoursePrompt("Also include a diagram", []);
+    const thread: PersistedThread = {
+      id: "thread-steer",
+      preview: prompt1,
+      createdAt: 1_753_574_400,
+      updatedAt: 1_753_578_000,
+      turns: [{
+        id: "turn-steered",
+        status: "completed",
+        items: [
+          { id: "user-1", type: "userMessage", content: [{ type: "text", text: prompt1, text_elements: [] }] },
+          { id: "reason-1", type: "reasoning", summary: ["Drafting initial outline"] },
+          { id: "agent-1", type: "agentMessage", text: "Starting Chapter 1." },
+          { id: "user-2", type: "userMessage", content: [{ type: "text", text: prompt2, text_elements: [] }] },
+          { id: "edit-1", type: "fileChange", changes: [{ path: "/tmp/course/chapter1.html" }] },
+          { id: "agent-2", type: "agentMessage", text: "Chapter 1 with diagram is complete." },
+        ],
+      }],
+    };
+
+    const transcript = transcriptFromThread(thread);
+    expect(transcript).toEqual([
+      {
+        kind: "user",
+        id: "user-1",
+        text: "Write chapter 1",
+        selections: [],
+      },
+      {
+        kind: "agent",
+        id: "agent-turn-steered",
+        text: "Starting Chapter 1.",
+        failed: false,
+        activities: [
+          {
+            id: "reason-1",
+            kind: "reasoning",
+            label: "Thought through the request",
+            detail: "Drafting initial outline",
+            done: true,
+          },
+        ],
+      },
+      {
+        kind: "user",
+        id: "user-2",
+        text: "Also include a diagram",
+        selections: [],
+      },
+      {
+        kind: "agent",
+        id: "agent-turn-steered-1",
+        text: "Chapter 1 with diagram is complete.",
+        failed: false,
+        activities: [
+          {
+            id: "edit-1",
+            kind: "edit",
+            label: "Updated the course",
+            file: "chapter1.html",
+            detail: undefined,
+            done: true,
+          },
+        ],
+      },
+    ]);
+  });
 });
