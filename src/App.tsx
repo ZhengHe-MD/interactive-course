@@ -57,9 +57,7 @@ export function App() {
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState<"standalone" | "package">("standalone");
   const [exportPrompt, setExportPrompt] = useState("");
-  const [conflictModalOpen, setConflictModalOpen] = useState(false);
-  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
-  const [pendingCourseId, setPendingCourseId] = useState("");
+  const [pendingImport, setPendingImport] = useState<{ file: File; courseId: string } | null>(null);
   const sawNewCourseEmpty = useRef(false);
   const syllabusCourse = useRef<string | null>(null);
   const studioBody = useRef<HTMLDivElement | null>(null);
@@ -305,9 +303,7 @@ export function App() {
       const checkRes = await fetch(`/api/package/check/${encodeURIComponent(candidate)}`);
       const checkData = (await checkRes.json()) as { exists: boolean };
       if (checkData.exists) {
-        setPendingImportFile(file);
-        setPendingCourseId(candidate);
-        setConflictModalOpen(true);
+        setPendingImport({ file, courseId: candidate });
         return;
       }
       await uploadCoursePackage(file, candidate, "copy");
@@ -326,9 +322,7 @@ export function App() {
       });
       if (!response.ok) throw new Error(await response.text() || t("toolbar.importFailed"));
       const result = (await response.json()) as { ok: boolean; courseId: string };
-      setConflictModalOpen(false);
-      setPendingImportFile(null);
-      setPendingCourseId("");
+      setPendingImport(null);
       actions.openCourse(result.courseId);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : t("toolbar.importFailed"));
@@ -338,8 +332,8 @@ export function App() {
   };
 
   const handleResolveConflict = (action: "replace" | "copy") => {
-    if (!pendingImportFile) return;
-    void uploadCoursePackage(pendingImportFile, pendingCourseId, action);
+    if (!pendingImport) return;
+    void uploadCoursePackage(pendingImport.file, pendingImport.courseId, action);
   };
 
   useEffect(() => {
@@ -623,14 +617,10 @@ export function App() {
         onExport={exportCourse}
       />
       <ImportConflictModal
-        open={conflictModalOpen}
-        courseId={pendingCourseId}
+        open={Boolean(pendingImport)}
+        courseId={pendingImport?.courseId ?? ""}
         onResolve={handleResolveConflict}
-        onClose={() => {
-          setConflictModalOpen(false);
-          setPendingImportFile(null);
-          setPendingCourseId("");
-        }}
+        onClose={() => setPendingImport(null)}
       />
     </div>
   );

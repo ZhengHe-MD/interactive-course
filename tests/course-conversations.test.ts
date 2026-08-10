@@ -7,6 +7,7 @@ import {
   curateStoredTurn,
   mergeConversationSummaries,
   readStoredConversations,
+  storedConversationToTranscriptItems,
 } from "../server/course/conversations";
 import type { ConversationSummary, TranscriptItem } from "../shared/protocol";
 
@@ -133,5 +134,53 @@ describe("course conversations persistence", () => {
     expect(merged).toHaveLength(2);
     expect(merged.find((c) => c.id === "conv-local")?.readOnly).toBeFalsy();
     expect(merged.find((c) => c.id === "conv-imported")?.readOnly).toBe(true);
+  });
+
+  it("converts stored conversation to transcript items", () => {
+    const items = storedConversationToTranscriptItems({
+      id: "conv-1",
+      title: "Title",
+      createdAt: "2026-08-10T20:00:00Z",
+      updatedAt: "2026-08-10T20:00:00Z",
+      turns: [
+        {
+          id: "t1",
+          prompt: "Hello",
+          response: "World",
+          reasoning: ["Think"],
+          createdAt: "2026-08-10T20:00:00Z",
+        },
+      ],
+    });
+
+    expect(items).toHaveLength(2);
+    expect(items[0]).toEqual({ kind: "user", id: "t1-user", text: "Hello", selections: [] });
+    expect(items[1].kind).toBe("agent");
+    expect(items[1].text).toBe("World");
+  });
+
+  it("curates the latest turn from a multi-turn transcript", () => {
+    const items: TranscriptItem[] = [
+      { kind: "user", id: "u1", text: "First prompt", selections: [] },
+      { kind: "agent", id: "a1", text: "First response", activities: [] },
+      { kind: "user", id: "u2", text: "Second prompt", selections: [] },
+      {
+        kind: "agent",
+        id: "a2",
+        text: "Second response",
+        activities: [{ id: "r2", kind: "reasoning", label: "Thinking", detail: "Latest reasoning" }],
+      },
+    ];
+
+    const curated = curateStoredTurn({
+      turnId: "turn-2",
+      items,
+      createdAt: "2026-08-10T20:15:00.000Z",
+    });
+
+    expect(curated.id).toBe("turn-2");
+    expect(curated.prompt).toBe("Second prompt");
+    expect(curated.response).toBe("Second response");
+    expect(curated.reasoning).toEqual(["Latest reasoning"]);
   });
 });

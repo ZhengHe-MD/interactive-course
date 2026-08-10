@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type {
+  Activity,
   ConversationSummary,
   StoredConversation,
   StoredConversationsData,
@@ -76,8 +77,11 @@ export function curateStoredTurn(params: {
   createdAt?: string;
   page?: string;
 }): StoredTurn {
-  const userItem = params.items.find((item) => item.kind === "user");
-  const agentItem = params.items.find((item) => item.kind === "agent");
+  const userItems = params.items.filter((item) => item.kind === "user");
+  const agentItems = params.items.filter((item) => item.kind === "agent");
+
+  const userItem = userItems[userItems.length - 1];
+  const agentItem = agentItems[agentItems.length - 1];
 
   const prompt = userItem && "text" in userItem ? userItem.text.trim() : "";
   const response = agentItem && "text" in agentItem ? agentItem.text.trim() : "";
@@ -99,6 +103,26 @@ export function curateStoredTurn(params: {
     createdAt: params.createdAt || new Date().toISOString(),
     page: params.page,
   };
+}
+
+export function storedConversationToTranscriptItems(storedConv: StoredConversation): TranscriptItem[] {
+  const items: TranscriptItem[] = [];
+  for (const turn of storedConv.turns) {
+    if (turn.prompt) {
+      items.push({ kind: "user", id: `${turn.id}-user`, text: turn.prompt, selections: [] });
+    }
+    if (turn.response) {
+      const activities: Activity[] = turn.reasoning.map((r, i) => ({
+        id: `${turn.id}-reasoning-${i}`,
+        kind: "reasoning",
+        label: "Thinking",
+        detail: r,
+        done: true,
+      }));
+      items.push({ kind: "agent", id: `${turn.id}-agent`, text: turn.response, activities });
+    }
+  }
+  return items;
 }
 
 export function mergeConversationSummaries(

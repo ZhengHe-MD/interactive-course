@@ -23,6 +23,7 @@ const copy = {
     reasoningTitle: "Design Rationale",
     learnerPrompt: "Learner",
     agentResponse: "AI Mentor",
+    sessionFallback: "Session",
   },
   "zh-CN": {
     eyebrow: "一门在学习过程中共同设计的课程",
@@ -37,6 +38,7 @@ const copy = {
     reasoningTitle: "设计思路与考量",
     learnerPrompt: "学习者",
     agentResponse: "AI 导师",
+    sessionFallback: "会话",
   },
 } as const;
 
@@ -159,7 +161,7 @@ export async function buildStandaloneCourse(options: {
       sessionDiv.className = "cs-companion-session";
       const title = document.createElement("h3");
       title.className = "cs-companion-session-title";
-      title.textContent = conv.title || "Session";
+      title.textContent = conv.title || data.labels.sessionFallback;
       sessionDiv.appendChild(title);
 
       conv.turns.forEach((turn) => {

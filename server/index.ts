@@ -11,6 +11,7 @@ import {
   curateStoredTurn,
   mergeConversationSummaries,
   readStoredConversations,
+  storedConversationToTranscriptItems,
 } from "./course/conversations";
 import { exportCoursePackage, importCoursePackage } from "./course/packageCourse";
 import { buildStandaloneCourse, exportFilename } from "./course/exportCourse";
@@ -36,6 +37,7 @@ let course = new CourseManager(courseLibraryRoot, courseId);
 let codex = new CodexClient(courseDirectory);
 let courseVersion = Date.now();
 let activeTurn: string | null = null;
+let activeReadOnlyConversation = false;
 let exportActive = false;
 let changeTimer: NodeJS.Timeout | null = null;
 let stopCourseChange: (() => void) | null = null;
@@ -236,7 +238,7 @@ app.post("/api/export", express.json({ limit: "64kb" }), async (request, respons
   }
 });
 
-app.get("/api/package/export", async (_request, response) => {
+const handlePackageExport = async (_request: express.Request, response: express.Response) => {
   if (activeTurn || exportActive) return response.status(409).send("Wait for current work to finish before packaging.");
   try {
     const buffer = await exportCoursePackage(courseDirectory);
@@ -250,15 +252,24 @@ app.get("/api/package/export", async (_request, response) => {
   } catch (error) {
     response.status(500).send(error instanceof Error ? error.message : "Could not package the course.");
   }
-});
+};
 
-app.get("/api/package/check/:targetId", async (request, response) => {
-  const targetId = request.params.targetId;
-  if (!isCourseId(targetId)) return response.status(400).json({ error: "Invalid course ID" });
+app.get("/api/package/export", handlePackageExport);
+app.post("/api/package/export", handlePackageExport);
+
+const handlePackageCheck = async (request: express.Request, response: express.Response) => {
+  const rawParam = request.params.targetId;
+  const paramId = typeof rawParam === "string" ? rawParam : Array.isArray(rawParam) ? rawParam[0] : "";
+  const queryId = typeof request.query.courseId === "string" ? request.query.courseId : "";
+  const targetId = paramId || queryId;
+  if (!targetId || !isCourseId(targetId)) return response.status(400).json({ error: "Invalid course ID" });
   const list = await courses();
   const exists = list.some((c) => c.id === targetId);
   response.json({ exists });
-});
+};
+
+app.get("/api/package/check", handlePackageCheck);
+app.get("/api/package/check/:targetId", handlePackageCheck);
 
 app.post("/api/package/import", express.raw({ type: "*/*", limit: "100mb" }), async (request, response) => {
   if (activeTurn || exportActive) return response.status(409).send("Wait for current work to finish before importing.");
@@ -401,40 +412,26 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
     }
     try {
       if (message.type === "conversation.open") {
-        const available = await codex.listConversations();
-        const inCodex = available.some((entry) => entry.id === message.conversationId);
-        if (!inCodex) {
-          const storedData = await readStoredConversations(courseDirectory);
-          const storedConv = storedData.conversations.find((c) => c.id === message.conversationId);
-          if (!storedConv) {
-            throw new Error("That conversation no longer exists in this course.");
+        const storedData = await readStoredConversations(courseDirectory);
+        const storedConv = storedData.conversations.find((c) => c.id === message.conversationId);
+        if (storedConv) {
+          const list = await codex.listConversations();
+          const existsInCodex = list.some((c) => c.id === message.conversationId);
+          if (!existsInCodex) {
+            activeReadOnlyConversation = true;
+            const items = storedConversationToTranscriptItems(storedConv);
+            broadcast({
+              type: "conversation.opened",
+              conversationId: storedConv.id,
+              conversations: await conversationListing(null),
+              items,
+              ...await agentContext(),
+            });
+            return;
           }
-          const items: TranscriptItem[] = [];
-          for (const turn of storedConv.turns) {
-            if (turn.prompt) {
-              items.push({ kind: "user", id: `${turn.id}-user`, text: turn.prompt, selections: [] });
-            }
-            if (turn.response) {
-              const activities: Activity[] = turn.reasoning.map((r, i) => ({
-                id: `${turn.id}-reasoning-${i}`,
-                kind: "reasoning",
-                label: "Thinking",
-                detail: r,
-                done: true,
-              }));
-              items.push({ kind: "agent", id: `${turn.id}-agent`, text: turn.response, activities });
-            }
-          }
-          broadcast({
-            type: "conversation.opened",
-            conversationId: storedConv.id,
-            conversations: await conversationListing(null),
-            items,
-            ...await agentContext(),
-          });
-          return;
         }
       }
+      activeReadOnlyConversation = false;
       const next = message.type === "conversation.new"
         ? await codex.newConversation()
         : await codex.openConversation(message.conversationId);
@@ -459,6 +456,16 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
 
     if (activeTurn === "pending") {
       await waitForTurnReady();
+    }
+
+    if (activeReadOnlyConversation && message.type !== "course.start") {
+      activeReadOnlyConversation = false;
+      const nextConversation = await codex.newConversation();
+      broadcast({
+        type: "conversations",
+        conversationId: nextConversation.conversation.id,
+        conversations: await conversationListing(nextConversation),
+      });
     }
 
     if (activeTurn && message.type !== "course.start") {
