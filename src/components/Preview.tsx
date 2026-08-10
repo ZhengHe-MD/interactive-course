@@ -23,6 +23,7 @@ type Props = {
   startingTopic?: string;
   working: boolean;
   onSelection: (selection: Selection) => void;
+  onSelectionCleared?: () => void;
   onReadingPosition: (top: number, section?: CourseSection) => void;
   onInspectCancelled: () => void;
   onStartRequested: () => void;
@@ -34,7 +35,7 @@ type Props = {
  * `postMessage`, pinned to this origin in both directions.
  */
 export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
-  { courseId, courseVersion, pagePath = "syllabus.html", initialScrollTop = 0, inspecting, multipleSelection, courseChanged, codex, startingTopic, working, onSelection, onReadingPosition, onInspectCancelled, onStartRequested },
+  { courseId, courseVersion, pagePath = "syllabus.html", initialScrollTop = 0, inspecting, multipleSelection, courseChanged, codex, startingTopic, working, onSelection, onSelectionCleared, onReadingPosition, onInspectCancelled, onStartRequested },
   ref,
 ) {
   const { t } = useI18n();
@@ -87,12 +88,13 @@ export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
         onReadingPosition(scrollTop.current, event.data.section as CourseSection | undefined);
       }
       if (event.data.type === "selection") onSelection(event.data.selection as Selection);
+      if (event.data.type === "selection.cleared") onSelectionCleared?.();
       if (event.data.type === "inspect.cancelled") onInspectCancelled();
       if (event.data.type === "empty.start") onStartRequested();
     };
     window.addEventListener("message", receive);
     return () => window.removeEventListener("message", receive);
-  }, [onInspectCancelled, onReadingPosition, onSelection, onStartRequested, post]);
+  }, [onInspectCancelled, onReadingPosition, onSelection, onSelectionCleared, onStartRequested, post]);
 
   return (
     <div className={`preview-stage ${inspecting ? "is-inspecting" : ""}`}>

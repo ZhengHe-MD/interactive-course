@@ -43,7 +43,7 @@ the page live-reloads.
   the result to the course. Do not make a speculative edit.
 
 ## Taste — calm, book-like, content-forward
-- The course is the hero. Generous reading measure (~60-66ch), comfortable line
+- The course is the hero. Spacious, generous reading measure (width: min(100% - 3rem, 88ch) or responsive ~80-90% container), comfortable line
   height (~1.6-1.7), clear typographic hierarchy. Warm, quiet palette.
 - Interactivity in the Brilliant tradition: let the learner *do* the idea.
   Sliders, toggles, small simulations, immediate visual feedback, one focused

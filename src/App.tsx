@@ -69,7 +69,21 @@ export function App() {
     if (state.agentConfig) setAgentConfig(state.agentConfig);
   }, [state.agentConfig]);
 
-  const stopInspecting = useCallback(() => setInspecting(false), []);
+  const stopInspecting = useCallback(() => {
+    setInspecting(false);
+    setSelections([]);
+    preview.current?.clearSelections();
+  }, []);
+
+  const toggleInspect = useCallback(() => {
+    setInspecting((current) => {
+      if (current) {
+        setSelections([]);
+        preview.current?.clearSelections();
+      }
+      return !current;
+    });
+  }, []);
 
   const onReadingPosition = useCallback((top: number, section?: CourseSection) => {
     readingSection.current = section;
@@ -133,11 +147,11 @@ export function App() {
   // same key when focus is anywhere in the studio chrome.
   useEffect(() => {
     const cancel = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && inspecting) setInspecting(false);
+      if (event.key === "Escape" && inspecting) stopInspecting();
     };
     window.addEventListener("keydown", cancel);
     return () => window.removeEventListener("keydown", cancel);
-  }, [inspecting]);
+  }, [inspecting, stopInspecting]);
 
   const onSelection = useCallback((selection: Selection) => {
     const pageSelection = { ...selection, page: visiblePage };
@@ -390,7 +404,7 @@ export function App() {
         exporting={exporting}
         onHome={() => setShowWelcome(true)}
         onSwitchCourse={switchCourse}
-        onToggleInspect={() => setInspecting((current) => !current)}
+        onToggleInspect={toggleInspect}
         onToggleMultipleSelection={toggleMultipleSelection}
         onRevert={actions.revert}
         onExport={() => setExportDialogOpen(true)}
@@ -427,6 +441,7 @@ export function App() {
             startingTopic={startingNewCourse ? birthTopic ?? undefined : undefined}
             working={state.working}
             onSelection={onSelection}
+            onSelectionCleared={() => setSelections([])}
             onReadingPosition={onReadingPosition}
             onInspectCancelled={stopInspecting}
             onStartRequested={() => chat.current?.focusComposer()}

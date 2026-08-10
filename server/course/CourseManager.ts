@@ -92,8 +92,11 @@ export class CourseManager {
   }
 
   async getCoursePhase(): Promise<CoursePhase> {
-    const html = await this.readEntry();
-    return html === null ? "empty" : readPhase(html);
+    const [html, htmlFiles] = await Promise.all([this.readEntry(), this.readHtmlFiles()]);
+    if (html === null) return "empty";
+    const hasLesson = htmlFiles.some((file) => file.path !== "syllabus.html" && file.path !== "index.html");
+    if (hasLesson) return "learning";
+    return readPhase(html);
   }
 
   /**
@@ -106,8 +109,6 @@ export class CourseManager {
     const [html, manifest, htmlFiles] = await Promise.all([this.readEntry(), this.readManifest(), this.readHtmlFiles()]);
     if (html === null) return EMPTY_OUTLINE;
 
-    const phase = readPhase(html);
-    const derived = deriveMeta(html);
     const pages = htmlFiles
       .map(({ path, html: pageHtml }): CoursePage => {
         const page = deriveMeta(pageHtml);
@@ -127,6 +128,12 @@ export class CourseManager {
         if (right.path === "index.html") return 1;
         return left.path.localeCompare(right.path, undefined, { numeric: true });
       });
+
+    const rawPhase = readPhase(html);
+    const hasLesson = pages.some((page) => page.kind === "lesson");
+    const phase: CoursePhase = hasLesson || rawPhase === "learning" ? "learning" : rawPhase;
+    const derived = deriveMeta(html);
+
     return {
       phase,
       hasContent: true,

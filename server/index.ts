@@ -451,6 +451,12 @@ async function handleTurnCompleted(turn: { turnId: string; status: string; error
   activeTurn = null;
   try {
     if (turn.status === "completed") await course.createCheckpoint("Agent course update");
+    courseVersion = Date.now();
+    broadcast({
+      type: "course.changed",
+      courseVersion,
+      course: await outline(),
+    });
     broadcast({ type: "checkpoints", checkpoints: await checkpoints() });
     await broadcastCourses();
     await broadcastConversations();
