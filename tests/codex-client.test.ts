@@ -131,4 +131,36 @@ describe("temporary Codex conversations", () => {
       },
     });
   });
+
+  it("steers an active turn via turn/steer with the expected turn ID", async () => {
+    const requests: Array<{ method: string; params: unknown }> = [];
+    const client = new CodexClient("/tmp/course-studio-steer-test");
+    Object.assign(client, {
+      status: { state: "ready" },
+      threadId: "thread-123",
+      activeTurn: "turn-abc",
+      peer: {
+        request: async (method: string, params: unknown) => {
+          requests.push({ method, params });
+          if (method === "turn/steer") return { turnId: "turn-abc" };
+          return {};
+        },
+      },
+    });
+
+    const response = await client.steerTurn("Focus on chapter 1 only", []);
+
+    expect(response).toEqual({ turnId: "turn-abc" });
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      method: "turn/steer",
+      params: {
+        threadId: "thread-123",
+        expectedTurnId: "turn-abc",
+        input: [{
+          type: "text",
+        }],
+      },
+    });
+  });
 });

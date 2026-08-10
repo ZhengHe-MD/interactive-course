@@ -99,8 +99,40 @@ describe("chat activity timeline", () => {
     expect(html).toContain("Turning the research into the next lesson.");
     expect(html).not.toContain("Still working on this request");
     expect(html).not.toContain("Completed agent activity");
-    expect(html).toContain('placeholder="Agent is still working…"');
+    expect(html).toContain('placeholder="Steer the agent or add instructions…"');
     expect(html).toContain('aria-label="Agent working"');
+    expect(html).not.toContain("<textarea disabled");
+  });
+
+  it("keeps composer enabled and exposes both stop and steer controls while working", () => {
+    const html = renderToStaticMarkup(
+      <Chat
+        codex={{ state: "ready" }}
+        statusText="Codex ready"
+        connected
+        working={true}
+        phase="learning"
+        conversationId="conversation-1"
+        conversations={[]}
+        items={[]}
+        open
+        selections={[]}
+        onToggleOpen={() => {}}
+        onNewConversation={() => {}}
+        onSwitchConversation={() => {}}
+        onExpandSelection={() => {}}
+        onRemoveSelection={() => {}}
+        onSend={() => {}}
+        onInterrupt={() => {}}
+        placeholder="Ask about this"
+      />,
+    );
+
+    expect(html).toContain('placeholder="Steer the agent or add instructions…"');
+    expect(html).toContain('aria-label="Stop the current turn"');
+    expect(html).toContain('aria-label="Steer agent"');
+    expect(html).toContain('class="stop-button"');
+    expect(html).toContain('class="steer-button"');
   });
 
   it("keeps the activity history with the response after the turn completes", () => {

@@ -87,7 +87,7 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
     setDraft("");
   }, [props.conversationId]);
 
-  const canSend = connected && !working && (draft.trim().length > 0 || selections.length > 0);
+  const canSend = connected && (draft.trim().length > 0 || selections.length > 0);
   const lastItem = items.at(-1);
   const activeAgent = working && lastItem?.kind === "agent"
     ? lastItem
@@ -216,21 +216,25 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
                 submit();
               }
             }}
-            placeholder={working ? t("chat.agentStillWorking") : props.placeholder}
+            placeholder={working ? t("chat.steerPlaceholder") : props.placeholder}
             rows={1}
-            disabled={working}
           />
           <div className="composer-foot">
             <span>{working ? t("chat.agentWorking") : ""}</span>
-            {working ? (
+            {working && (
               <button className="stop-button" onClick={props.onInterrupt} aria-label={t("chat.stopTurn")} title={t("chat.stopAgent")}>
                 <Square size={12} fill="currentColor" />
               </button>
-            ) : (
-              <button onClick={submit} disabled={!canSend} aria-label={t("chat.send")}>
-                <Send size={15} />
-              </button>
             )}
+            <button
+              className={working ? "steer-button" : "send-button"}
+              onClick={submit}
+              disabled={!canSend}
+              aria-label={working ? t("chat.steerAgent") : t("chat.send")}
+              title={working ? t("chat.steerAgent") : t("chat.send")}
+            >
+              <Send size={15} />
+            </button>
           </div>
         </div>
         <AgentControls

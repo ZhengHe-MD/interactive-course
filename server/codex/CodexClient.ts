@@ -34,6 +34,8 @@ import type {
   TurnInterruptParams,
   TurnPlanUpdatedNotification,
   TurnStartResponse,
+  TurnSteerParams,
+  TurnSteerResponse,
   UserInput,
 } from "./types";
 
@@ -320,6 +322,54 @@ export class CodexClient extends EventEmitter {
       throw new Error(`${model.displayName} does not support the selected thinking effort.`);
     }
     return agent;
+  }
+
+  getActiveTurnId() {
+    return this.activeTurn;
+  }
+
+  async steerTurn(
+    message: string,
+    selections: SelectionContext[],
+    options: {
+      coursePhase?: CoursePhase;
+      activePage?: string;
+      activeSection?: CourseSection;
+      agent?: AgentConfig;
+      language?: Language;
+    } = {},
+  ) {
+    await this.requireReady();
+    if (!this.threadId) throw new Error("No conversation is open.");
+    if (!this.activeTurn) throw new Error("No active turn to steer.");
+
+    const text: UserInput = {
+      type: "text",
+      text: buildCoursePrompt(message, selections, options),
+      text_elements: [],
+    };
+    const images = await writeSelectionImages(selections);
+
+    try {
+      return await this.sendSteer([text, ...images.inputs]);
+    } catch (error) {
+      if (images.inputs.length === 0) throw error;
+      this.emit("diagnostic", `Retrying steer without selection screenshots: ${describe(error)}`);
+      this.emit("notice", "Sent your selection without its screenshot — Codex rejected the image.");
+      return await this.sendSteer([text]);
+    } finally {
+      await images.cleanup().catch(() => {});
+    }
+  }
+
+  private async sendSteer(input: UserInput[]) {
+    if (!this.activeTurn) throw new Error("No active turn to steer.");
+    const params: TurnSteerParams = {
+      threadId: this.threadId!,
+      expectedTurnId: this.activeTurn,
+      input,
+    };
+    return this.peer!.request<TurnSteerResponse>("turn/steer", params, 60_000);
   }
 
   /** Ask Codex to stop the turn in flight. Best effort — never throws. */
@@ -623,31 +673,46 @@ function toConversationSummary(thread: import("./types").PersistedThread): Conve
 export function transcriptFromThread(thread: import("./types").PersistedThread): TranscriptItem[] {
   const transcript: TranscriptItem[] = [];
   for (const turn of thread.turns) {
-    const user = turn.items.find((item) => item.type === "userMessage");
-    const prompt = user?.content?.find((input): input is Extract<UserInput, { type: "text" }> => input.type === "text")?.text;
-    if (prompt) {
-      transcript.push({
-        kind: "user",
-        id: user?.id ?? `user-${turn.id}`,
-        text: extractLearnerRequest(prompt),
-        selections: extractSelections(prompt),
-      });
+    let currentAgentMessages: string[] = [];
+    let currentAgentActivities: Activity[] = [];
+    let agentSegmentIndex = 0;
+
+    const flushAgent = (failed = false) => {
+      if (currentAgentMessages.length || currentAgentActivities.length || failed) {
+        transcript.push({
+          kind: "agent",
+          id: `agent-${turn.id}${agentSegmentIndex > 0 ? `-${agentSegmentIndex}` : ""}`,
+          text: currentAgentMessages.join("\n\n"),
+          activities: currentAgentActivities.slice(-16),
+          failed,
+        });
+        currentAgentMessages = [];
+        currentAgentActivities = [];
+        agentSegmentIndex++;
+      }
+    };
+
+    for (const item of turn.items) {
+      if (item.type === "userMessage") {
+        flushAgent(false);
+        const prompt = item.content?.find((input): input is Extract<UserInput, { type: "text" }> => input.type === "text")?.text
+          ?? item.text;
+        if (prompt) {
+          transcript.push({
+            kind: "user",
+            id: item.id ?? `user-${turn.id}${agentSegmentIndex > 0 ? `-${agentSegmentIndex}` : ""}`,
+            text: extractLearnerRequest(prompt),
+            selections: extractSelections(prompt),
+          });
+        }
+      } else if (item.type === "agentMessage" && item.text) {
+        currentAgentMessages.push(item.text.trim());
+      } else {
+        currentAgentActivities.push(...historicalActivity(item));
+      }
     }
 
-    const messages = turn.items
-      .filter((item) => item.type === "agentMessage" && item.text)
-      .map((item) => item.text!.trim())
-      .filter(Boolean);
-    const activities = turn.items.flatMap(historicalActivity).slice(-16);
-    if (messages.length || activities.length || turn.status !== "completed") {
-      transcript.push({
-        kind: "agent",
-        id: `agent-${turn.id}`,
-        text: messages.join("\n\n"),
-        activities,
-        failed: turn.status !== "completed",
-      });
-    }
+    flushAgent(turn.status !== "completed");
   }
   return transcript;
 }
