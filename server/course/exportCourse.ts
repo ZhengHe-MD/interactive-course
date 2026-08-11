@@ -83,73 +83,81 @@ export async function buildStandaloneCourse(options: {
   <style>${exportShellCss}</style>
 </head>
 <body>
-<div class="cs-export-shell cs-app">
-  <header class="cs-topbar">
-    <div class="cs-topbar-brand">
-      <span class="cs-brand-badge">COURSE</span>
-      <span class="cs-brand-name">${escapeHtml(title)}</span>
-      <span class="cs-crumb-sep">/</span>
-      <span id="cs-page-title" class="cs-current-crumb"></span>
-    </div>
-    <div class="cs-topbar-actions">
-      <div class="cs-pager-group">
-        <button id="cs-previous" class="cs-btn-icon" type="button" aria-label="${escapeAttribute(labels.previous)}" title="${escapeAttribute(labels.previous)}">←</button>
-        <span id="cs-pager-status" class="cs-pager-status"></span>
-        <button id="cs-next" class="cs-btn-icon" type="button" aria-label="${escapeAttribute(labels.next)}" title="${escapeAttribute(labels.next)}">→</button>
+<div class="studio-shell cs-export-shell">
+  <!-- Slim Toolbar (52px) -->
+  <header class="studio-topbar">
+    <div class="topbar-left">
+      <div class="studio-wordmark">
+        <span class="brand-mark">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </span>
+        <span>Course Studio</span>
       </div>
-      <button id="cs-companion-toggle" class="cs-companion-btn" type="button">
+      <div class="course-breadcrumb">
+        <span class="crumb-sep">›</span>
+        <span class="crumb-title">${escapeHtml(title)}</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="pager-nav">
+        <button id="cs-previous" class="toolbar-pill-btn" type="button" aria-label="${escapeAttribute(labels.previous)}" title="${escapeAttribute(labels.previous)}">←</button>
+        <span id="cs-pager-indicator" class="pager-text"></span>
+        <button id="cs-next" class="toolbar-pill-btn" type="button" aria-label="${escapeAttribute(labels.next)}" title="${escapeAttribute(labels.next)}">→</button>
+      </div>
+      <button id="cs-companion-toggle" class="toolbar-pill-btn companion-btn" type="button">
         <span>💬</span>
-        <span class="cs-btn-label">${escapeHtml(labels.companionToggle)}</span>
+        <span class="companion-label">${escapeHtml(labels.companionToggle)}</span>
       </button>
     </div>
   </header>
 
-  <div class="cs-workspace">
-    <aside class="cs-sidebar" aria-label="${escapeAttribute(labels.contents)}">
-      <div class="cs-sidebar-head">
-        <span class="cs-eyebrow">${escapeHtml(labels.eyebrow)}</span>
-        <h1 class="cs-sidebar-title">${escapeHtml(title)}</h1>
-        <p class="cs-sidebar-desc">${escapeHtml(summary)}</p>
+  <!-- 3-Column Studio Body (Sidebar | Canvas | Docked Chat) -->
+  <div id="cs-studio-body" class="studio-body">
+    <!-- Course Outline (Left Sidebar) -->
+    <aside class="course-nav" aria-label="${escapeAttribute(labels.contents)}">
+      <div class="course-nav-header">
+        <div class="nav-kicker">${escapeHtml(labels.contents)}</div>
       </div>
-      <div class="cs-sidebar-nav">
-        <span class="cs-nav-header">${escapeHtml(labels.contents)}</span>
-        <div id="cs-page-list" class="cs-page-list"></div>
+      <div class="course-identity">
+        <span class="course-status-dot"></span>
+        <h1>${escapeHtml(title)}</h1>
       </div>
+      <nav id="cs-page-list"></nav>
     </aside>
 
-    <main class="cs-reader">
-      <iframe id="cs-course-frame" title="${escapeAttribute(title)}"></iframe>
-      <div class="cs-bottom-pager">
-        <button id="cs-prev-bottom" class="cs-pager-btn" type="button">← ${escapeHtml(labels.previous)}</button>
-        <button id="cs-next-bottom" class="cs-pager-btn primary" type="button">${escapeHtml(labels.next)} →</button>
+    <!-- Center Workspace Canvas -->
+    <main class="workspace">
+      <div class="preview-stage">
+        <iframe id="cs-course-frame" title="${escapeAttribute(title)}"></iframe>
       </div>
     </main>
+
+    <!-- Right Co-Design Chat Panel (Docked, Collapsible) -->
+    <aside id="cs-companion-drawer" class="chat-shell" aria-label="${escapeAttribute(labels.companionTitle)}" hidden>
+      <div class="chat-header">
+        <div class="chat-header-identity">
+          <span class="chat-avatar">💬</span>
+          <strong>${escapeHtml(labels.companionTitle)}</strong>
+        </div>
+        <button id="cs-companion-close" class="chat-collapse-btn" type="button" aria-label="${escapeAttribute(labels.companionClose)}">✕</button>
+      </div>
+      <div id="cs-companion-content" class="chat-log"></div>
+    </aside>
   </div>
 </div>
 
-<aside id="cs-companion-drawer" class="cs-companion-drawer" aria-label="${escapeAttribute(labels.companionTitle)}" hidden>
-  <div class="cs-companion-header">
-    <strong>${escapeHtml(labels.companionTitle)}</strong>
-    <button id="cs-companion-close" class="cs-close-btn" type="button" aria-label="${escapeAttribute(labels.companionClose)}">✕</button>
-  </div>
-  <div id="cs-companion-content" class="cs-companion-content"></div>
-</aside>
-<div id="cs-companion-backdrop" class="cs-companion-backdrop" hidden></div>
 <script>
 (() => {
   const data = ${data};
+  const studioBody = document.getElementById("cs-studio-body");
   const frame = document.getElementById("cs-course-frame");
   const pageList = document.getElementById("cs-page-list");
-  const pageTitle = document.getElementById("cs-page-title");
-  const pagerStatus = document.getElementById("cs-pager-status");
+  const pagerIndicator = document.getElementById("cs-pager-indicator");
   const previous = document.getElementById("cs-previous");
   const next = document.getElementById("cs-next");
-  const prevBottom = document.getElementById("cs-prev-bottom");
-  const nextBottom = document.getElementById("cs-next-bottom");
   const companionToggle = document.getElementById("cs-companion-toggle");
   const companionDrawer = document.getElementById("cs-companion-drawer");
   const companionClose = document.getElementById("cs-companion-close");
-  const companionBackdrop = document.getElementById("cs-companion-backdrop");
   const companionContent = document.getElementById("cs-companion-content");
   let activeIndex = Math.max(0, data.pages.findIndex((page) => location.hash.slice(1) === encodeURIComponent(page.path)));
   let observer;
@@ -158,18 +166,26 @@ export async function buildStandaloneCourse(options: {
     pageList.replaceChildren(...data.pages.map((page, index) => {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "cs-nav-item" + (index === activeIndex ? " active" : "");
+      button.className = "course-page-link" + (index === activeIndex ? " active" : "");
       
-      const num = document.createElement("span");
-      num.className = "cs-nav-num";
-      num.textContent = String(index + 1).padStart(2, "0");
-      
-      const titleSpan = document.createElement("span");
-      titleSpan.className = "cs-nav-label";
+      const iconSpan = document.createElement("span");
+      iconSpan.className = "page-icon";
+      iconSpan.textContent = index === 0 ? "📋" : "📖";
+
+      const textWrap = document.createElement("span");
+      textWrap.className = "page-info";
+
+      const kicker = document.createElement("small");
+      kicker.textContent = index === 0 ? "大纲 Syllabus" : ("第 " + index + " 讲 Session " + index);
+
+      const titleSpan = document.createElement("strong");
       titleSpan.textContent = page.title;
 
-      button.appendChild(num);
-      button.appendChild(titleSpan);
+      textWrap.appendChild(kicker);
+      textWrap.appendChild(titleSpan);
+
+      button.appendChild(iconSpan);
+      button.appendChild(textWrap);
       button.addEventListener("click", () => showPage(index));
       return button;
     }));
@@ -178,32 +194,32 @@ export async function buildStandaloneCourse(options: {
   function renderCompanion() {
     if (!data.conversations || !data.conversations.length) {
       if (companionToggle) companionToggle.style.opacity = "0.6";
-      companionContent.innerHTML = '<p class="cs-companion-empty">' + escapeHtml(data.labels.companionEmpty) + '</p>';
+      companionContent.innerHTML = '<p class="chat-empty">' + escapeHtml(data.labels.companionEmpty) + '</p>';
       return;
     }
     companionContent.innerHTML = "";
     data.conversations.forEach((conv) => {
       const sessionDiv = document.createElement("div");
-      sessionDiv.className = "cs-companion-session";
+      sessionDiv.className = "chat-session";
       const title = document.createElement("h3");
-      title.className = "cs-companion-session-title";
+      title.className = "chat-session-title";
       title.textContent = conv.title || data.labels.sessionFallback;
       sessionDiv.appendChild(title);
 
       conv.turns.forEach((turn) => {
         const turnDiv = document.createElement("div");
-        turnDiv.className = "cs-companion-turn";
+        turnDiv.className = "chat-turn";
 
         if (turn.prompt) {
           const userBlock = document.createElement("div");
-          userBlock.className = "cs-turn-block cs-turn-user";
-          userBlock.innerHTML = '<span class="cs-turn-author">' + escapeHtml(data.labels.learnerPrompt) + '</span><div class="cs-turn-text">' + escapeHtml(turn.prompt) + '</div>';
+          userBlock.className = "chat-turn-user";
+          userBlock.innerHTML = '<span class="chat-author">' + escapeHtml(data.labels.learnerPrompt) + '</span><div class="chat-text">' + escapeHtml(turn.prompt) + '</div>';
           turnDiv.appendChild(userBlock);
         }
 
         if (turn.reasoning && turn.reasoning.length) {
           const details = document.createElement("details");
-          details.className = "cs-turn-reasoning";
+          details.className = "chat-turn-reasoning";
           const summary = document.createElement("summary");
           summary.textContent = "💡 " + data.labels.reasoningTitle + " (" + turn.reasoning.length + ")";
           details.appendChild(summary);
@@ -219,8 +235,8 @@ export async function buildStandaloneCourse(options: {
 
         if (turn.response) {
           const agentBlock = document.createElement("div");
-          agentBlock.className = "cs-turn-block cs-turn-agent";
-          agentBlock.innerHTML = '<span class="cs-turn-author">' + escapeHtml(data.labels.agentResponse) + '</span><div class="cs-turn-text">' + escapeHtml(turn.response) + '</div>';
+          agentBlock.className = "chat-turn-agent";
+          agentBlock.innerHTML = '<span class="chat-author">' + escapeHtml(data.labels.agentResponse) + '</span><div class="chat-text">' + escapeHtml(turn.response) + '</div>';
           turnDiv.appendChild(agentBlock);
         }
 
@@ -233,28 +249,20 @@ export async function buildStandaloneCourse(options: {
   function setCompanionOpen(open) {
     if (open) {
       companionDrawer.removeAttribute("hidden");
-      companionBackdrop.removeAttribute("hidden");
+      studioBody.classList.add("chat-open");
       companionToggle?.classList.add("active");
-      document.body.style.overflow = "hidden";
     } else {
       companionDrawer.setAttribute("hidden", "");
-      companionBackdrop.setAttribute("hidden", "");
+      studioBody.classList.remove("chat-open");
       companionToggle?.classList.remove("active");
-      document.body.style.overflow = "";
     }
   }
 
   companionToggle?.addEventListener("click", () => {
-    const isHidden = companionDrawer.hasAttribute("hidden");
-    setCompanionOpen(isHidden);
+    const isOpen = studioBody.classList.contains("chat-open");
+    setCompanionOpen(!isOpen);
   });
   companionClose?.addEventListener("click", () => setCompanionOpen(false));
-  companionBackdrop?.addEventListener("click", () => setCompanionOpen(false));
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !companionDrawer.hasAttribute("hidden")) {
-      setCompanionOpen(false);
-    }
-  });
 
   function wireCourseLinks(doc) {
     doc.addEventListener("click", (event) => {
@@ -272,21 +280,16 @@ export async function buildStandaloneCourse(options: {
   function resizeFrame() {
     const doc = frame.contentDocument;
     if (!doc) return;
-    frame.style.height = Math.max(600, doc.documentElement.scrollHeight, doc.body?.scrollHeight || 0) + "px";
+    frame.style.height = Math.max(700, doc.documentElement.scrollHeight, doc.body?.scrollHeight || 0) + "px";
   }
 
   function showPage(index, sectionId) {
     activeIndex = Math.max(0, Math.min(data.pages.length - 1, index));
     const page = data.pages[activeIndex];
-    pageTitle.textContent = page.title;
-    pagerStatus.textContent = (activeIndex + 1) + " / " + data.pages.length;
+    pagerIndicator.textContent = (activeIndex + 1) + " / " + data.pages.length;
     
-    const isFirst = activeIndex === 0;
-    const isLast = activeIndex === data.pages.length - 1;
-    previous.disabled = isFirst;
-    next.disabled = isLast;
-    prevBottom.disabled = isFirst;
-    nextBottom.disabled = isLast;
+    previous.disabled = activeIndex === 0;
+    next.disabled = activeIndex === data.pages.length - 1;
     
     location.hash = encodeURIComponent(page.path);
     renderNavigation();
@@ -311,8 +314,6 @@ export async function buildStandaloneCourse(options: {
   renderCompanion();
   previous.addEventListener("click", () => showPage(activeIndex - 1));
   next.addEventListener("click", () => showPage(activeIndex + 1));
-  prevBottom?.addEventListener("click", () => showPage(activeIndex - 1));
-  nextBottom?.addEventListener("click", () => showPage(activeIndex + 1));
   
   window.addEventListener("hashchange", () => {
     const index = data.pages.findIndex((page) => location.hash.slice(1) === encodeURIComponent(page.path));
@@ -477,243 +478,283 @@ function sanitizeMeta(value: string) {
 
 const exportShellCss = `
 :root {
-  color-scheme: light dark;
-  --cs-bg: #fbf9f5;
-  --cs-sidebar-bg: #f4ede2;
-  --cs-surface: #ffffff;
-  --cs-surface-2: #ece3d4;
-  --cs-ink: #211e1b;
-  --cs-muted: #6e675f;
-  --cs-faint: #9c9488;
-  --cs-line: #dfd6c7;
-  --cs-accent: #9a3412;
-  --cs-accent-soft: #faebe3;
-  --cs-shadow: 0 4px 20px rgba(45, 35, 25, 0.07);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #201e1d;
+  background: #f5ead8;
+  --bg: #f5ead8;
+  --surface: #ebddc5;
+  --text: #201e1d;
+  --accent: #c67139;
+  --accent-dark: #8c491a;
+  --sage: #7a8a5e;
+  --sage-soft: #f0fae1;
+  --paper: #f9f4ed;
+  --paper-2: #eee7db;
+  --muted: #82796a;
+  --line: color-mix(in srgb, #201e1d 16%, transparent);
+  --heading: Georgia, "Noto Serif SC", serif;
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2e2b25 18%, transparent);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --cs-bg: #141210;
-    --cs-sidebar-bg: #1a1715;
-    --cs-surface: #221f1c;
-    --cs-surface-2: #2d2925;
-    --cs-ink: #f5f4f2;
-    --cs-muted: #a69f96;
-    --cs-faint: #736c64;
-    --cs-line: #332d28;
-    --cs-accent: #ea580c;
-    --cs-accent-soft: #381e13;
-    --cs-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+    color: #f5f5f4;
+    background: #141210;
+    --bg: #141210;
+    --surface: #1e1b18;
+    --text: #f5f5f4;
+    --accent: #ea580c;
+    --accent-dark: #f97316;
+    --sage: #84cc16;
+    --sage-soft: #1e2912;
+    --paper: #1c1917;
+    --paper-2: #292524;
+    --muted: #a8a29e;
+    --line: color-mix(in srgb, #f5f5f4 15%, transparent);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.4);
   }
 }
 
 * { box-sizing: border-box; }
-body {
-  margin: 0;
-  background: var(--cs-bg);
-  color: var(--cs-ink);
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg); color: var(--text);
+  min-height: 100vh;
 }
-button { font: inherit; }
+button { font: inherit; cursor: pointer; }
 
-[hidden], .cs-companion-drawer[hidden], .cs-companion-backdrop[hidden] {
+[hidden], #cs-companion-drawer[hidden] {
   display: none !important;
 }
 
-.cs-app { min-height: 100vh; display: flex; flex-direction: column; }
+.studio-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
 
-/* ---------- Top bar ---------- */
-.cs-topbar {
+/* ---------- Slim Topbar (52px) ---------- */
+.studio-topbar {
   position: sticky; top: 0; z-index: 40;
-  height: 56px; padding: 0 clamp(16px, 3vw, 32px);
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  background: color-mix(in srgb, var(--cs-bg) 88%, transparent);
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--cs-line);
+  height: 52px; padding: 0 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
 }
-.cs-topbar-brand {
-  display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0;
+.topbar-left {
+  display: flex; align-items: center; gap: 12px; font-size: 13px; min-width: 0;
 }
-.cs-brand-badge {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 10px; font-weight: 700; letter-spacing: 1px;
-  color: var(--cs-accent); background: var(--cs-accent-soft);
-  padding: 2px 7px; border-radius: 4px; flex-shrink: 0;
+.studio-wordmark {
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 700; font-size: 14px; color: var(--text);
+  white-space: nowrap;
 }
-.cs-brand-name {
-  font-weight: 600; color: var(--cs-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.brand-mark {
+  display: grid; place-items: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--accent); color: #fff;
 }
-.cs-crumb-sep { color: var(--cs-faint); font-weight: 300; }
-.cs-current-crumb {
-  color: var(--cs-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.course-breadcrumb {
+  display: flex; align-items: center; gap: 6px;
+  color: var(--muted); font-size: 13px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.cs-topbar-actions {
+.crumb-sep { opacity: 0.5; }
+.crumb-title { font-weight: 600; color: var(--text); }
+
+.topbar-right {
   display: flex; align-items: center; gap: 10px; flex-shrink: 0;
 }
-.cs-pager-group {
+.pager-nav {
   display: flex; align-items: center; gap: 4px;
-  background: var(--cs-surface); border: 1px solid var(--cs-line);
-  border-radius: 20px; padding: 2px 8px; font-size: 12px;
+  background: var(--paper); border: 1px solid var(--line);
+  border-radius: 999px; padding: 2px 8px;
 }
-.cs-pager-status {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--cs-muted); padding: 0 4px;
+.pager-text {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 11px; color: var(--muted); padding: 0 4px;
 }
-.cs-btn-icon {
-  background: transparent; border: none; color: var(--cs-ink);
-  cursor: pointer; padding: 4px 6px; border-radius: 4px; font-size: 14px;
-  display: flex; align-items: center; justify-content: center;
-}
-.cs-btn-icon:hover:not(:disabled) { background: var(--cs-surface-2); }
-.cs-btn-icon:disabled { opacity: 0.3; cursor: not-allowed; }
-
-.cs-companion-btn {
+.toolbar-pill-btn {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px; font-weight: 600;
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 14px; border-radius: 20px;
-  border: 1px solid var(--cs-line); background: var(--cs-surface);
-  color: var(--cs-ink); font-size: 13px; font-weight: 500;
-  cursor: pointer; transition: all 0.15s ease;
+  transition: all 0.15s ease;
 }
-.cs-companion-btn:hover, .cs-companion-btn.active {
-  background: var(--cs-accent); color: #fff; border-color: var(--cs-accent);
+.toolbar-pill-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 12%, var(--paper));
+  border-color: var(--accent);
 }
-
-/* ---------- Main layout ---------- */
-.cs-workspace {
-  display: grid; grid-template-columns: 280px minmax(0, 1fr);
-  flex: 1; min-height: calc(100vh - 56px);
+.toolbar-pill-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.companion-btn.active {
+  background: var(--accent); color: #fff; border-color: var(--accent);
 }
 
-/* ---------- Sidebar (Table of Contents) ---------- */
-.cs-sidebar {
-  position: sticky; top: 56px; height: calc(100vh - 56px);
-  overflow-y: auto; background: var(--cs-sidebar-bg);
-  border-right: 1px solid var(--cs-line);
-  padding: 28px 18px; display: flex; flex-direction: column; gap: 24px;
+/* ---------- 3-Column Studio Body ---------- */
+.studio-body {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 0;
+  flex: 1; min-height: calc(100vh - 52px);
+  transition: grid-template-columns 0.22s ease;
 }
-.cs-sidebar-head { display: flex; flex-direction: column; gap: 6px; }
-.cs-eyebrow {
-  font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
-  color: var(--cs-accent); text-transform: uppercase;
+.studio-body.chat-open {
+  grid-template-columns: 240px minmax(0, 1fr) 380px;
 }
-.cs-sidebar-title {
-  margin: 0; font-size: 20px; font-weight: 700; line-height: 1.25;
-  font-family: Georgia, "Noto Serif SC", serif; color: var(--cs-ink);
-}
-.cs-sidebar-desc { margin: 0; color: var(--cs-muted); font-size: 13px; line-height: 1.5; }
 
-.cs-nav-section { display: flex; flex-direction: column; gap: 8px; }
-.cs-nav-header {
-  font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
-  color: var(--cs-faint); text-transform: uppercase; padding: 0 8px;
+/* ---------- Outline (Left Sidebar) ---------- */
+.course-nav {
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+  padding: 20px 14px;
+  overflow-y: auto;
+  position: sticky; top: 52px; height: calc(100vh - 52px);
 }
-.cs-page-list { display: flex; flex-direction: column; gap: 4px; }
-.cs-nav-item {
-  display: flex; align-items: baseline; gap: 10px; width: 100%;
-  padding: 8px 10px; border-radius: 8px; border: 1px solid transparent;
-  background: transparent; color: var(--cs-muted); text-align: left;
-  cursor: pointer; font-size: 13.5px; transition: all 0.15s ease;
+.course-nav-header {
+  display: flex; align-items: center;
+  min-height: 24px; margin-bottom: 4px;
 }
-.cs-nav-num {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px; color: var(--cs-faint);
+.nav-kicker {
+  padding: 0 8px; font-size: 10px;
+  font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--muted);
 }
-.cs-nav-label { flex: 1; }
-.cs-nav-item:hover { background: var(--cs-surface-2); color: var(--cs-ink); }
-.cs-nav-item.active {
-  background: var(--cs-surface); color: var(--cs-ink);
-  font-weight: 600; border-color: var(--cs-line);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+.course-identity {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px 16px; margin-bottom: 8px;
+  border-bottom: 1px solid var(--line);
 }
-.cs-nav-item.active .cs-nav-num { color: var(--cs-accent); font-weight: 700; }
+.course-status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--sage); flex-shrink: 0;
+}
+.course-identity h1 {
+  margin: 0; font-size: 14px; font-weight: 700;
+  color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
-/* ---------- Reader Canvas ---------- */
-.cs-reader {
-  min-width: 0; padding: 0; display: flex; flex-direction: column;
+.course-nav nav {
+  display: flex; flex-direction: column; gap: 4px;
 }
-.cs-reader iframe {
-  display: block; width: 100%; min-height: 600px;
-  border: none; background: transparent;
+.course-page-link {
+  display: flex; align-items: flex-start; gap: 10px;
+  width: 100%; padding: 8px 10px;
+  border: 0; border-radius: 10px;
+  background: transparent; color: var(--text);
+  text-align: left; transition: all 0.15s ease;
 }
-.cs-bottom-pager {
-  display: flex; justify-content: space-between; align-items: center;
-  max-width: 88ch; margin: 40px auto 80px; padding: 24px 20px 0;
-  width: 100%; border-top: 1px solid var(--cs-line);
+.course-page-link:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
-.cs-pager-btn {
-  padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 500;
-  border: 1px solid var(--cs-line); background: var(--cs-surface);
-  color: var(--cs-ink); cursor: pointer; transition: all 0.15s ease;
+.course-page-link.active {
+  background: #fff2eb;
+  color: #643312;
+  font-weight: 700;
 }
-.cs-pager-btn.primary {
-  background: var(--cs-accent); color: #fff; border-color: var(--cs-accent);
-}
-.cs-pager-btn:hover:not(:disabled) { transform: translateY(-1px); }
-.cs-pager-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-
-/* ---------- Companion Drawer (Slide-over) ---------- */
-.cs-companion-drawer {
-  position: fixed; top: 0; right: 0; bottom: 0;
-  width: min(480px, 92vw); height: 100vh; z-index: 100;
-  background: var(--cs-surface); border-left: 1px solid var(--cs-line);
-  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.16);
-  display: flex; flex-direction: column;
-  animation: cs-slide-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.cs-companion-header {
-  height: 56px; padding: 0 20px; display: flex; align-items: center;
-  justify-content: space-between; border-bottom: 1px solid var(--cs-line);
-  background: var(--cs-surface); flex-shrink: 0;
-}
-.cs-companion-header strong { font-size: 14px; }
-.cs-close-btn {
-  border: none; background: transparent; color: var(--cs-muted);
-  font-size: 18px; cursor: pointer; padding: 6px 10px; border-radius: 6px;
-}
-.cs-close-btn:hover { background: var(--cs-surface-2); color: var(--cs-ink); }
-.cs-companion-content {
-  flex: 1; overflow-y: auto; padding: 24px 20px;
-  display: flex; flex-direction: column; gap: 24px;
-}
-.cs-companion-empty { color: var(--cs-muted); font-size: 14px; text-align: center; margin-top: 40px; }
-.cs-companion-session { display: flex; flex-direction: column; gap: 14px; }
-.cs-companion-session-title {
-  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
-  color: var(--cs-muted); margin: 0; padding-bottom: 6px; border-bottom: 1px dashed var(--cs-line);
-}
-.cs-companion-turn { display: flex; flex-direction: column; gap: 10px; }
-.cs-turn-block { padding: 12px 14px; border-radius: 10px; font-size: 13.5px; line-height: 1.6; }
-.cs-turn-user { background: var(--cs-surface-2); color: var(--cs-ink); }
-.cs-turn-agent { background: var(--cs-bg); color: var(--cs-ink); border: 1px solid var(--cs-line); }
-.cs-turn-author {
-  display: block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em;
-  text-transform: uppercase; color: var(--cs-accent); margin-bottom: 4px;
-}
-.cs-turn-text { white-space: pre-wrap; }
-.cs-turn-reasoning {
-  font-size: 12px; color: var(--cs-muted); background: var(--cs-accent-soft);
-  border: 1px solid color-mix(in srgb, var(--cs-accent) 25%, transparent);
-  border-radius: 8px; padding: 6px 10px;
-}
-.cs-turn-reasoning summary { cursor: pointer; font-weight: 600; color: var(--cs-accent); }
-.cs-turn-reasoning ul { margin: 6px 0 0; padding-left: 18px; }
-
-.cs-companion-backdrop {
-  position: fixed; inset: 0; z-index: 90;
-  background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(3px);
-}
-@keyframes cs-slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
-
-@media (max-width: 820px) {
-  .cs-workspace { grid-template-columns: 1fr; }
-  .cs-sidebar {
-    position: static; height: auto; border-right: none;
-    border-bottom: 1px solid var(--cs-line); padding: 20px 16px;
+@media (prefers-color-scheme: dark) {
+  .course-page-link.active {
+    background: #381e13;
+    color: #fdba74;
   }
-  .cs-sidebar-head { margin-bottom: 14px; }
-  .cs-page-list { flex-direction: row; overflow-x: auto; padding-bottom: 4px; }
-  .cs-nav-item { white-space: nowrap; flex-shrink: 0; width: auto; }
+}
+.page-icon { font-size: 14px; line-height: 1.2; flex-shrink: 0; margin-top: 1px; }
+.page-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.page-info small {
+  font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted);
+}
+.course-page-link.active .page-info small { color: var(--accent-dark); }
+.page-info strong {
+  font-size: 12.5px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ---------- Center Workspace Canvas ---------- */
+.workspace {
+  background: var(--bg);
+  min-width: 0;
+  overflow-y: auto;
+  padding: 24px 32px 64px;
+}
+.preview-stage {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+.preview-stage iframe {
+  display: block;
+  width: 100%;
+  min-height: 700px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--paper);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ---------- Right Chat / Companion Panel (Docked) ---------- */
+.chat-shell {
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  display: flex; flex-direction: column;
+  height: calc(100vh - 52px);
+  position: sticky; top: 52px;
+  overflow: hidden;
+}
+.chat-header {
+  height: 48px; padding: 0 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.chat-header-identity {
+  display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600;
+}
+.chat-avatar { font-size: 15px; }
+.chat-collapse-btn {
+  border: 0; background: transparent; color: var(--muted);
+  font-size: 15px; padding: 4px 8px; border-radius: 4px;
+}
+.chat-collapse-btn:hover { background: var(--line); color: var(--text); }
+
+.chat-log {
+  flex: 1; overflow-y: auto; padding: 18px 16px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.chat-empty { color: var(--muted); font-size: 13px; text-align: center; margin-top: 32px; }
+.chat-session { display: flex; flex-direction: column; gap: 10px; }
+.chat-session-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted); margin: 0 0 6px;
+  padding-bottom: 4px; border-bottom: 1px dashed var(--line);
+}
+.chat-turn { display: flex; flex-direction: column; gap: 8px; }
+.chat-turn-user, .chat-turn-agent {
+  padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.5;
+}
+.chat-turn-user { background: var(--paper-2); color: var(--text); }
+.chat-turn-agent { background: var(--paper); color: var(--text); border: 1px solid var(--line); }
+.chat-author {
+  display: block; font-size: 10px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 3px;
+}
+.chat-text { white-space: pre-wrap; }
+.chat-turn-reasoning {
+  font-size: 11.5px; color: var(--muted);
+  background: var(--paper-2); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 8px;
+}
+.chat-turn-reasoning summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+.chat-turn-reasoning ul { margin: 4px 0 0; padding-left: 16px; }
+
+@media (max-width: 900px) {
+  .studio-body { grid-template-columns: 1fr; }
+  .course-nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  .workspace { padding: 16px 12px; }
+  .preview-stage iframe { border-radius: 12px; }
+  .studio-body.chat-open { grid-template-columns: 1fr; }
+  .chat-shell { position: fixed; inset: 0; z-index: 50; width: 100%; height: 100vh; }
 }
 `;

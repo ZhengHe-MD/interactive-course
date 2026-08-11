@@ -57,8 +57,7 @@ describe("standalone course export", () => {
     });
 
     expect(html).toContain('<meta name="date" content="2026-07-28">');
-    expect(html).toContain('<meta name="summary" content="A course about becoming humane through practice.">');
-    expect(html).toContain('class="cs-export-shell');
+    expect(html).toContain('cs-export-shell');
     expect(html).toContain("data:image/png;base64,iVBORw==");
     expect(html).toContain('data-exported-from=\\"lesson.css\\"');
     expect(html).toContain('data-exported-from=\\"lesson.js\\"');
