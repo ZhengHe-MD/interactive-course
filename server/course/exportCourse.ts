@@ -277,12 +277,6 @@ export async function buildStandaloneCourse(options: {
     });
   }
 
-  function resizeFrame() {
-    const doc = frame.contentDocument;
-    if (!doc) return;
-    frame.style.height = Math.max(700, doc.documentElement.scrollHeight, doc.body?.scrollHeight || 0) + "px";
-  }
-
   function showPage(index, sectionId) {
     activeIndex = Math.max(0, Math.min(data.pages.length - 1, index));
     const page = data.pages[activeIndex];
@@ -293,18 +287,17 @@ export async function buildStandaloneCourse(options: {
     
     location.hash = encodeURIComponent(page.path);
     renderNavigation();
-    observer?.disconnect();
     frame.onload = () => {
       const doc = frame.contentDocument;
       if (!doc) return;
       wireCourseLinks(doc);
-      if (sectionId) doc.getElementById(sectionId)?.scrollIntoView();
-      observer = new ResizeObserver(resizeFrame);
-      observer.observe(doc.documentElement);
-      resizeFrame();
+      if (sectionId) {
+        doc.getElementById(sectionId)?.scrollIntoView();
+      } else {
+        frame.contentWindow?.scrollTo({ top: 0, behavior: "instant" });
+      }
     };
     frame.srcdoc = page.html;
-    window.scrollTo({ top: 0, behavior: "instant" });
   }
 
   function escapeHtml(str) {
@@ -518,8 +511,9 @@ const exportShellCss = `
 * { box-sizing: border-box; }
 html, body {
   margin: 0; padding: 0;
+  width: 100%; height: 100%;
+  overflow: hidden;
   background: var(--bg); color: var(--text);
-  min-height: 100vh;
 }
 button { font: inherit; cursor: pointer; }
 
@@ -528,15 +522,15 @@ button { font: inherit; cursor: pointer; }
 }
 
 .studio-shell {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  width: 100%; height: 100vh;
+  display: flex; flex-direction: column;
+  overflow: hidden;
 }
 
 /* ---------- Slim Topbar (52px) ---------- */
 .studio-topbar {
-  position: sticky; top: 0; z-index: 40;
-  height: 52px; padding: 0 20px;
+  height: 52px; flex-shrink: 0;
+  padding: 0 20px;
   display: flex; align-items: center; justify-content: space-between;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
@@ -595,9 +589,11 @@ button { font: inherit; cursor: pointer; }
 
 /* ---------- 3-Column Studio Body ---------- */
 .studio-body {
+  flex: 1; min-height: 0;
+  height: calc(100vh - 52px);
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr) 0;
-  flex: 1; min-height: calc(100vh - 52px);
+  overflow: hidden;
   transition: grid-template-columns 0.22s ease;
 }
 .studio-body.chat-open {
@@ -610,7 +606,7 @@ button { font: inherit; cursor: pointer; }
   border-right: 1px solid var(--line);
   padding: 20px 14px;
   overflow-y: auto;
-  position: sticky; top: 52px; height: calc(100vh - 52px);
+  height: 100%;
 }
 .course-nav-header {
   display: flex; align-items: center;
@@ -675,20 +671,25 @@ button { font: inherit; cursor: pointer; }
 /* ---------- Center Workspace Canvas ---------- */
 .workspace {
   background: var(--bg);
-  min-width: 0;
-  overflow-y: auto;
-  padding: 24px 32px 64px;
+  min-width: 0; min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  padding: 18px 24px 24px;
+  display: flex;
+  flex-direction: column;
 }
 .preview-stage {
-  max-width: 1080px;
-  margin: 0 auto;
+  width: 100%; height: 100%;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
 }
 .preview-stage iframe {
   display: block;
-  width: 100%;
-  min-height: 700px;
+  width: min(1280px, 96%);
+  height: 100%;
   border: 0;
-  border-radius: 20px;
+  border-radius: 24px;
   background: var(--paper);
   box-shadow: var(--shadow-lg);
 }
@@ -698,8 +699,7 @@ button { font: inherit; cursor: pointer; }
   background: var(--surface);
   border-left: 1px solid var(--line);
   display: flex; flex-direction: column;
-  height: calc(100vh - 52px);
-  position: sticky; top: 52px;
+  height: 100%;
   overflow: hidden;
 }
 .chat-header {
@@ -750,10 +750,13 @@ button { font: inherit; cursor: pointer; }
 .chat-turn-reasoning ul { margin: 4px 0 0; padding-left: 16px; }
 
 @media (max-width: 900px) {
-  .studio-body { grid-template-columns: 1fr; }
+  html, body { overflow: auto; }
+  .studio-shell { height: auto; overflow: visible; }
+  .studio-body { grid-template-columns: 1fr; height: auto; overflow: visible; }
   .course-nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
-  .workspace { padding: 16px 12px; }
-  .preview-stage iframe { border-radius: 12px; }
+  .workspace { padding: 16px 12px; height: auto; overflow: visible; }
+  .preview-stage { height: 80vh; }
+  .preview-stage iframe { border-radius: 12px; height: 100%; }
   .studio-body.chat-open { grid-template-columns: 1fr; }
   .chat-shell { position: fixed; inset: 0; z-index: 50; width: 100%; height: 100vh; }
 }
