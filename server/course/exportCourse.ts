@@ -79,9 +79,14 @@ export async function buildStandaloneCourse(options: {
   <meta name="summary" content="${tilMetadata(summary)}">
   <meta name="course-studio-export" content="1">
   <title>${tilMetadata(title)}</title>
+  <link rel="stylesheet" href="/assets/css/site.css">
+  <link rel="alternate" type="application/atom+xml" title="郑鹤 · ZhengHe" href="/feed.xml">
+  <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+  <script src="/assets/js/site.js"></script>
   <style>${exportShellCss}</style>
 </head>
 <body>
+<site-nav active="courses"></site-nav>
 <!-- til:body -->
 <div class="cs-export-shell">
   <header class="cs-export-header">
@@ -438,4 +443,11 @@ const exportShellCss = `
 .cs-companion-drawer{position:fixed;top:0;right:0;width:min(440px,90vw);height:100vh;background:#fff;border-left:1px solid var(--line);box-shadow:-8px 0 32px rgba(0,0,0,.12);z-index:900;display:flex;flex-direction:column;animation:cs-slide-in .2s ease-out}.cs-companion-header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--line);background:var(--panel)}.cs-companion-close{border:0;background:transparent;font-size:18px;cursor:pointer;color:var(--muted);padding:4px 8px;border-radius:4px}.cs-companion-close:hover{background:rgba(0,0,0,.05);color:var(--ink)}.cs-companion-content{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:24px}.cs-companion-empty{color:var(--muted);font-size:14px;text-align:center;margin-top:40px}.cs-companion-session-title{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px;padding-bottom:6px;border-bottom:1px dashed var(--line)}.cs-companion-turn{display:flex;flex-direction:column;gap:10px;margin-bottom:18px}.cs-turn-block{padding:12px 14px;border-radius:10px;font-size:14px;line-height:1.55}.cs-turn-user{background:#f0eae1;color:var(--ink);border:1px solid #e2d7c7}.cs-turn-agent{background:#fffdf8;color:var(--ink);border:1px solid var(--line)}.cs-turn-author{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}.cs-turn-text{white-space:pre-wrap}.cs-turn-reasoning{margin:2px 0;font-size:12px;color:var(--muted);background:rgba(166,83,49,.06);border:1px solid rgba(166,83,49,.2);border-radius:8px;padding:6px 10px}.cs-turn-reasoning summary{cursor:pointer;font-weight:600;color:var(--accent)}.cs-turn-reasoning ul{margin:6px 0 0;padding-left:18px;line-height:1.4}.cs-companion-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:800;backdrop-filter:blur(2px)}@keyframes cs-slide-in{from{transform:translateX(100%)}to{transform:translateX(0)}}
 @media(max-width:760px){.cs-export-header{display:block}.cs-export-actions{margin-top:16px}.cs-export-layout{display:block}.cs-export-nav{position:static;width:auto;height:auto;border-right:0;border-bottom:1px solid var(--line)}.cs-export-nav #cs-page-list{display:flex;overflow:auto}.cs-export-nav button{min-width:180px}.cs-export-reader{padding-inline:10px}.cs-export-pagebar{padding-inline:6px}}
 @media print{.cs-export-nav,.cs-export-pager,.cs-companion-toggle,.cs-companion-drawer,.cs-companion-backdrop{display:none}.cs-export-layout{display:block}.cs-export-reader{padding:0}.cs-export-reader iframe{border:0;box-shadow:none}.cs-export-header{padding:20px}}
+[data-theme="dark"]{--paper:oklch(0.19 0.008 60);--ink:oklch(0.93 0.006 80);--muted:oklch(0.68 0.008 70);--line:oklch(0.31 0.008 60);--accent:oklch(0.7 0.15 42);--panel:oklch(0.225 0.008 60)}
+[data-theme="dark"] .cs-export-header{background:rgba(30,28,26,.82)}
+[data-theme="dark"] .cs-companion-drawer{background:oklch(0.225 0.008 60);color:oklch(0.93 0.006 80)}
+[data-theme="dark"] .cs-companion-header{background:oklch(0.26 0.009 60)}
+[data-theme="dark"] .cs-turn-user{background:oklch(0.26 0.009 60);color:oklch(0.93 0.006 80);border-color:oklch(0.31 0.008 60)}
+[data-theme="dark"] .cs-turn-agent{background:oklch(0.225 0.008 60);color:oklch(0.93 0.006 80);border-color:oklch(0.31 0.008 60)}
+[data-theme="dark"] .cs-export-reader iframe{background:oklch(0.26 0.009 60);border-color:oklch(0.31 0.008 60)}
 `;
