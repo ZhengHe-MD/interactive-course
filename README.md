@@ -15,9 +15,9 @@ Course Studio is a local workspace where a learner and Codex co-design an intera
 
 Courses deliberately have no build step. Learner material is stored outside this source repository in `~/.courses/<course-id>` by default. The course library is its own Git repository, so checkpoints and reverts remain available without mixing generated material into Course Studio's history. A new course begins without course material; Course Studio shows its own empty state while the agent interviews the learner, then creates `syllabus.html` as ordinary HTML. Once approved, that syllabus remains available while lessons are added as `session1.html`, `session2.html`, and later pages. Existing `index.html` courses remain readable as legacy syllabi.
 
-## Publish a finished course to the personal site
+## Export a standalone course
 
-Choose **Export** in the Studio toolbar after the course agent has finished its current turn. Leave the prompt blank to export the course as-is, or enter an export-only instruction such as “translate the complete course into Simplified Chinese” or “add an executive summary to the opening page.” Prompted changes happen in a temporary copy and are discarded after the download. The resulting HTML contains the complete multi-session course, embedded assets, interactive widgets, and the co-design companion drawer with native site chrome. To publish it, place the file at `courses/<course-slug>/index.html` in the sibling [`ZhengHe-MD.github.io`](../ZhengHe-MD.github.io) repository and run `npm run build`.
+Choose **Export** in the Studio toolbar after the course agent has finished its current turn. Leave the prompt blank to export the course as-is, or enter an export-only instruction such as “translate the complete course into Simplified Chinese” or “add an executive summary to the opening page.” Prompted changes happen in a temporary copy and are discarded after the download. The resulting HTML is completely self-contained, bundling all session pages, inlined assets, interactive sandboxes, and the co-design companion drawer into a portable single-file reader that opens directly in any browser.
 
 ## Run locally
 

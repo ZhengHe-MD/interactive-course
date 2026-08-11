@@ -75,19 +75,14 @@ export async function buildStandaloneCourse(options: {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="date" content="${tilMetadata(date)}">
-  <meta name="summary" content="${tilMetadata(summary)}">
+  <meta name="date" content="${sanitizeMeta(date)}">
+  <meta name="summary" content="${sanitizeMeta(summary)}">
+  <meta name="description" content="${sanitizeMeta(summary)}">
   <meta name="course-studio-export" content="1">
-  <title>${tilMetadata(title)}</title>
-  <link rel="stylesheet" href="/assets/css/site.css">
-  <link rel="alternate" type="application/atom+xml" title="郑鹤 · ZhengHe" href="/feed.xml">
-  <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
-  <script src="/assets/js/site.js"></script>
+  <title>${sanitizeMeta(title)}</title>
   <style>${exportShellCss}</style>
 </head>
 <body>
-<site-nav active="courses"></site-nav>
-<!-- til:body -->
 <div class="cs-export-shell">
   <header class="cs-export-header">
     <div>
@@ -127,7 +122,6 @@ export async function buildStandaloneCourse(options: {
   <div id="cs-companion-content" class="cs-companion-content"></div>
 </aside>
 <div id="cs-companion-backdrop" class="cs-companion-backdrop" hidden></div>
-<!-- /til:body -->
 <script>
 (() => {
   const data = ${data};
@@ -433,21 +427,23 @@ function escapeAttribute(value: string) {
   return escapeHtml(value).replace(/"/g, "&quot;");
 }
 
-function tilMetadata(value: string) {
+function sanitizeMeta(value: string) {
   return value.replace(/[<>]/g, "").replace(/"/g, "'").replace(/[\r\n]+/g, " ");
 }
 
 const exportShellCss = `
-:root{color-scheme:light;--paper:#f5f0e7;--ink:#292521;--muted:#716b64;--line:#d8cfc1;--accent:#a65331;--panel:#fffdf8;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+:root{color-scheme:light dark;--paper:#f5f0e7;--ink:#292521;--muted:#716b64;--line:#d8cfc1;--accent:#a65331;--panel:#fffdf8;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink)}button{font:inherit}.cs-export-shell{min-height:100vh}.cs-export-header{display:flex;align-items:end;justify-content:space-between;gap:32px;padding:42px clamp(22px,5vw,72px) 30px;border-bottom:1px solid var(--line);background:rgba(255,253,248,.72)}.cs-export-eyebrow{margin:0 0 10px;color:var(--accent);font-size:12px;font-weight:750;letter-spacing:.12em;text-transform:uppercase}.cs-export-header h1{max-width:18ch;margin:0;font-family:Georgia,"Noto Serif SC",serif;font-size:clamp(30px,5vw,60px);font-weight:500;line-height:1.02}.cs-export-topic{max-width:65ch;margin:14px 0 0;color:var(--muted);line-height:1.55}.cs-export-actions{display:flex;gap:10px;align-items:center}.cs-companion-toggle{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--line);border-radius:20px;background:var(--panel);color:var(--ink);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s ease}.cs-companion-toggle:hover,.cs-companion-toggle.active{background:var(--accent);color:#fff;border-color:var(--accent)}.cs-export-layout{display:grid;grid-template-columns:250px minmax(0,1fr);max-width:1500px;margin:0 auto}.cs-export-nav{position:sticky;top:0;align-self:start;height:100vh;padding:30px 18px;border-right:1px solid var(--line);overflow:auto}.cs-export-nav>strong{display:block;padding:0 10px 14px;font-size:12px;letter-spacing:.08em;text-transform:uppercase}.cs-export-nav button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:0;border-radius:8px;background:transparent;color:var(--muted);text-align:left;cursor:pointer}.cs-export-nav button:hover,.cs-export-nav button.active{background:var(--panel);color:var(--ink)}.cs-export-reader{min-width:0;padding:24px clamp(14px,3vw,42px) 60px}.cs-export-pagebar{display:flex;justify-content:space-between;gap:20px;padding:0 2px 16px;color:var(--muted);font-size:13px}.cs-export-pagebar span:first-child{color:var(--ink);font-weight:700}.cs-export-reader iframe{display:block;width:100%;min-height:520px;border:1px solid var(--line);border-radius:12px;background:white;box-shadow:0 10px 32px rgba(53,45,34,.08)}.cs-export-pager{display:flex;justify-content:space-between;padding-top:18px}.cs-export-pager button{padding:9px 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel);cursor:pointer}.cs-export-pager button:disabled{opacity:.35;cursor:default}
 .cs-companion-drawer{position:fixed;top:0;right:0;width:min(440px,90vw);height:100vh;background:#fff;border-left:1px solid var(--line);box-shadow:-8px 0 32px rgba(0,0,0,.12);z-index:900;display:flex;flex-direction:column;animation:cs-slide-in .2s ease-out}.cs-companion-header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--line);background:var(--panel)}.cs-companion-close{border:0;background:transparent;font-size:18px;cursor:pointer;color:var(--muted);padding:4px 8px;border-radius:4px}.cs-companion-close:hover{background:rgba(0,0,0,.05);color:var(--ink)}.cs-companion-content{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:24px}.cs-companion-empty{color:var(--muted);font-size:14px;text-align:center;margin-top:40px}.cs-companion-session-title{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px;padding-bottom:6px;border-bottom:1px dashed var(--line)}.cs-companion-turn{display:flex;flex-direction:column;gap:10px;margin-bottom:18px}.cs-turn-block{padding:12px 14px;border-radius:10px;font-size:14px;line-height:1.55}.cs-turn-user{background:#f0eae1;color:var(--ink);border:1px solid #e2d7c7}.cs-turn-agent{background:#fffdf8;color:var(--ink);border:1px solid var(--line)}.cs-turn-author{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}.cs-turn-text{white-space:pre-wrap}.cs-turn-reasoning{margin:2px 0;font-size:12px;color:var(--muted);background:rgba(166,83,49,.06);border:1px solid rgba(166,83,49,.2);border-radius:8px;padding:6px 10px}.cs-turn-reasoning summary{cursor:pointer;font-weight:600;color:var(--accent)}.cs-turn-reasoning ul{margin:6px 0 0;padding-left:18px;line-height:1.4}.cs-companion-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:800;backdrop-filter:blur(2px)}@keyframes cs-slide-in{from{transform:translateX(100%)}to{transform:translateX(0)}}
 @media(max-width:760px){.cs-export-header{display:block}.cs-export-actions{margin-top:16px}.cs-export-layout{display:block}.cs-export-nav{position:static;width:auto;height:auto;border-right:0;border-bottom:1px solid var(--line)}.cs-export-nav #cs-page-list{display:flex;overflow:auto}.cs-export-nav button{min-width:180px}.cs-export-reader{padding-inline:10px}.cs-export-pagebar{padding-inline:6px}}
 @media print{.cs-export-nav,.cs-export-pager,.cs-companion-toggle,.cs-companion-drawer,.cs-companion-backdrop{display:none}.cs-export-layout{display:block}.cs-export-reader{padding:0}.cs-export-reader iframe{border:0;box-shadow:none}.cs-export-header{padding:20px}}
-[data-theme="dark"]{--paper:oklch(0.19 0.008 60);--ink:oklch(0.93 0.006 80);--muted:oklch(0.68 0.008 70);--line:oklch(0.31 0.008 60);--accent:oklch(0.7 0.15 42);--panel:oklch(0.225 0.008 60)}
-[data-theme="dark"] .cs-export-header{background:rgba(30,28,26,.82)}
-[data-theme="dark"] .cs-companion-drawer{background:oklch(0.225 0.008 60);color:oklch(0.93 0.006 80)}
-[data-theme="dark"] .cs-companion-header{background:oklch(0.26 0.009 60)}
-[data-theme="dark"] .cs-turn-user{background:oklch(0.26 0.009 60);color:oklch(0.93 0.006 80);border-color:oklch(0.31 0.008 60)}
-[data-theme="dark"] .cs-turn-agent{background:oklch(0.225 0.008 60);color:oklch(0.93 0.006 80);border-color:oklch(0.31 0.008 60)}
-[data-theme="dark"] .cs-export-reader iframe{background:oklch(0.26 0.009 60);border-color:oklch(0.31 0.008 60)}
+@media (prefers-color-scheme: dark){
+  :root{--paper:#1c1917;--ink:#f5f5f4;--muted:#a8a29e;--line:#44403c;--accent:#f97316;--panel:#292524}
+  .cs-export-header{background:rgba(41,37,36,.85)}
+  .cs-companion-drawer{background:#292524;color:#f5f5f4}
+  .cs-companion-header{background:#1c1917}
+  .cs-turn-user{background:#1c1917;color:#f5f5f4;border-color:#44403c}
+  .cs-turn-agent{background:#292524;color:#f5f5f4;border-color:#44403c}
+  .cs-export-reader iframe{background:#1c1917;border-color:#44403c}
+}
 `;
