@@ -75,14 +75,14 @@ export async function buildStandaloneCourse(options: {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="date" content="${tilMetadata(date)}">
-  <meta name="summary" content="${tilMetadata(summary)}">
+  <meta name="date" content="${sanitizeMeta(date)}">
+  <meta name="summary" content="${sanitizeMeta(summary)}">
+  <meta name="description" content="${sanitizeMeta(summary)}">
   <meta name="course-studio-export" content="1">
-  <title>${tilMetadata(title)}</title>
+  <title>${sanitizeMeta(title)}</title>
   <style>${exportShellCss}</style>
 </head>
 <body>
-<!-- til:body -->
 <div class="cs-export-shell">
   <div class="cs-export-container">
     <header class="cs-export-header">
@@ -124,7 +124,6 @@ export async function buildStandaloneCourse(options: {
   </div>
 </div>
 <div id="cs-companion-backdrop" class="cs-companion-backdrop" hidden></div>
-<!-- /til:body -->
 <script>
 (() => {
   const data = ${data};
@@ -526,7 +525,7 @@ function escapeAttribute(value: string) {
   return escapeHtml(value).replace(/"/g, "&quot;");
 }
 
-function tilMetadata(value: string) {
+function sanitizeMeta(value: string) {
   return value.replace(/[<>]/g, "").replace(/"/g, "'").replace(/[\r\n]+/g, " ");
 }
 
@@ -534,7 +533,7 @@ const exportShellCss = `
 @import url("https://fonts.googleapis.com/css2?family=Caprasimo&family=Figtree:ital,wght@0,400;0,600;0,700;1,400&display=swap");
 
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
   --color-bg: #f5ead8;
   --color-surface: #ebddc5;
   --color-text: #201e1d;
@@ -1041,6 +1040,54 @@ button { font: inherit; }
   .cs-frame-card {
     border: 0;
     box-shadow: none;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #1c1815;
+    --color-surface: #262019;
+    --color-text: #f2ece2;
+    --color-accent: #e2874a;
+    --color-accent-2: #9cb07c;
+    --color-divider: color-mix(in srgb, #f2ece2 14%, transparent);
+
+    --color-neutral-100: #2e2b25;
+    --color-neutral-200: #474238;
+    --color-neutral-300: #645c50;
+    --color-neutral-400: #82796a;
+    --color-neutral-500: #a19786;
+    --color-neutral-600: #c0b6a5;
+    --color-neutral-700: #dcd3c4;
+    --color-neutral-800: #eee7db;
+    --color-neutral-900: #f9f4ed;
+
+    --color-accent-100: #402310;
+    --color-accent-200: #643312;
+    --color-accent-300: #8c491a;
+    --color-accent-400: #b2622d;
+    --color-accent-500: #d67f48;
+    --color-accent-600: #f6a06b;
+    --color-accent-700: #ffc6a5;
+    --color-accent-800: #ffe1d0;
+    --color-accent-900: #fff2eb;
+
+    --color-accent-2-100: #272e1b;
+    --color-accent-2-200: #3d472b;
+    --color-accent-2-300: #56633f;
+    --color-accent-2-400: #728157;
+    --color-accent-2-500: #8fa073;
+    --color-accent-2-600: #aebf92;
+    --color-accent-2-700: #ccdbb2;
+    --color-accent-2-800: #e1eecc;
+    --color-accent-2-900: #f0fae1;
+  }
+  .cs-frame-card,
+  .cs-frame-card iframe {
+    background: var(--color-surface);
+  }
+  .cs-turn-agent {
+    background: var(--color-surface);
   }
 }
 `;

@@ -8,6 +8,8 @@ import type {
   StoredTurn,
   TranscriptItem,
 } from "../../shared/protocol";
+import type { PersistedThread, UserInput } from "../codex/types";
+import { extractLearnerRequest } from "../codex/CodexClient";
 
 const CONVERSATIONS_FILE = "conversations.json";
 
@@ -16,7 +18,12 @@ export async function readStoredConversations(courseDirectory: string): Promise<
   try {
     const raw = await readFile(filePath, "utf8");
     const parsed = JSON.parse(raw) as unknown;
-    if (parsed && typeof parsed === "object" && (parsed as StoredConversationsData).version === 1 && Array.isArray((parsed as StoredConversationsData).conversations)) {
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      (parsed as StoredConversationsData).version === 1 &&
+      Array.isArray((parsed as StoredConversationsData).conversations)
+    ) {
       return parsed as StoredConversationsData;
     }
   } catch (error) {
@@ -123,6 +130,83 @@ export function storedConversationToTranscriptItems(storedConv: StoredConversati
     }
   }
   return items;
+}
+
+export function storedConversationFromThread(thread: PersistedThread): StoredConversation {
+  const turns: StoredTurn[] = [];
+
+  for (const turn of thread.turns) {
+    let prompt = "";
+    let response = "";
+    const reasoning: string[] = [];
+
+    for (const item of turn.items) {
+      if (item.type === "userMessage") {
+        const text = item.content?.find((input): input is Extract<UserInput, { type: "text" }> => input.type === "text")?.text
+          ?? item.text;
+        if (text) {
+          prompt = extractLearnerRequest(text);
+        }
+      } else if (item.type === "agentMessage" && item.text) {
+        response = item.text.trim();
+      } else if (item.type === "reasoning" && item.summary?.length) {
+        for (const s of item.summary) {
+          if (s && s.trim()) reasoning.push(s.trim());
+        }
+      }
+    }
+
+    if (prompt || response) {
+      turns.push({
+        id: turn.id,
+        prompt,
+        response,
+        reasoning,
+        createdAt: new Date((thread.createdAt || Math.floor(Date.now() / 1000)) * 1000).toISOString(),
+      });
+    }
+  }
+
+  const firstPrompt = turns[0]?.prompt;
+  const title = thread.name?.trim()
+    || (firstPrompt ? (firstPrompt.length > 56 ? `${firstPrompt.slice(0, 55).trimEnd()}…` : firstPrompt) : "New Conversation");
+
+  return {
+    id: thread.id,
+    title,
+    createdAt: new Date(thread.createdAt * 1000).toISOString(),
+    updatedAt: new Date(thread.updatedAt * 1000).toISOString(),
+    turns,
+  };
+}
+
+export async function syncConversationsWithCodex(
+  courseDirectory: string,
+  codexThreads: PersistedThread[],
+): Promise<StoredConversationsData> {
+  const storedData = await readStoredConversations(courseDirectory);
+  const codexConvs = codexThreads.map(storedConversationFromThread).filter((c) => c.turns.length > 0);
+
+  const mergedConversations: StoredConversation[] = [];
+  const codexMap = new Map(codexConvs.map((c) => [c.id, c]));
+
+  for (const codexConv of codexConvs) {
+    mergedConversations.push(codexConv);
+  }
+
+  for (const storedConv of storedData.conversations) {
+    if (!codexMap.has(storedConv.id)) {
+      mergedConversations.push(storedConv);
+    }
+  }
+
+  const result: StoredConversationsData = {
+    version: 1,
+    conversations: mergedConversations,
+  };
+
+  await writeStoredConversations(courseDirectory, result);
+  return result;
 }
 
 export function mergeConversationSummaries(
