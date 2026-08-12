@@ -22,6 +22,52 @@
   --shadow-sm: 0 1px 2px color-mix(in srgb, #2e2b25 14%, transparent);
   --shadow-md: 0 3px 10px color-mix(in srgb, #2e2b25 16%, transparent);
   --shadow-lg: 0 12px 32px color-mix(in srgb, #2e2b25 22%, transparent);
+
+  /* Organic Design System Tokens */
+  --color-bg: #f5ead8;
+  --color-surface: #ebddc5;
+  --color-text: #201e1d;
+  --color-accent: #c67139;
+  --color-accent-2: #7a8a5e;
+  --color-divider: color-mix(in srgb, #201e1d 16%, transparent);
+
+  --color-neutral-100: #f9f4ed;
+  --color-neutral-200: #eee7db;
+  --color-neutral-300: #dcd3c4;
+  --color-neutral-400: #c0b6a5;
+  --color-neutral-500: #a19786;
+  --color-neutral-600: #82796a;
+  --color-neutral-700: #645c50;
+  --color-neutral-800: #474238;
+  --color-neutral-900: #2e2b25;
+
+  --color-accent-100: #fff2eb;
+  --color-accent-200: #ffe1d0;
+  --color-accent-300: #ffc6a5;
+  --color-accent-400: #f6a06b;
+  --color-accent-500: #d67f48;
+  --color-accent-600: #b2622d;
+  --color-accent-700: #8c491a;
+  --color-accent-800: #643312;
+  --color-accent-900: #402310;
+
+  --color-accent-2-100: #f0fae1;
+  --color-accent-2-200: #e1eecc;
+  --color-accent-2-300: #ccdbb2;
+  --color-accent-2-400: #aebf92;
+  --color-accent-2-500: #8fa073;
+  --color-accent-2-600: #728157;
+  --color-accent-2-700: #56633f;
+  --color-accent-2-800: #3d472b;
+  --color-accent-2-900: #272e1b;
+
+  --font-heading: "Caprasimo", Georgia, serif;
+  --font-heading-weight: 400;
+  --font-body: "Figtree", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 28px;
 }
 
 * { box-sizing: border-box; }
@@ -110,6 +156,11 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .welcome-back:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .welcome-actions { display: flex; align-items: center; gap: 16px; margin-left: auto; }
 .welcome-course-picker { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+.welcome-course-picker-select-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
 .welcome-course-picker select {
   max-width: 250px;
   padding: 8px 30px 8px 11px;
@@ -249,6 +300,28 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .topbar-wordmark { padding: 0; font-size: 17px; }
 .topbar-wordmark:hover { color: var(--accent-dark); }
 .topbar-wordmark .brand-mark { width: 26px; height: 26px; }
+.studio-top-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 1000;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.studio-top-progress-bar::after {
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--accent), var(--accent-dark), transparent);
+  content: "";
+  animation: top-progress-shimmer 1.2s ease-in-out infinite;
+}
+@keyframes top-progress-shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(350%); }
+}
 .course-breadcrumb {
   display: flex;
   align-items: center;
@@ -264,6 +337,18 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.course-switcher-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.course-switcher-spinner {
+  position: absolute;
+  right: 8px;
+  pointer-events: none;
+  color: var(--accent);
 }
 .course-breadcrumb select {
   width: min(260px, 24vw);
@@ -367,15 +452,15 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .export-dialog {
   width: min(620px, 100%);
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  background: var(--paper);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
   box-shadow: var(--shadow-lg);
 }
-.export-dialog form { display: grid; gap: 14px; padding: 24px; }
+.export-dialog form { display: grid; gap: 14px; padding: 26px; }
 .export-dialog header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
 .export-dialog h2 { margin: 0; font: 400 25px/1.15 var(--heading); }
-.export-dialog header p { max-width: 52ch; margin: 8px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.export-dialog header p { max-width: 52ch; margin: 8px 0 0; color: var(--color-neutral-700); font-size: 14px; line-height: 1.5; }
 .export-dialog-close {
   display: grid;
   width: 34px;
@@ -384,31 +469,32 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   place-items: center;
   border: 0;
   border-radius: 50%;
-  background: transparent;
-  color: var(--muted);
+  background: var(--color-neutral-200);
+  color: var(--color-neutral-800);
+  transition: background .15s ease, color .15s ease;
 }
-.export-dialog-close:not(:disabled):hover { background: var(--paper-2); color: var(--text); }
+.export-dialog-close:not(:disabled):hover { background: var(--color-accent-200); color: var(--color-accent-900); }
 .export-dialog label { margin-top: 6px; font-size: 12px; font-weight: 700; letter-spacing: .03em; }
 .export-dialog textarea {
   width: 100%;
   min-height: 160px;
   padding: 14px 15px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
   resize: vertical;
   background: #fffdf9;
   font-size: 15px;
   line-height: 1.55;
 }
-.export-dialog textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent); }
+.export-dialog textarea:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 14%, transparent); }
 .export-dialog textarea::placeholder { color: color-mix(in srgb, var(--muted) 72%, transparent); }
-.export-dialog-hint { margin: -4px 0 2px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.export-dialog-hint { margin: -4px 0 2px; color: var(--color-neutral-700); font-size: 12px; line-height: 1.5; }
 .export-dialog footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
-.export-dialog footer button { display: inline-flex; align-items: center; gap: 7px; padding: 9px 15px; border-radius: 999px; }
-.export-dialog-cancel { border: 1px solid var(--line); background: transparent; }
-.export-dialog-cancel:not(:disabled):hover { background: var(--paper-2); }
-.export-dialog-submit { border: 1px solid var(--accent); background: var(--accent); color: var(--bg); font-family: var(--heading); }
-.export-dialog-submit:not(:disabled):hover { background: #b2622d; }
+.export-dialog footer button { display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; border-radius: 999px; font-family: var(--font-body); font-weight: 700; font-size: 14px; }
+.export-dialog-cancel { border: 1px solid var(--color-divider); background: transparent; color: var(--color-text); }
+.export-dialog-cancel:not(:disabled):hover { background: var(--color-accent-100); }
+.export-dialog-submit { border: 1px solid var(--color-accent); background: var(--color-accent); color: #fff; }
+.export-dialog-submit:not(:disabled):hover { background: var(--color-accent-600); border-color: var(--color-accent-600); }
 
 .import-button {
   display: inline-flex;
@@ -759,6 +845,17 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   letter-spacing: .08em;
   text-transform: uppercase;
 }
+.course-starting-card > span.course-switching-tag {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+.course-switching-card h1 {
+  max-width: 16ch;
+  margin: 22px 0 30px;
+  font: 400 clamp(32px, 4vw, 54px)/1.08 var(--heading);
+  text-wrap: balance;
+}
 .course-starting-card h1 { max-width: 13ch; margin: 22px 0 34px; font: 400 clamp(38px, 5vw, 68px)/1.04 var(--heading); text-wrap: balance; }
 .course-starting-card strong { margin-top: 15px; font-size: 14px; }
 .course-starting-card p { max-width: 48ch; margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
@@ -938,9 +1035,11 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .message.agent .markdown-content {
   box-sizing: border-box;
   max-width: 100%;
-  padding: 11px 15px;
-  border-radius: 4px 16px 16px 16px;
-  background: var(--paper);
+  padding: 13px 16px;
+  border-radius: 4px var(--radius-md) var(--radius-md) var(--radius-md);
+  background: #fffdf8;
+  border: 1px solid var(--color-divider);
+  color: var(--color-text);
   font-size: 14px;
   line-height: 1.6;
   overflow-wrap: anywhere;
@@ -996,12 +1095,13 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   box-sizing: border-box;
   max-width: 100%;
   margin: 0;
-  padding: 10px 14px;
-  border-radius: 16px 16px 4px 16px;
-  background: var(--accent);
-  color: var(--bg);
+  padding: 12px 16px;
+  border-radius: var(--radius-md) var(--radius-md) 4px var(--radius-md);
+  background: var(--color-accent-2-100);
+  border: 1px solid var(--color-accent-2-300);
+  color: var(--color-text);
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.6;
   overflow-wrap: anywhere;
   word-break: break-word;
   white-space: pre-wrap;

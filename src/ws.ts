@@ -45,6 +45,7 @@ export type StudioState = {
   courseChanged: boolean;
   items: ChatItem[];
   working: boolean;
+  switchingCourseId: string | null;
   /** The agent message the current turn is streaming into. */
   pendingId: string | null;
   /** turnId → the message id it belongs to, so late events land correctly. */
@@ -66,6 +67,7 @@ export const initialState: StudioState = {
   courseChanged: false,
   items: [],
   working: false,
+  switchingCourseId: null,
   pendingId: null,
   turnMessages: {},
 };
@@ -75,6 +77,7 @@ type Action =
   | { type: "server"; message: ServerMessage }
   | { type: "send"; id: string; agentId: string; text: string; selections: Selection[] }
   | { type: "start"; id: string; agentId: string; topic: string }
+  | { type: "course.switching"; courseId: string }
   | { type: "changed.clear" };
 
 function patchAgent(
@@ -136,6 +139,7 @@ function finalizeActivities(activities: Activity[]): Activity[] {
 export function reducer(state: StudioState, action: Action): StudioState {
   if (action.type === "connection") return { ...state, connected: action.connected };
   if (action.type === "changed.clear") return { ...state, courseChanged: false };
+  if (action.type === "course.switching") return { ...state, switchingCourseId: action.courseId };
 
   if (action.type === "send") {
     const updatedTurnMessages = { ...state.turnMessages };
@@ -210,6 +214,7 @@ export function reducer(state: StudioState, action: Action): StudioState {
         courseVersion: message.courseVersion,
         items: message.items,
         working: message.turnActive,
+        switchingCourseId: null,
       };
     case "codex.status":
       return { ...state, codex: message.status };
@@ -218,7 +223,12 @@ export function reducer(state: StudioState, action: Action): StudioState {
     case "checkpoints":
       return { ...state, checkpoints: message.checkpoints };
     case "courses":
-      return { ...state, courseId: message.courseId, courses: message.courses };
+      return {
+        ...state,
+        courseId: message.courseId,
+        courses: message.courses,
+        switchingCourseId: state.switchingCourseId === message.courseId ? null : state.switchingCourseId,
+      };
     case "conversations":
       return { ...state, conversationId: message.conversationId, conversations: message.conversations };
     case "course.opened":
@@ -237,6 +247,7 @@ export function reducer(state: StudioState, action: Action): StudioState {
         courseChanged: false,
         items: message.items,
         working: false,
+        switchingCourseId: null,
         pendingId: null,
         turnMessages: {},
       };
@@ -327,11 +338,12 @@ export function reducer(state: StudioState, action: Action): StudioState {
         };
       });
       if (state.pendingId) {
-        return { ...state, items: nextItems, pendingId: null, working: false };
+        return { ...state, items: nextItems, pendingId: null, working: false, switchingCourseId: null };
       }
       return {
         ...state,
         working: false,
+        switchingCourseId: null,
         items: [...nextItems, { kind: "system", id: uid(), text: message.message, failed: true }],
       };
     }
@@ -438,7 +450,10 @@ export function useStudio(): { state: StudioState; actions: StudioActions } {
         post({ type: "course.start", topic, agent, language });
         dispatch({ type: "start", id: uid(), agentId: uid(), topic });
       },
-      openCourse: (courseId) => post({ type: "course.open", courseId }),
+      openCourse(courseId) {
+        post({ type: "course.open", courseId });
+        dispatch({ type: "course.switching", courseId });
+      },
       newConversation: () => post({ type: "conversation.new" }),
       openConversation: (conversationId) => post({ type: "conversation.open", conversationId }),
       interrupt: () => post({ type: "turn.interrupt" }),

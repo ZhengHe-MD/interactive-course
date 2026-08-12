@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Shield } from "lucide-react";
+import { ArrowLeft, ArrowRight, LoaderCircle, Shield } from "lucide-react";
 import { FormEvent, useRef, useState } from "react";
 import { useI18n } from "../i18n";
 import type { AgentConfig, AgentModel, CourseSummary } from "../types";
@@ -11,6 +11,7 @@ type Props = {
   working: boolean;
   courseId: string;
   courses: CourseSummary[];
+  switchingCourseId?: string | null;
   models?: AgentModel[];
   agentConfig?: AgentConfig | null;
   onAgentConfigChange?: (config: AgentConfig) => void;
@@ -19,11 +20,25 @@ type Props = {
   onStart: (topic: string) => void;
 };
 
-export function Welcome({ connected, hasCourse, working, courseId, courses, models = [], agentConfig = null, onAgentConfigChange = () => {}, onBack, onSwitchCourse, onStart }: Props) {
+export function Welcome({
+  connected,
+  hasCourse,
+  working,
+  courseId,
+  courses,
+  switchingCourseId = null,
+  models = [],
+  agentConfig = null,
+  onAgentConfigChange = () => {},
+  onBack,
+  onSwitchCourse,
+  onStart,
+}: Props) {
   const { t } = useI18n();
   const [topic, setTopic] = useState("");
   const composer = useRef<HTMLTextAreaElement | null>(null);
-  const canStart = connected && !working && topic.trim().length > 0;
+  const isSwitching = Boolean(switchingCourseId);
+  const canStart = connected && !working && !isSwitching && topic.trim().length > 0;
 
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
@@ -47,18 +62,21 @@ export function Welcome({ connected, hasCourse, working, courseId, courses, mode
           {courses.length > 1 && (
             <label className="welcome-course-picker">
               <span>{t("welcome.openCourse")}</span>
-              <select
-                value={courseId}
-                disabled={working}
-                onChange={(event) => onSwitchCourse(event.target.value)}
-              >
-                {courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
-              </select>
+              <div className="welcome-course-picker-select-wrapper">
+                <select
+                  value={switchingCourseId ?? courseId}
+                  disabled={working || isSwitching}
+                  onChange={(event) => onSwitchCourse(event.target.value)}
+                >
+                  {courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
+                </select>
+                {isSwitching && <LoaderCircle className="spin course-switcher-spinner" size={13} />}
+              </div>
             </label>
           )}
           <LanguageSwitch />
           {hasCourse && (
-            <button className="welcome-back" type="button" onClick={onBack}>
+            <button className="welcome-back" type="button" onClick={onBack} disabled={isSwitching}>
               <ArrowLeft size={15} /> {t("welcome.back")}
             </button>
           )}

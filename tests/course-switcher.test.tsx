@@ -148,4 +148,58 @@ describe("course switching UI", () => {
     expect(html).not.toContain(">Course</span>");
     expect(html).not.toContain("Practice");
   });
+
+  it("shows an inline spinner and disables the picker when a course switch is in flight", () => {
+    const html = renderToStaticMarkup(
+      <Toolbar
+        courseTitle="From Silicon to a Simple CPU"
+        courseId="ev-batteries"
+        switchingCourseId="current"
+        courses={courses}
+        inspecting={false}
+        multipleSelection={false}
+        canInspect
+        courseChanged={false}
+        checkpoints={[]}
+        working={false}
+        exporting={false}
+        onHome={() => {}}
+        onSwitchCourse={() => {}}
+        onToggleInspect={() => {}}
+        onToggleMultipleSelection={() => {}}
+        onRevert={() => {}}
+        onExport={() => {}}
+      />,
+    );
+
+    expect(html).toContain("course-switcher-spinner");
+    expect(html).toContain("disabled");
+    expect(html).toContain('title="Opening course…"');
+  });
+
+  it("renders a switching transition card in Preview during course switches", () => {
+    const html = renderToStaticMarkup(
+      <Preview
+        courseId="ev-batteries"
+        courseVersion={1}
+        inspecting={false}
+        multipleSelection={false}
+        courseChanged={false}
+        codex={{ state: "ready" }}
+        switchingCourse={{ id: "current", title: "From Silicon to a Simple CPU" }}
+        working={false}
+        onSelection={() => {}}
+        onReadingPosition={() => {}}
+        onInspectCancelled={() => {}}
+        onStartRequested={() => {}}
+      />,
+    );
+
+    expect(html).toContain("course-switching-card");
+    expect(html).toContain("From Silicon to a Simple CPU");
+    expect(html).toContain("course-starting-progress active");
+    expect(html).toContain("Opening course environment…");
+    expect(html).not.toContain("<iframe");
+  });
 });
+
