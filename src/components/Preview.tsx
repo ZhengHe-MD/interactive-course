@@ -21,8 +21,10 @@ type Props = {
   courseChanged: boolean;
   codex: CodexStatus;
   startingTopic?: string;
+  switchingCourse?: { id: string; title: string } | null;
   working: boolean;
   onSelection: (selection: Selection) => void;
+  onSelectionRemoved?: (id: string) => void;
   onSelectionCleared?: () => void;
   onReadingPosition: (top: number, section?: CourseSection) => void;
   onInspectCancelled: () => void;
@@ -35,7 +37,25 @@ type Props = {
  * `postMessage`, pinned to this origin in both directions.
  */
 export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
-  { courseId, courseVersion, pagePath = "syllabus.html", initialScrollTop = 0, inspecting, multipleSelection, courseChanged, codex, startingTopic, working, onSelection, onSelectionCleared, onReadingPosition, onInspectCancelled, onStartRequested },
+  {
+    courseId,
+    courseVersion,
+    pagePath = "syllabus.html",
+    initialScrollTop = 0,
+    inspecting,
+    multipleSelection,
+    courseChanged,
+    codex,
+    startingTopic,
+    switchingCourse = null,
+    working,
+    onSelection,
+    onSelectionRemoved,
+    onSelectionCleared,
+    onReadingPosition,
+    onInspectCancelled,
+    onStartRequested,
+  },
   ref,
 ) {
   const { t } = useI18n();
@@ -44,6 +64,8 @@ export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
   const frameReady = useRef(false);
   const inspectingRef = useRef(inspecting);
   inspectingRef.current = inspecting;
+  const multipleSelectionRef = useRef(multipleSelection);
+  multipleSelectionRef.current = multipleSelection;
 
   const post = useCallback((message: Record<string, unknown>) => {
     frame.current?.contentWindow?.postMessage({ source: "course-studio", ...message }, window.location.origin);
@@ -57,8 +79,8 @@ export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
   }), [post]);
 
   useEffect(() => {
-    post({ type: "inspect", active: inspecting });
-  }, [inspecting, post]);
+    post({ type: "inspect", active: inspecting, multiple: multipleSelection });
+  }, [inspecting, multipleSelection, post]);
 
   useEffect(() => {
     frameReady.current = false;
@@ -81,24 +103,33 @@ export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
         frameReady.current = true;
         // The page was replaced under us; put the reader back where they were.
         post({ type: "scroll.restore", top: scrollTop.current });
-        post({ type: "inspect", active: inspectingRef.current });
+        post({ type: "inspect", active: inspectingRef.current, multiple: multipleSelectionRef.current });
       }
       if (event.data.type === "scroll") {
         scrollTop.current = Number(event.data.top) || 0;
         onReadingPosition(scrollTop.current, event.data.section as CourseSection | undefined);
       }
       if (event.data.type === "selection") onSelection(event.data.selection as Selection);
+      if (event.data.type === "selection.removed") onSelectionRemoved?.(event.data.id as string);
       if (event.data.type === "selection.cleared") onSelectionCleared?.();
       if (event.data.type === "inspect.cancelled") onInspectCancelled();
       if (event.data.type === "empty.start") onStartRequested();
     };
     window.addEventListener("message", receive);
     return () => window.removeEventListener("message", receive);
-  }, [onInspectCancelled, onReadingPosition, onSelection, onSelectionCleared, onStartRequested, post]);
+  }, [onInspectCancelled, onReadingPosition, onSelection, onSelectionRemoved, onSelectionCleared, onStartRequested, post]);
 
   return (
     <div className={`preview-stage ${inspecting ? "is-inspecting" : ""}`}>
-      {startingTopic ? (
+      {switchingCourse ? (
+        <section className="course-starting-card course-switching-card" aria-live="polite">
+          <span className="course-switching-tag">{t("preview.switchingTag")}</span>
+          <h1>{switchingCourse.title}</h1>
+          <div className="course-starting-progress active" />
+          <strong>{t("preview.switchingTitle")}</strong>
+          <p>{t("preview.switchingDescription")}</p>
+        </section>
+      ) : startingTopic ? (
         <section className="course-starting-card" aria-live="polite">
           <span>{t("preview.newCourse")}</span>
           <h1>{startingTopic}</h1>
@@ -113,7 +144,7 @@ export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
           src={`/course/${encodeURIComponent(pagePath)}?v=${courseVersion}`}
         />
       )}
-      {courseChanged && !startingTopic && (
+      {courseChanged && !startingTopic && !switchingCourse && (
         <div className="reload-toast">
           <Check size={15} /> {t("preview.updated")}
         </div>

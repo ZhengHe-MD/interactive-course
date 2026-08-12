@@ -1,8 +1,10 @@
 (() => {
   const SOURCE = "course-studio-preview";
   const selections = new Map();
+  const selectionOverlays = new Map();
   let inspect = false;
   let altInspect = false;
+  let multiple = false;
   let hovered = null;
   let scrollQueued = false;
   let suppressBlockClick = false;
@@ -14,6 +16,67 @@
   label.setAttribute("data-course-studio-ui", "true");
   label.style.cssText = "position:fixed;display:none;pointer-events:none;z-index:2147483647;padding:3px 7px;border-radius:5px;background:#201e1d;color:#fff;font:11px/1.3 ui-monospace,SFMono-Regular,monospace;box-shadow:0 2px 7px rgba(0,0,0,.2)";
   document.documentElement.append(overlay, label);
+
+  function createSelectionOverlay(id, element) {
+    removeSelectionOverlay(id);
+    const box = document.createElement("div");
+    box.setAttribute("data-course-studio-ui", "true");
+    box.setAttribute("data-selection-id", id);
+    box.style.cssText = "position:fixed;pointer-events:none;z-index:2147483644;border:2px solid #c67139;background:rgba(198,113,57,.12);border-radius:5px;box-shadow:0 0 0 1px rgba(255,255,255,.9) inset;transition:all 55ms linear";
+
+    const tagBadge = document.createElement("div");
+    tagBadge.setAttribute("data-course-studio-ui", "true");
+    tagBadge.setAttribute("data-selection-id", id);
+    tagBadge.style.cssText = "position:fixed;pointer-events:none;z-index:2147483645;padding:2px 6px;border-radius:4px;background:#c67139;color:#fff;font:bold 10px/1.3 ui-monospace,SFMono-Regular,monospace;box-shadow:0 2px 5px rgba(0,0,0,.25)";
+    tagBadge.textContent = `<${element.tagName.toLowerCase()}>`;
+
+    document.documentElement.append(box, tagBadge);
+    selectionOverlays.set(id, { box, tagBadge, element });
+    updateOverlayPosition(id);
+  }
+
+  function updateOverlayPosition(id) {
+    const entry = selectionOverlays.get(id);
+    if (!entry || !entry.element || !entry.element.isConnected) return;
+    const rect = entry.element.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      entry.box.style.display = "none";
+      entry.tagBadge.style.display = "none";
+      return;
+    }
+    entry.box.style.display = "block";
+    entry.box.style.left = `${rect.left}px`;
+    entry.box.style.top = `${rect.top}px`;
+    entry.box.style.width = `${rect.width}px`;
+    entry.box.style.height = `${rect.height}px`;
+
+    entry.tagBadge.style.display = "block";
+    entry.tagBadge.style.left = `${Math.max(6, rect.left)}px`;
+    entry.tagBadge.style.top = `${Math.max(6, rect.top - 20)}px`;
+  }
+
+  function updateAllSelectionOverlays() {
+    for (const id of selectionOverlays.keys()) {
+      updateOverlayPosition(id);
+    }
+  }
+
+  function removeSelectionOverlay(id) {
+    const entry = selectionOverlays.get(id);
+    if (entry) {
+      entry.box.remove();
+      entry.tagBadge.remove();
+      selectionOverlays.delete(id);
+    }
+  }
+
+  function clearAllSelectionOverlays() {
+    for (const entry of selectionOverlays.values()) {
+      entry.box.remove();
+      entry.tagBadge.remove();
+    }
+    selectionOverlays.clear();
+  }
 
   function post(type, payload = {}) {
     window.parent.postMessage({ source: SOURCE, type, ...payload }, window.location.origin);
@@ -101,10 +164,9 @@
 
   async function thumbnail(element) {
     if (typeof window.html2canvas !== "function") return undefined;
-    const previousOverlay = overlay.style.display;
-    const previousLabel = label.style.display;
-    overlay.style.display = "none";
-    label.style.display = "none";
+    const uiElements = document.querySelectorAll("[data-course-studio-ui]");
+    const previousDisplays = [...uiElements].map((el) => el.style.display);
+    uiElements.forEach((el) => { el.style.display = "none"; });
     try {
       const elementBackground = getComputedStyle(element).backgroundColor;
       const bodyBackground = getComputedStyle(document.body).backgroundColor;
@@ -135,8 +197,7 @@
     } catch {
       return undefined;
     } finally {
-      overlay.style.display = previousOverlay;
-      label.style.display = previousLabel;
+      uiElements.forEach((el, index) => { el.style.display = previousDisplays[index]; });
     }
   }
 
@@ -147,6 +208,10 @@
   async function selectBlock(element, existingId) {
     const id = existingId || selectionId();
     selections.set(id, { element, kind: "block" });
+    if (!existingId && !multiple) {
+      clearAllSelectionOverlays();
+    }
+    createSelectionOverlay(id, element);
     const text = (element.innerText || element.textContent || "").replace(/\s+/g, " ").trim();
     const screenshot = await thumbnail(element);
     post("selection", {
@@ -210,24 +275,42 @@
     window.setTimeout(() => { suppressBlockClick = false; }, 0);
     void selectText(range);
   }, true);
+
   document.addEventListener("click", (event) => {
     if (!active()) return;
     if (suppressBlockClick) return;
     const target = validTarget(event.target);
     if (!target) {
       clearHover();
-      clearActiveSelections();
+      if (!multiple) clearActiveSelections();
       return;
     }
     event.preventDefault();
     event.stopImmediatePropagation();
     clearHover();
-    if (!altInspect && selections.size === 1) {
-      const currentElement = [...selections.values()][0]?.element;
-      if (currentElement === target) {
-        clearActiveSelections();
-        return;
+
+    // Check if target is already selected
+    let alreadySelectedId = null;
+    for (const [id, entry] of selections.entries()) {
+      if (entry.element === target) {
+        alreadySelectedId = id;
+        break;
       }
+    }
+
+    if (alreadySelectedId) {
+      selections.delete(alreadySelectedId);
+      removeSelectionOverlay(alreadySelectedId);
+      post("selection.removed", { id: alreadySelectedId });
+      if (selections.size === 0) {
+        post("selection.cleared");
+      }
+      return;
+    }
+
+    if (!multiple) {
+      selections.clear();
+      clearAllSelectionOverlays();
     }
     void selectBlock(target);
   }, true);
@@ -246,6 +329,7 @@
       post("inspect.cancelled");
     }
   }, true);
+
   document.addEventListener("keyup", (event) => {
     if (event.key === "Alt") {
       altInspect = false;
@@ -256,6 +340,7 @@
 
   window.addEventListener("scroll", () => {
     clearHover();
+    updateAllSelectionOverlays();
     if (scrollQueued) return;
     scrollQueued = true;
     requestAnimationFrame(() => {
@@ -264,19 +349,32 @@
     });
   }, { passive: true });
 
+  window.addEventListener("resize", () => {
+    clearHover();
+    updateAllSelectionOverlays();
+  }, { passive: true });
+
   let suppressSelectionChange = false;
 
   function clearActiveSelections() {
-    if (selections.size === 0) return;
+    if (selections.size === 0 && selectionOverlays.size === 0) return;
     selections.clear();
+    clearAllSelectionOverlays();
     post("selection.cleared");
   }
 
   document.addEventListener("selectionchange", () => {
-    if (suppressSelectionChange || document.body.hasAttribute("data-course-studio-empty")) return;
+    if (suppressSelectionChange || active() || document.body.hasAttribute("data-course-studio-empty")) return;
     const nativeSelection = window.getSelection();
     if (nativeSelection && (nativeSelection.isCollapsed || nativeSelection.rangeCount === 0 || !nativeSelection.toString().trim())) {
-      clearActiveSelections();
+      let hadText = false;
+      for (const [id, entry] of selections.entries()) {
+        if (entry.kind === "text") {
+          selections.delete(id);
+          hadText = true;
+        }
+      }
+      if (hadText) post("selection.cleared", { kind: "text" });
     }
   });
 
@@ -284,22 +382,33 @@
     if (event.origin !== window.location.origin || event.data?.source !== "course-studio") return;
     if (event.data.type === "inspect") {
       inspect = Boolean(event.data.active);
+      if (typeof event.data.multiple === "boolean") {
+        multiple = event.data.multiple;
+      }
       document.documentElement.style.cursor = inspect ? "crosshair" : "";
       if (!inspect) clearHover();
+    }
+    if (event.data.type === "selection.multiple") {
+      multiple = Boolean(event.data.active);
     }
     if (event.data.type === "selection.expand") {
       const element = selections.get(event.data.id)?.element;
       const parent = element?.parentElement;
-      if (parent && parent !== document.body) void selectBlock(parent, event.data.id);
+      if (parent && parent !== document.body) {
+        removeSelectionOverlay(event.data.id);
+        void selectBlock(parent, event.data.id);
+      }
     }
     if (event.data.type === "selection.remove") {
       selections.delete(event.data.id);
+      removeSelectionOverlay(event.data.id);
       suppressSelectionChange = true;
       window.getSelection()?.removeAllRanges();
       window.setTimeout(() => { suppressSelectionChange = false; }, 0);
     }
     if (event.data.type === "selection.clear") {
       selections.clear();
+      clearAllSelectionOverlays();
       suppressSelectionChange = true;
       window.getSelection()?.removeAllRanges();
       window.setTimeout(() => { suppressSelectionChange = false; }, 0);
@@ -307,12 +416,11 @@
     if (event.data.type === "scroll.restore" && Number.isFinite(event.data.top)) {
       window.scrollTo({ top: event.data.top, behavior: "instant" });
       requestAnimationFrame(() => {
+        updateAllSelectionOverlays();
         post("scroll", { top: window.scrollY, section: readingSection() });
       });
     }
     if (event.data.type === "scroll.toSection") {
-      // The studio derives its table of contents from the course HTML on the
-      // server. Prefer the heading's own id; fall back to its position.
       const target = (event.data.id && document.getElementById(event.data.id))
         || (Number.isInteger(event.data.index) ? document.querySelectorAll("h2")[event.data.index] : null);
       target?.scrollIntoView({ behavior: "smooth", block: "start" });

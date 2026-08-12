@@ -122,6 +122,14 @@ describe("standalone course export", () => {
     expect(html).toContain("cs-companion-toggle");
     expect(html).toContain("Co-Design Notes");
     expect(html).toContain("cs-companion-drawer");
+    expect(html).toContain("cs-nav-num");
+    expect(html).toContain("cs-frame-card");
+    expect(html).toContain("cs-export-title");
+    expect(html).not.toContain("cs-export-eyebrow");
+    expect(html).not.toContain("cs-export-topic");
+    expect(html).not.toContain("cs-export-pagebar");
+    expect(html).toContain("fonts.googleapis.com/css2?family=Caprasimo");
+    expect(html).toContain("--color-accent: #c67139;");
     expect(html).toContain("Can you create an interactive logic simulator?");
     expect(html).toContain("I've structured a 4-step logic simulator...");
     expect(html).toContain("Model gates visually");

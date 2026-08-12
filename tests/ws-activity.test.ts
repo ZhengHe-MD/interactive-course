@@ -204,4 +204,57 @@ describe("turn steering in ws reducer", () => {
       }
     }
   });
+
+  it("manages switchingCourseId lifecycle across course.switching, course.opened, and error", () => {
+    const switchingState = reducer(initialState, {
+      type: "course.switching",
+      courseId: "ev-batteries",
+    });
+    expect(switchingState.switchingCourseId).toBe("ev-batteries");
+
+    const openedState = reducer(switchingState, {
+      type: "server",
+      message: {
+        type: "course.opened",
+        courseId: "ev-batteries",
+        courses: [{ id: "ev-batteries", title: "EV Batteries", phase: "learning", hasContent: true }],
+        course: {
+          phase: "learning",
+          hasContent: true,
+          title: "EV Batteries",
+          topic: "Batteries",
+          pages: [],
+          sections: [],
+          upNext: [],
+        },
+        courseVersion: 12345,
+        checkpoints: [],
+        codex: { state: "ready" },
+        conversationId: "c-1",
+        conversations: [],
+        items: [],
+        models: [],
+        agentConfig: null,
+      },
+    });
+    expect(openedState.switchingCourseId).toBe(null);
+    expect(openedState.courseId).toBe("ev-batteries");
+
+    // Test error clearing switchingCourseId
+    const switchingAgain = reducer(openedState, {
+      type: "course.switching",
+      courseId: "missing-course",
+    });
+    expect(switchingAgain.switchingCourseId).toBe("missing-course");
+
+    const errorState = reducer(switchingAgain, {
+      type: "server",
+      message: {
+        type: "error",
+        message: "That course no longer exists.",
+      },
+    });
+    expect(errorState.switchingCourseId).toBe(null);
+  });
 });
+

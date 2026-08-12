@@ -163,6 +163,10 @@ export function App() {
     chat.current?.focusComposer();
   }, [multipleSelection, visiblePage]);
 
+  const onSelectionRemoved = useCallback((id: string) => {
+    setSelections((current) => current.filter((item) => item.id !== id));
+  }, []);
+
   const toggleMultipleSelection = () => {
     if (multipleSelection) {
       const kept = collapseToLatestSelection(selections);
@@ -250,8 +254,14 @@ export function App() {
     actions.startCourse(topic, agentConfig ?? undefined, language);
   };
 
+  const switchingCourse = useMemo(() => {
+    if (!state.switchingCourseId) return null;
+    const target = state.courses.find((c) => c.id === state.switchingCourseId);
+    return target ?? { id: state.switchingCourseId, title: state.switchingCourseId };
+  }, [state.courses, state.switchingCourseId]);
+
   const switchCourse = (courseId: string) => {
-    if (courseId === state.courseId) return;
+    if (courseId === state.courseId || courseId === state.switchingCourseId) return;
     setBirthTopic(null);
     setStartingNewCourse(false);
     sawNewCourseEmpty.current = false;
@@ -287,7 +297,7 @@ export function App() {
   };
 
   const handleImportFile = async (file: File) => {
-    if (importing || state.working) return;
+    if (importing || state.working || state.switchingCourseId) return;
     if (!file.name.toLowerCase().endsWith(".zip")) {
       window.alert(t("toolbar.importFailed"));
       return;
@@ -409,7 +419,7 @@ export function App() {
   const hasDesignHistory = state.items.some((item) => item.kind === "user")
     || state.conversations.some((conversation) => conversation.title !== "New conversation");
 
-  if (!state.course.hasContent && !birthTopic && !hasDesignHistory) {
+  if (!state.course.hasContent && !birthTopic && !hasDesignHistory && !state.switchingCourseId) {
     return (
       <Welcome
         connected={state.connected}
@@ -417,6 +427,7 @@ export function App() {
         working={state.working}
         courseId={state.courseId}
         courses={state.courses}
+        switchingCourseId={state.switchingCourseId}
         models={state.models}
         agentConfig={agentConfig}
         onAgentConfigChange={setAgentConfig}
@@ -435,6 +446,7 @@ export function App() {
         working={state.working}
         courseId={state.courseId}
         courses={state.courses}
+        switchingCourseId={state.switchingCourseId}
         models={state.models}
         agentConfig={agentConfig}
         onAgentConfigChange={setAgentConfig}
@@ -469,8 +481,11 @@ export function App() {
         "--course-nav-width": courseNavOpen ? "236px" : "52px",
       } as CSSProperties}
     >
+      {Boolean(state.switchingCourseId) && (
+        <div className="studio-top-progress-bar" role="progressbar" aria-label={t("toolbar.switchingCourse")} />
+      )}
       <Toolbar
-        courseTitle={displayCourse.title}
+        courseTitle={switchingCourse?.title ?? displayCourse.title}
         courseId={state.courseId}
         courses={state.courses}
         inspecting={inspecting}
@@ -479,6 +494,7 @@ export function App() {
         courseChanged={state.courseChanged}
         checkpoints={state.checkpoints}
         working={state.working}
+        switchingCourseId={state.switchingCourseId}
         exporting={exporting}
         importing={importing}
         onHome={() => setShowWelcome(true)}
@@ -519,9 +535,13 @@ export function App() {
             courseChanged={state.courseChanged}
             codex={state.codex}
             startingTopic={startingNewCourse ? birthTopic ?? undefined : undefined}
+            switchingCourse={switchingCourse}
             working={state.working}
             onSelection={onSelection}
-            onSelectionCleared={() => setSelections([])}
+            onSelectionRemoved={onSelectionRemoved}
+            onSelectionCleared={() => {
+              if (!multipleSelection) setSelections([]);
+            }}
             onReadingPosition={onReadingPosition}
             onInspectCancelled={stopInspecting}
             onStartRequested={() => chat.current?.focusComposer()}

@@ -14,6 +14,7 @@ type Props = {
   courseChanged: boolean;
   checkpoints: Checkpoint[];
   working: boolean;
+  switchingCourseId?: string | null;
   exporting: boolean;
   importing?: boolean;
   onHome: () => void;
@@ -35,6 +36,7 @@ export function Toolbar({
   courseChanged,
   checkpoints,
   working,
+  switchingCourseId = null,
   exporting,
   importing = false,
   onHome,
@@ -47,11 +49,12 @@ export function Toolbar({
 }: Props) {
   const { t } = useI18n();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const isSwitching = Boolean(switchingCourseId);
   const currentCheckpoint = checkpoints[0]?.label ?? (working ? t("toolbar.designing") : t("toolbar.created"));
 
   return (
     <header className="studio-topbar">
-      <button className="studio-wordmark topbar-wordmark" type="button" onClick={onHome} aria-label={t("brand.home")}>
+      <button className="studio-wordmark topbar-wordmark" type="button" onClick={onHome} aria-label={t("brand.home")} disabled={isSwitching}>
         <span className="brand-mark"><Shield size={15} /></span>
         <span>Course Studio</span>
       </button>
@@ -59,15 +62,18 @@ export function Toolbar({
       <div className="course-breadcrumb">
         <ChevronRight size={15} />
         {courses.length > 1 ? (
-          <select
-            aria-label={t("toolbar.switchCourse")}
-            value={courseId}
-            disabled={working}
-            onChange={(event) => onSwitchCourse(event.target.value)}
-            title={t("toolbar.switchCourse")}
-          >
-            {courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
-          </select>
+          <div className="course-switcher-wrapper">
+            <select
+              aria-label={t("toolbar.switchCourse")}
+              value={switchingCourseId ?? courseId}
+              disabled={working || isSwitching}
+              onChange={(event) => onSwitchCourse(event.target.value)}
+              title={isSwitching ? t("toolbar.switchingCourse") : t("toolbar.switchCourse")}
+            >
+              {courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
+            </select>
+            {isSwitching && <LoaderCircle className="spin course-switcher-spinner" size={13} />}
+          </div>
         ) : <strong>{courseTitle}</strong>}
       </div>
 
@@ -84,7 +90,7 @@ export function Toolbar({
         <button
           className="revert-button"
           onClick={onRevert}
-          disabled={working || checkpoints.length < 2}
+          disabled={working || isSwitching || checkpoints.length < 2}
           title={t("toolbar.revertTitle")}
         >
           <RotateCcw size={14} /> <span>{t("toolbar.revert")}</span>
@@ -96,7 +102,7 @@ export function Toolbar({
           className={`inspect-button ${inspecting ? "active" : ""}`}
           onClick={onToggleInspect}
           aria-pressed={inspecting}
-          disabled={!canInspect}
+          disabled={!canInspect || isSwitching}
           title={canInspect ? t("toolbar.selectTitle") : t("toolbar.selectDisabled")}
         >
           <Inspect size={16} /> <span>{inspecting ? t("toolbar.selecting") : t("toolbar.select")}</span>
@@ -108,7 +114,7 @@ export function Toolbar({
           aria-label={t("toolbar.multipleLabel")}
           aria-checked={multipleSelection}
           onClick={onToggleMultipleSelection}
-          disabled={!canInspect}
+          disabled={!canInspect || isSwitching}
           title={t("toolbar.multipleTitle")}
         >
           <Layers3 size={14} /> <span>{t("toolbar.multiple")}</span><i />
@@ -132,7 +138,7 @@ export function Toolbar({
         className="import-button"
         type="button"
         onClick={() => fileInputRef.current?.click()}
-        disabled={working || exporting || importing}
+        disabled={working || exporting || importing || isSwitching}
         title={t("toolbar.importTitle")}
       >
         {importing ? <LoaderCircle className="spin" size={15} /> : <Upload size={15} />}
@@ -142,7 +148,7 @@ export function Toolbar({
         className="export-button"
         type="button"
         onClick={onExport}
-        disabled={working || exporting || !canInspect}
+        disabled={working || exporting || !canInspect || isSwitching}
         title={t("toolbar.exportTitle")}
       >
         {exporting ? <LoaderCircle className="spin" size={15} /> : <Download size={15} />}
