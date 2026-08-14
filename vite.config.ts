@@ -11,7 +11,7 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       "/api": backend,
-      "/course": backend,
+      "^/course(/|$)": { target: backend },
       "/studio-preview.js": backend,
       "/studio-vendor": backend,
       "/ws": { target: backend.replace("http", "ws"), ws: true },

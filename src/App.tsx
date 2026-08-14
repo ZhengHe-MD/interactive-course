@@ -32,12 +32,17 @@ function storedChatWidth() {
     : DEFAULT_CHAT_WIDTH;
 }
 
+import { courseRoutePath, parseStudioRoute, type StudioRoute } from "./routes";
+
 export function App() {
   const { state, actions } = useStudio();
   const { language, t } = useI18n();
   const preview = useRef<PreviewHandle | null>(null);
   const chat = useRef<ChatHandle | null>(null);
   const readingSection = useRef<CourseSection | undefined>(undefined);
+
+  const initialRouteRef = useRef<StudioRoute>(parseStudioRoute());
+  const synchronizedRouteCourse = useRef(false);
 
   const [inspecting, setInspecting] = useState(false);
   const [multipleSelection, setMultipleSelection] = useState(false);
@@ -50,11 +55,14 @@ export function App() {
       ? true
       : window.localStorage.getItem("course-studio-course-nav") !== "collapsed"
   ));
-  const [activePage, setActivePage] = useState("syllabus.html");
+  const [activePage, setActivePage] = useState(() => {
+    const route = initialRouteRef.current;
+    return route.kind === "course" && route.page ? route.page : "syllabus.html";
+  });
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [resumePosition, setResumePosition] = useState<ReadingPosition | null>(null);
   const [resumeCourseId, setResumeCourseId] = useState<string | null>(null);
-  const [showWelcome, setShowWelcome] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(() => initialRouteRef.current.kind === "home");
   const [birthTopic, setBirthTopic] = useState<string | null>(null);
   const [startingNewCourse, setStartingNewCourse] = useState(false);
   const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
@@ -234,6 +242,53 @@ export function App() {
     }
   }, [state.course.phase, state.course.pages, state.courseId]);
 
+  useEffect(() => {
+    if (!state.connected || synchronizedRouteCourse.current) return;
+    const route = initialRouteRef.current;
+    if (route.kind === "course") {
+      synchronizedRouteCourse.current = true;
+      setShowWelcome(false);
+      if (route.page) {
+        setActivePage(route.page);
+      }
+      if (route.courseId !== state.courseId) {
+        actions.openCourse(route.courseId);
+      }
+    }
+  }, [state.connected, state.courseId, actions]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const route = parseStudioRoute(window.location.pathname);
+      if (route.kind === "home") {
+        setShowWelcome(true);
+      } else if (route.kind === "course") {
+        setShowWelcome(false);
+        if (route.page) {
+          setActivePage(route.page);
+        }
+        if (route.courseId !== state.courseId) {
+          actions.openCourse(route.courseId);
+        }
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [actions, state.courseId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || showWelcome || !state.course.hasContent || !state.courseId) return;
+    const current = parseStudioRoute(window.location.pathname);
+    const target = courseRoutePath(state.courseId, visiblePage);
+    if (
+      current.kind !== "course" ||
+      current.courseId !== state.courseId ||
+      (current.page ?? "syllabus.html") !== (visiblePage ?? "syllabus.html")
+    ) {
+      window.history.replaceState(null, "", target);
+    }
+  }, [showWelcome, state.course.hasContent, state.courseId, visiblePage]);
+
   const onSelectSection = (section: CourseSection) => {
     setActiveSection(section.id ?? `index-${section.index}`);
     preview.current?.scrollToSection(section);
@@ -248,6 +303,9 @@ export function App() {
     setActiveSection(null);
     setSelections([]);
     setInspecting(false);
+    if (state.courseId) {
+      window.history.pushState(null, "", courseRoutePath(state.courseId, page.path));
+    }
   };
 
   const send = (text: string) => {
@@ -277,7 +335,11 @@ export function App() {
   }, [state.courses, state.switchingCourseId]);
 
   const switchCourse = (courseId: string) => {
-    if (courseId === state.courseId || courseId === state.switchingCourseId) return;
+    if (courseId === state.switchingCourseId) return;
+    if (courseId === state.courseId && state.course.hasContent) {
+      returnToCourse();
+      return;
+    }
     setBirthTopic(null);
     setStartingNewCourse(false);
     sawNewCourseEmpty.current = false;
@@ -285,11 +347,13 @@ export function App() {
     setSelections([]);
     setInspecting(false);
     setExportDialogOpen(false);
+    window.history.pushState(null, "", courseRoutePath(courseId));
     actions.openCourse(courseId);
   };
 
   const returnToCourse = () => {
     const saved = readReadingPosition(state.courseId);
+    const targetPage = saved && state.course.pages.some((page) => page.path === saved.page) ? saved.page : visiblePage;
     if (saved && state.course.pages.some((page) => page.path === saved.page)) {
       setResumePosition(saved);
       setResumeCourseId(state.courseId);
@@ -297,6 +361,12 @@ export function App() {
       setActiveSection(saved.section ? saved.section.id ?? `index-${saved.section.index}` : null);
     }
     setShowWelcome(false);
+    window.history.pushState(null, "", courseRoutePath(state.courseId, targetPage));
+  };
+
+  const goHome = () => {
+    setShowWelcome(true);
+    window.history.pushState(null, "", "/");
   };
 
   const switchConversation = (conversationId: string) => {
@@ -435,7 +505,9 @@ export function App() {
   const hasDesignHistory = state.items.some((item) => item.kind === "user")
     || state.conversations.some((conversation) => conversation.title !== "New conversation");
 
-  if (!state.course.hasContent && !birthTopic && !hasDesignHistory && !state.switchingCourseId) {
+  const isDirectCourseRoute = initialRouteRef.current.kind === "course";
+
+  if (!state.course.hasContent && !birthTopic && !hasDesignHistory && !state.switchingCourseId && !isDirectCourseRoute) {
     return (
       <Welcome
         connected={state.connected}
@@ -514,7 +586,7 @@ export function App() {
         exporting={exporting}
         importing={importing}
         widthMode={widthMode}
-        onHome={() => setShowWelcome(true)}
+        onHome={goHome}
         onSwitchCourse={switchCourse}
         onToggleInspect={toggleInspect}
         onToggleMultipleSelection={toggleMultipleSelection}
