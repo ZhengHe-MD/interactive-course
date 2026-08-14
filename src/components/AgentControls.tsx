@@ -37,7 +37,26 @@ export function AgentControls({ models, value, disabled = false, className = "",
     ?? models.find((model) => model.isDefault)
     ?? models[0];
 
-  if (!selectedModel || !value) return null;
+  if (!selectedModel || !value) {
+    return (
+      <div className={`agent-controls-inline ${className}`.trim()} aria-hidden="true" style={{ opacity: 0.65 }}>
+        <span className="agent-control-pill-btn" style={{ pointerEvents: "none" }}>
+          <span className="agent-control-label">{t("agent.model")}</span>
+          <span className="agent-control-value">GPT-5.6-Sol</span>
+          <span className="custom-dropdown-caret">
+            <ChevronDown size={12} strokeWidth={2.5} />
+          </span>
+        </span>
+        <span className="agent-control-pill-btn" style={{ pointerEvents: "none" }}>
+          <span className="agent-control-label">{t("agent.thinking")}</span>
+          <span className="agent-control-value">High</span>
+          <span className="custom-dropdown-caret">
+            <ChevronDown size={12} strokeWidth={2.5} />
+          </span>
+        </span>
+      </div>
+    );
+  }
 
   const efforts = selectedModel.supportedEfforts;
   const selectedEffort = efforts.some((option) => option.effort === value.effort)

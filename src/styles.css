@@ -1630,6 +1630,8 @@ button:disabled {
   font-size: 11.5px;
   color: var(--color-neutral-600);
   padding: 0 4px;
+  min-height: 26px;
+  box-sizing: border-box;
 }
 
 .agent-control-pill-btn {
@@ -1884,7 +1886,6 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 10px;
-  cursor: pointer;
   user-select: none;
 }
 
@@ -1894,79 +1895,48 @@ button:disabled {
   color: var(--color-text);
 }
 
-.welcome-back-btn {
-  display: inline-flex;
+.welcome-header-actions {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  border: 1px solid var(--color-neutral-300);
-  background: var(--color-surface);
-  color: var(--color-neutral-800);
-  border-radius: var(--radius-pill);
-  padding: 6px 14px;
-  font-family: var(--font-body);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all .15s ease;
-}
-
-.welcome-back-btn:hover {
-  background: var(--color-neutral-100);
-  color: var(--color-text);
+  gap: 10px;
 }
 
 .welcome-content-stage {
   max-width: 980px;
   width: 100%;
   margin: 0 auto;
-  padding: 40px 40px 80px;
+  padding: 20px 32px 80px;
   display: flex;
   flex-direction: column;
-  gap: 44px;
+  gap: 56px;
   flex: 1;
 }
 
 .welcome-hero-section {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  align-items: center;
   width: 100%;
-}
-
-.welcome-hero-title {
-  margin: 0;
-  font-family: var(--font-heading);
-  font-weight: 400;
-  font-size: clamp(36px, 4.5vw, 52px);
-  line-height: 1.04;
-  letter-spacing: -.015em;
-  color: var(--color-text);
-  text-wrap: pretty;
-}
-
-.welcome-hero-subtitle {
-  margin: 0;
-  max-width: 62ch;
-  font-size: 16.5px;
-  line-height: 1.62;
-  color: var(--color-neutral-800);
-  text-wrap: pretty;
+  padding-top: clamp(40px, 12vh, 130px);
 }
 
 .welcome-composer-card {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 18px;
+  gap: 12px;
+  padding: 18px 22px;
   border-radius: var(--radius-lg);
   background: var(--color-neutral-100);
   border: 1px solid var(--color-neutral-300);
   box-shadow: var(--shadow-md);
-  transition: border-color .15s ease;
+  transition: border-color .15s ease, box-shadow .15s ease;
+  width: 100%;
+  max-width: 680px;
 }
 
 .welcome-composer-card:focus-within {
   border-color: var(--color-accent);
+  box-shadow: var(--shadow-lg);
 }
 
 .welcome-composer-top {
@@ -1985,7 +1955,7 @@ button:disabled {
   color: var(--color-text);
   resize: none;
   outline: none;
-  min-height: 56px;
+  min-height: 52px;
   padding: 6px 4px;
 }
 
@@ -2002,9 +1972,9 @@ button:disabled {
   border-radius: var(--radius-pill);
   background: var(--color-accent);
   color: #fff;
-  padding: 13px 22px;
+  padding: 12px 22px;
   font-family: var(--font-body);
-  font-size: 14.5px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   transition: background .15s ease;
@@ -2022,104 +1992,106 @@ button:disabled {
 .welcome-composer-bottom {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 14px;
-  padding-top: 12px;
+  padding-top: 10px;
   border-top: 1px solid var(--color-neutral-200);
   flex-wrap: wrap;
+  min-height: 38px;
+  box-sizing: border-box;
 }
 
-.welcome-composer-hint {
-  font-size: 12px;
-  color: var(--color-neutral-600);
-}
-
-.welcome-suggestions-row {
+.welcome-shelf-loading {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  flex-wrap: wrap;
-  font-size: 13px;
-  color: var(--color-neutral-700);
-}
-
-.welcome-suggestions-label {
-  font-size: 12.5px;
-  color: var(--color-neutral-600);
-  font-weight: 600;
-}
-
-.welcome-suggestion-pill {
-  border: 1px solid var(--color-neutral-300);
-  background: var(--color-surface);
-  color: var(--color-neutral-800);
-  border-radius: var(--radius-pill);
-  padding: 5px 13px;
-  font-family: var(--font-body);
-  font-size: 12.5px;
-  cursor: pointer;
-  transition: all .15s ease;
-}
-
-.welcome-suggestion-pill:hover {
-  background: var(--color-accent-100);
-  border-color: var(--color-accent-300);
-  color: var(--color-accent-800);
-}
-
-.welcome-connecting-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  min-height: 154px;
+  font-size: 13.5px;
   color: var(--color-neutral-600);
 }
 
 .welcome-shelf-section {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
 }
 
 .welcome-shelf-heading-row {
   display: flex;
-  align-items: baseline;
-  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 4px;
 }
 
 .welcome-shelf-title {
   margin: 0;
   font-family: var(--font-heading);
   font-weight: 400;
-  font-size: 24px;
+  font-size: 22px;
+  line-height: 1.2;
   color: var(--color-text);
 }
 
-.welcome-shelf-count-badge {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--color-accent-800);
-  background: var(--color-accent-200);
-  padding: 3px 10px;
-  border-radius: var(--radius-pill);
+.welcome-shelf-nav-arrows {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.welcome-shelf-grid {
+.shelf-arrow-btn {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-neutral-300);
+  background: var(--color-surface);
+  color: var(--color-neutral-700);
+  cursor: pointer;
+  transition: all .12s ease;
+}
+
+.shelf-arrow-btn:hover {
+  background: var(--color-neutral-100);
+  color: var(--color-text);
+  border-color: var(--color-neutral-400);
+}
+
+.welcome-shelf-track-wrapper {
+  position: relative;
   width: 100%;
 }
 
+.welcome-shelf-track {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  padding: 6px 14px 18px;
+  margin: 0 -14px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  mask-image: linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.4) 2%, black 6%, black 94%, rgba(0, 0, 0, 0.4) 98%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.4) 2%, black 6%, black 94%, rgba(0, 0, 0, 0.4) 98%, transparent 100%);
+}
+
+.welcome-shelf-track::-webkit-scrollbar {
+  display: none;
+}
+
 .welcome-shelf-card {
+  flex: 0 0 clamp(290px, 36%, 330px);
   display: flex;
   flex-direction: column;
-  gap: 11px;
+  gap: 12px;
   text-align: left;
-  padding: 20px;
+  padding: 22px 24px;
   border-radius: var(--radius-lg);
   background: var(--color-neutral-100);
   border: 1px solid var(--color-neutral-300);
@@ -2164,19 +2136,12 @@ button:disabled {
   color: var(--color-text);
 }
 
-.welcome-shelf-card-desc {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--color-neutral-700);
-}
-
 .welcome-shelf-card-footer {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-top: auto;
-  padding-top: 12px;
+  padding-top: 14px;
   border-top: 1px solid var(--color-neutral-200);
   width: 100%;
 }
@@ -2199,14 +2164,6 @@ button:disabled {
 .welcome-shelf-timestamp {
   font-family: var(--font-mono);
   font-size: 10.5px;
-  color: var(--color-neutral-600);
-}
-
-.welcome-footer-notice {
-  margin-top: auto;
-  text-align: center;
-  padding: 24px;
-  font-size: 12px;
   color: var(--color-neutral-600);
 }
 

@@ -43,22 +43,20 @@ describe("course switching UI", () => {
     expect(html).toContain('title="Prepare and download a standalone course"');
   });
 
-  it("keeps the course picker available from the new-course screen", () => {
+  it("renders shelf cards from the new-course screen", () => {
     const html = renderToStaticMarkup(
       <Welcome
         connected
-        hasCourse
         working={false}
-        courseId="ev-batteries"
         courses={courses}
-        onBack={() => {}}
         onSwitchCourse={() => {}}
         onStart={() => {}}
       />,
     );
 
-    expect(html).toContain("Open course");
     expect(html).toContain("From Silicon to a Simple CPU");
+    expect(html).toContain("EV Battery Fundamentals");
+    expect(html).toContain("welcome-shelf-card");
   });
 
   it("hides the previous preview while a separate course is being created", () => {

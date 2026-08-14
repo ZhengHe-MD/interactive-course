@@ -22,11 +22,11 @@ describe("Studio localization", () => {
       </I18nProvider>,
     );
 
-    expect(html).toContain("你一直想真正弄懂什么？");
+    expect(html).toContain("今天想学点儿啥？");
     expect(html).toContain("开始设计");
     expect(html).toContain('aria-label="语言"');
     expect(html).toContain('<option value="zh-CN" selected="">简体中文</option>');
-    expect(html).not.toContain("What do you want to finally understand?");
+    expect(html).not.toContain("What would you like to learn today?");
   });
 
   it("localizes the standalone export action in Simplified Chinese", () => {
