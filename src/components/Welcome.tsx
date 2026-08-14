@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronLeft, ChevronRight, LoaderCircle, Shield } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, LoaderCircle } from "lucide-react";
 import { FormEvent, useRef, useState } from "react";
 import { useI18n } from "../i18n";
 import type { AgentConfig, AgentModel, CourseSummary } from "../types";
@@ -57,8 +57,8 @@ export function Welcome({
     <div className="welcome-page-container">
       <header className="welcome-header">
         <div className="welcome-brand">
-          <span className="topbar-brand-icon">
-            <Shield size={13} strokeWidth={2.75} />
+          <span className="topbar-brand-icon" style={{ width: 24, height: 24 }}>
+            <img src="/brand/mark.svg" alt="" className="topbar-brand-icon-img" width={24} height={24} />
           </span>
           <span className="welcome-brand-text">Course Studio</span>
         </div>
