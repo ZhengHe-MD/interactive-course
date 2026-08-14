@@ -8,7 +8,6 @@ import {
   LoaderCircle,
   Plus,
   RotateCcw,
-  Shield,
   Upload,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -92,7 +91,7 @@ export function Toolbar({
           title={t("brand.home")}
           aria-label={t("brand.home")}
         >
-          <Shield size={12} strokeWidth={2.75} />
+          <img src="/brand/mark.svg" alt="" className="topbar-brand-icon-img" width={22} height={22} />
         </button>
 
         {/* Accessible course select to preserve form/test semantics */}

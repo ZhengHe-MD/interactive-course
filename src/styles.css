@@ -223,10 +223,9 @@ button:disabled {
   border: 0;
   padding: 0;
   border-radius: var(--radius-pill);
-  background: var(--color-accent);
+  background: transparent;
   display: grid;
   place-items: center;
-  color: #f5ead8;
   flex: none;
   cursor: pointer;
   transition: transform .12s ease, filter .12s ease;
@@ -235,6 +234,13 @@ button:disabled {
 .topbar-brand-icon-btn:hover {
   filter: brightness(1.08);
   transform: scale(1.04);
+}
+
+.topbar-brand-icon-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
 }
 
 .course-switcher-btn {
