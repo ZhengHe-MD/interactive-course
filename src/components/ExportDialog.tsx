@@ -1,4 +1,4 @@
-import { Archive, Download, FileCode, LoaderCircle, X } from "lucide-react";
+import { Download, LoaderCircle, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useI18n } from "../i18n";
 
@@ -39,75 +39,105 @@ export function ExportDialog({
   }, [exporting, format, onClose, open]);
 
   if (!open) return null;
+
   return (
     <div
-      className="export-dialog-backdrop"
+      className="dialog-modal-backdrop"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !exporting) onClose();
       }}
     >
-      <section className="export-dialog" role="dialog" aria-modal="true" aria-labelledby="export-dialog-title">
+      <section
+        className="dialog-modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="export-dialog-title"
+      >
         <form onSubmit={(event) => { event.preventDefault(); onExport(); }}>
-          <header>
+          <div className="dialog-modal-header">
             <div>
-              <h2 id="export-dialog-title">{t("exportDialog.title")}</h2>
-              <p>{format === "standalone" ? t("exportDialog.description") : t("exportDialog.packageDescription")}</p>
+              <h2 id="export-dialog-title" className="dialog-modal-title">{t("exportDialog.title")}</h2>
+              <p className="dialog-modal-desc">
+                {format === "standalone" ? t("exportDialog.description") : t("exportDialog.packageDescription")}
+              </p>
             </div>
-            <button type="button" className="export-dialog-close" onClick={onClose} disabled={exporting} aria-label={t("exportDialog.close")}>
-              <X size={18} />
-            </button>
-          </header>
-
-          <div className="export-format-selector" role="radiogroup" aria-label={t("exportDialog.formatLabel")}>
             <button
               type="button"
-              className={`export-format-card ${format === "standalone" ? "active" : ""}`}
+              className="dialog-modal-close-btn"
+              onClick={onClose}
+              disabled={exporting}
+              aria-label={t("exportDialog.close")}
+            >
+              <X size={16} strokeWidth={2.5} />
+            </button>
+          </div>
+
+          <div className="export-formats-grid" role="radiogroup" aria-label={t("exportDialog.formatLabel")} style={{ marginTop: "16px", marginBottom: "16px" }}>
+            <button
+              type="button"
+              className={`export-format-card-btn ${format === "standalone" ? "active" : ""}`}
               onClick={() => onFormatChange("standalone")}
               disabled={exporting}
             >
-              <FileCode size={18} />
-              <div>
-                <strong>{t("exportDialog.formatStandalone")}</strong>
-              </div>
+              <span className="format-radio-circle">
+                {format === "standalone" && <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#fff" }} />}
+              </span>
+              <strong className="format-card-label">{t("exportDialog.formatStandalone")}</strong>
+              <span className="format-card-detail">{t("exportDialog.description")}</span>
+              <span className="format-card-filesize">≈ 340 KB</span>
             </button>
+
             <button
               type="button"
-              className={`export-format-card ${format === "package" ? "active" : ""}`}
+              className={`export-format-card-btn ${format === "package" ? "active" : ""}`}
               onClick={() => onFormatChange("package")}
               disabled={exporting}
             >
-              <Archive size={18} />
-              <div>
-                <strong>{t("exportDialog.formatPackage")}</strong>
-              </div>
+              <span className="format-radio-circle">
+                {format === "package" && <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#fff" }} />}
+              </span>
+              <strong className="format-card-label">{t("exportDialog.formatPackage")}</strong>
+              <span className="format-card-detail">{t("exportDialog.packageDescription")}</span>
+              <span className="format-card-filesize">.course.zip</span>
             </button>
           </div>
 
           {format === "standalone" && (
-            <>
-              <label htmlFor="export-prompt">{t("exportDialog.promptLabel")}</label>
+            <div className="dialog-input-group" style={{ marginBottom: "16px" }}>
+              <label htmlFor="export-prompt" className="dialog-input-label">{t("exportDialog.promptLabel")}</label>
               <textarea
                 ref={textarea}
                 id="export-prompt"
+                className="dialog-modal-textarea"
+                rows={2}
                 value={prompt}
                 disabled={exporting}
                 maxLength={20_000}
                 placeholder={t("exportDialog.placeholder")}
                 onChange={(event) => onPromptChange(event.target.value)}
               />
-              <p className="export-dialog-hint">{t("exportDialog.hint")}</p>
-            </>
+              <span className="dialog-input-hint">{t("exportDialog.hint")}</span>
+            </div>
           )}
 
-          <footer>
-            <button type="button" className="export-dialog-cancel" onClick={onClose} disabled={exporting}>
+          <div className="dialog-modal-actions">
+            <button
+              type="button"
+              className="dialog-btn-cancel"
+              onClick={onClose}
+              disabled={exporting}
+            >
               {t("exportDialog.cancel")}
             </button>
-            <button type="submit" className="export-dialog-submit" disabled={exporting}>
-              {exporting ? <LoaderCircle className="spin" size={16} /> : <Download size={16} />}
-              {exporting ? t("exportDialog.preparing") : t("exportDialog.submit")}
+            <button
+              type="submit"
+              className="dialog-btn-submit"
+              disabled={exporting}
+            >
+              {exporting ? <LoaderCircle className="spin" size={15} /> : <Download size={15} strokeWidth={2.4} />}
+              <span>{exporting ? t("exportDialog.preparing") : t("exportDialog.submit")}</span>
             </button>
-          </footer>
+          </div>
         </form>
       </section>
     </div>
