@@ -21,3 +21,5 @@ export type {
 
 /** What a selection looks like once it is only a label in the transcript. */
 export type ChatItem = TranscriptItem;
+
+export type WidthMode = "standard" | "wide" | "full";

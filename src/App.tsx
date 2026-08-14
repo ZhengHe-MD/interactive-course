@@ -10,7 +10,13 @@ import { Toolbar } from "./components/Toolbar";
 import { Welcome } from "./components/Welcome";
 import { useI18n } from "./i18n";
 import { useStudio } from "./ws";
-import type { AgentConfig, CoursePage, CourseSection, Selection } from "./types";
+import type {
+  AgentConfig,
+  CoursePage,
+  CourseSection,
+  Selection,
+  WidthMode,
+} from "./types";
 
 const DEFAULT_CHAT_WIDTH = 384;
 const MIN_CHAT_WIDTH = 320;
@@ -58,6 +64,16 @@ export function App() {
   const [exportFormat, setExportFormat] = useState<"standalone" | "package">("standalone");
   const [exportPrompt, setExportPrompt] = useState("");
   const [pendingImport, setPendingImport] = useState<{ file: File; courseId: string } | null>(null);
+  const [widthMode, setWidthMode] = useState<WidthMode>(() => {
+    if (typeof window === "undefined") return "standard";
+    const stored = window.localStorage.getItem("course-studio-width-mode") as WidthMode;
+    return stored === "standard" || stored === "wide" || stored === "full" ? stored : "standard";
+  });
+
+  const handleWidthModeChange = (mode: WidthMode) => {
+    setWidthMode(mode);
+    window.localStorage.setItem("course-studio-width-mode", mode);
+  };
   const sawNewCourseEmpty = useRef(false);
   const syllabusCourse = useRef<string | null>(null);
   const studioBody = useRef<HTMLDivElement | null>(null);
@@ -497,10 +513,12 @@ export function App() {
         switchingCourseId={state.switchingCourseId}
         exporting={exporting}
         importing={importing}
+        widthMode={widthMode}
         onHome={() => setShowWelcome(true)}
         onSwitchCourse={switchCourse}
         onToggleInspect={toggleInspect}
         onToggleMultipleSelection={toggleMultipleSelection}
+        onWidthModeChange={handleWidthModeChange}
         onRevert={actions.revert}
         onExport={() => setExportDialogOpen(true)}
         onImportFile={handleImportFile}
@@ -517,6 +535,7 @@ export function App() {
           onSelectPage={onSelectPage}
           onSelectSection={onSelectSection}
           onChooseTopic={() => chat.current?.focusComposer()}
+          onWriteNextLesson={(lesson) => send(`Please write the next section: ${lesson}`)}
         />
 
         <main className="workspace">
@@ -537,6 +556,7 @@ export function App() {
             startingTopic={startingNewCourse ? birthTopic ?? undefined : undefined}
             switchingCourse={switchingCourse}
             working={state.working}
+            widthMode={widthMode}
             onSelection={onSelection}
             onSelectionRemoved={onSelectionRemoved}
             onSelectionCleared={() => {

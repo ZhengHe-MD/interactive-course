@@ -11,10 +11,10 @@
 
   const overlay = document.createElement("div");
   overlay.setAttribute("data-course-studio-ui", "true");
-  overlay.style.cssText = "position:fixed;display:none;pointer-events:none;z-index:2147483646;border:2px solid #c67139;background:rgba(198,113,57,.09);border-radius:5px;box-shadow:0 0 0 1px rgba(255,255,255,.85) inset;transition:all 55ms linear";
+  overlay.style.cssText = "position:fixed;display:none;pointer-events:none;z-index:2147483646;border:2px solid #c67139;background:rgba(198,113,57,.09);border-radius:6px;box-shadow:0 0 0 1px rgba(255,255,255,.85) inset, 0 0 0 4px rgba(198,113,57,.12);transition:all 55ms linear";
   const label = document.createElement("div");
   label.setAttribute("data-course-studio-ui", "true");
-  label.style.cssText = "position:fixed;display:none;pointer-events:none;z-index:2147483647;padding:3px 7px;border-radius:5px;background:#201e1d;color:#fff;font:11px/1.3 ui-monospace,SFMono-Regular,monospace;box-shadow:0 2px 7px rgba(0,0,0,.2)";
+  label.style.cssText = "position:fixed;display:none;pointer-events:none;z-index:2147483647;padding:3px 7px;border-radius:5px;background:#201e1d;color:#fff;font:11px/1.3 'JetBrains Mono',ui-monospace,SFMono-Regular,monospace;box-shadow:0 2px 7px rgba(0,0,0,.2)";
   document.documentElement.append(overlay, label);
 
   function createSelectionOverlay(id, element) {
@@ -22,12 +22,12 @@
     const box = document.createElement("div");
     box.setAttribute("data-course-studio-ui", "true");
     box.setAttribute("data-selection-id", id);
-    box.style.cssText = "position:fixed;pointer-events:none;z-index:2147483644;border:2px solid #c67139;background:rgba(198,113,57,.12);border-radius:5px;box-shadow:0 0 0 1px rgba(255,255,255,.9) inset;transition:all 55ms linear";
+    box.style.cssText = "position:fixed;pointer-events:none;z-index:2147483644;border:2px solid #c67139;background:rgba(198,113,57,.12);border-radius:6px;box-shadow:0 0 0 1px rgba(255,255,255,.9) inset, 0 0 0 6px rgba(198,113,57,.18);transition:all 55ms linear";
 
     const tagBadge = document.createElement("div");
     tagBadge.setAttribute("data-course-studio-ui", "true");
     tagBadge.setAttribute("data-selection-id", id);
-    tagBadge.style.cssText = "position:fixed;pointer-events:none;z-index:2147483645;padding:2px 6px;border-radius:4px;background:#c67139;color:#fff;font:bold 10px/1.3 ui-monospace,SFMono-Regular,monospace;box-shadow:0 2px 5px rgba(0,0,0,.25)";
+    tagBadge.style.cssText = "position:fixed;pointer-events:none;z-index:2147483645;padding:2px 7px;border-radius:4px;background:#c67139;color:#fff;font:bold 10px/1.3 'JetBrains Mono',ui-monospace,SFMono-Regular,monospace;box-shadow:0 2px 5px rgba(0,0,0,.25)";
     tagBadge.textContent = `<${element.tagName.toLowerCase()}>`;
 
     document.documentElement.append(box, tagBadge);
@@ -424,6 +424,12 @@
       const target = (event.data.id && document.getElementById(event.data.id))
         || (Number.isInteger(event.data.index) ? document.querySelectorAll("h2")[event.data.index] : null);
       target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    if (event.data.type === "widthMode") {
+      const mode = event.data.mode;
+      if (mode === "standard" || mode === "wide" || mode === "full") {
+        document.documentElement.setAttribute("data-studio-width", mode);
+      }
     }
   });
 

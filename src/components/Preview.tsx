@@ -1,7 +1,7 @@
-import { Bot, Check } from "lucide-react";
+import { Bot, Check, LoaderCircle } from "lucide-react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
 import { useI18n } from "../i18n";
-import type { CodexStatus, CourseSection, Selection } from "../types";
+import type { CodexStatus, CourseSection, Selection, WidthMode } from "../types";
 
 export type PreviewHandle = {
   /** Ask the course page to re-select the given chip's parent element. */
@@ -23,6 +23,7 @@ type Props = {
   startingTopic?: string;
   switchingCourse?: { id: string; title: string } | null;
   working: boolean;
+  widthMode?: WidthMode;
   onSelection: (selection: Selection) => void;
   onSelectionRemoved?: (id: string) => void;
   onSelectionCleared?: () => void;
@@ -49,6 +50,7 @@ export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
     startingTopic,
     switchingCourse = null,
     working,
+    widthMode = "standard",
     onSelection,
     onSelectionRemoved,
     onSelectionCleared,
@@ -66,6 +68,8 @@ export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
   inspectingRef.current = inspecting;
   const multipleSelectionRef = useRef(multipleSelection);
   multipleSelectionRef.current = multipleSelection;
+  const widthModeRef = useRef(widthMode);
+  widthModeRef.current = widthMode;
 
   const post = useCallback((message: Record<string, unknown>) => {
     frame.current?.contentWindow?.postMessage({ source: "course-studio", ...message }, window.location.origin);
@@ -81,6 +85,10 @@ export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
   useEffect(() => {
     post({ type: "inspect", active: inspecting, multiple: multipleSelection });
   }, [inspecting, multipleSelection, post]);
+
+  useEffect(() => {
+    if (frameReady.current) post({ type: "widthMode", mode: widthMode });
+  }, [widthMode, post]);
 
   useEffect(() => {
     frameReady.current = false;
@@ -101,9 +109,9 @@ export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
       ) return;
       if (event.data.type === "ready") {
         frameReady.current = true;
-        // The page was replaced under us; put the reader back where they were.
         post({ type: "scroll.restore", top: scrollTop.current });
         post({ type: "inspect", active: inspectingRef.current, multiple: multipleSelectionRef.current });
+        post({ type: "widthMode", mode: widthModeRef.current });
       }
       if (event.data.type === "scroll") {
         scrollTop.current = Number(event.data.top) || 0;
@@ -120,43 +128,67 @@ export const Preview = forwardRef<PreviewHandle, Props>(function Preview(
   }, [onInspectCancelled, onReadingPosition, onSelection, onSelectionRemoved, onSelectionCleared, onStartRequested, post]);
 
   return (
-    <div className={`preview-stage ${inspecting ? "is-inspecting" : ""}`}>
+    <div className={`preview-stage-container preview-stage width-${widthMode} ${inspecting ? "is-inspecting" : ""}`}>
+
+
       {switchingCourse ? (
-        <section className="course-starting-card course-switching-card" aria-live="polite">
-          <span className="course-switching-tag">{t("preview.switchingTag")}</span>
-          <h1>{switchingCourse.title}</h1>
-          <div className="course-starting-progress active" />
+        <section className={`authoring-progress-sheet course-starting-card course-switching-card width-${widthMode}`} aria-live="polite">
+          <div className="authoring-badge">
+            <LoaderCircle className="spin" size={13} />
+            <span>{t("preview.switchingTag")}</span>
+          </div>
+          <h1 style={{ margin: "4px 0", fontFamily: "var(--font-heading)", fontWeight: 400, fontSize: "28px" }}>
+            {switchingCourse.title}
+          </h1>
+          <div className="course-starting-progress active" style={{ height: "4px", borderRadius: "999px", background: "var(--color-accent-300)" }} />
           <strong>{t("preview.switchingTitle")}</strong>
-          <p>{t("preview.switchingDescription")}</p>
+          <p style={{ margin: 0, fontSize: "13.5px", color: "var(--color-neutral-700)" }}>{t("preview.switchingDescription")}</p>
         </section>
       ) : startingTopic ? (
-        <section className="course-starting-card" aria-live="polite">
-          <span>{t("preview.newCourse")}</span>
-          <h1>{startingTopic}</h1>
-          <div className={working ? "course-starting-progress active" : "course-starting-progress"} />
+        <section className={`authoring-progress-sheet course-starting-card width-${widthMode}`} aria-live="polite">
+          <div className="authoring-badge">
+            {working && <LoaderCircle className="spin" size={13} />}
+            <span>{t("preview.newCourse")}</span>
+          </div>
+          <h1 style={{ margin: "4px 0", fontFamily: "var(--font-heading)", fontWeight: 400, fontSize: "28px" }}>
+            {startingTopic}
+          </h1>
+          <div className={working ? "course-starting-progress active" : "course-starting-progress"} style={{ height: "4px", borderRadius: "999px", background: "var(--color-accent-300)" }} />
           <strong>{working ? t("preview.designing") : t("preview.ready")}</strong>
-          <p>{t("preview.separateCourse")}</p>
+          <p style={{ margin: 0, fontSize: "13.5px", color: "var(--color-neutral-700)" }}>{t("preview.separateCourse")}</p>
+          {working && (
+            <div className="shimmer-placeholder-block">
+              <div className="shimmer-line" style={{ height: "14px", width: "100%" }} />
+              <div className="shimmer-line" style={{ height: "14px", width: "92%" }} />
+              <div className="shimmer-line" style={{ height: "14px", width: "75%" }} />
+            </div>
+          )}
         </section>
       ) : (
-        <iframe
-          ref={frame}
-          title={t("preview.title")}
-          src={`/course/${encodeURIComponent(pagePath)}?v=${courseVersion}`}
-        />
+        <div className={`preview-sheet-frame width-${widthMode}`}>
+          <iframe
+            ref={frame}
+            title={t("preview.title")}
+            src={`/course/${encodeURIComponent(pagePath)}?v=${courseVersion}`}
+          />
+        </div>
       )}
+
       {courseChanged && !startingTopic && !switchingCourse && (
-        <div className="reload-toast">
-          <Check size={15} /> {t("preview.updated")}
+        <div className="floating-toast-alert reload-toast">
+          <Check size={14} strokeWidth={2.75} /> <span>{t("preview.updated")}</span>
         </div>
       )}
+
       {inspecting && (
-        <div className="inspect-hint">
+        <div className="inspect-hint" style={{ position: "fixed", bottom: "20px", left: "50%", transform: "translateX(-50%)", zIndex: 100, background: "var(--color-text)", color: "var(--color-bg)", padding: "6px 14px", borderRadius: "var(--radius-pill)", fontSize: "11.5px", fontWeight: 600, display: "flex", gap: "6px", boxShadow: "var(--shadow-md)" }}>
           {multipleSelection ? t("preview.addContext") : t("preview.replaceContext")}
-          <span>{t("preview.inspectHelp")}</span>
+          <span style={{ color: "var(--color-neutral-400)" }}>{t("preview.inspectHelp")}</span>
         </div>
       )}
+
       {codex.state === "error" && (
-        <div className="codex-error-banner">
+        <div className="codex-error-banner" style={{ position: "fixed", bottom: "20px", left: "24px", zIndex: 150, background: "#2a1215", color: "#ff8a80", border: "1px solid #5c2b2e", padding: "10px 14px", borderRadius: "var(--radius-sm)", display: "flex", alignItems: "center", gap: "8px", fontSize: "12px" }}>
           <Bot size={17} />
           <span>{codex.message}</span>
         </div>

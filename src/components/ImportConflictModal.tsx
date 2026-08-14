@@ -1,4 +1,4 @@
-import { AlertTriangle, Copy, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import { useEffect } from "react";
 import { useI18n } from "../i18n";
 
@@ -25,54 +25,77 @@ export function ImportConflictModal({ open, courseId, onResolve, onClose }: Prop
 
   return (
     <div
-      className="export-dialog-backdrop"
+      className="dialog-modal-backdrop"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <section className="export-dialog conflict-dialog" role="dialog" aria-modal="true" aria-labelledby="conflict-dialog-title">
-        <header>
-          <div className="conflict-header-title">
-            <AlertTriangle className="conflict-icon" size={20} />
-            <h2 id="conflict-dialog-title">{t("importConflict.title")}</h2>
-          </div>
-          <button type="button" className="export-dialog-close" onClick={onClose} aria-label={t("exportDialog.close")}>
-            <X size={18} />
-          </button>
-        </header>
-
-        <p className="conflict-description">
-          {t("importConflict.description").replace("{id}", courseId)}
-        </p>
-
-        <div className="conflict-actions">
+      <section
+        className="dialog-modal-card conflict"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="conflict-dialog-title"
+      >
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+          <span className="conflict-icon-header">
+            <AlertTriangle size={20} strokeWidth={2.75} />
+          </span>
           <button
             type="button"
-            className="conflict-action-button primary"
+            className="dialog-modal-close-btn"
+            onClick={onClose}
+            aria-label={t("exportDialog.close")}
+          >
+            <X size={16} strokeWidth={2.5} />
+          </button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          <h2 id="conflict-dialog-title" style={{ margin: 0, fontFamily: "var(--font-heading)", fontWeight: 400, fontSize: "20px" }}>
+            {t("importConflict.title")}
+          </h2>
+          <p style={{ margin: 0, fontSize: "13px", lineHeight: 1.55, color: "var(--color-neutral-700)" }}>
+            <code>~/.courses/{courseId}</code> {t("importConflict.description").replace("{id}", courseId)}
+          </p>
+        </div>
+
+        <div className="conflict-option-cards">
+          <button
+            type="button"
+            className="conflict-card-btn primary"
             onClick={() => onResolve("copy")}
           >
-            <Copy size={16} />
-            <div>
-              <strong>{t("importConflict.copy")}</strong>
+            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+              <strong className="conflict-card-title">{t("importConflict.copy")}</strong>
+              <span className="conflict-card-desc">
+                Lands as <code>{courseId}-2</code>; yours is untouched
+              </span>
             </div>
           </button>
+
           <button
             type="button"
-            className="conflict-action-button danger"
+            className="conflict-card-btn"
             onClick={() => onResolve("replace")}
           >
-            <RefreshCw size={16} />
-            <div>
-              <strong>{t("importConflict.replace")}</strong>
+            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+              <strong className="conflict-card-title" style={{ color: "var(--color-neutral-900)" }}>{t("importConflict.replace")}</strong>
+              <span className="conflict-card-desc">
+                Existing checkpoints are archived, not deleted
+              </span>
             </div>
           </button>
         </div>
 
-        <footer>
-          <button type="button" className="export-dialog-cancel" onClick={onClose}>
+        <div className="dialog-modal-actions">
+          <button
+            type="button"
+            className="dialog-btn-cancel"
+            onClick={onClose}
+          >
             {t("importConflict.cancel")}
           </button>
-        </footer>
+        </div>
       </section>
     </div>
   );

@@ -45,6 +45,12 @@ the page live-reloads.
 ## Taste — calm, book-like, content-forward
 - The course is the hero. Spacious, generous reading measure (width: min(100% - 3rem, 88ch) or responsive ~80-90% container), comfortable line
   height (~1.6-1.7), clear typographic hierarchy. Warm, quiet palette.
+- The Studio sets \`data-studio-width="standard|wide|full"\` on \`\<html\>\` when
+  the learner changes canvas width. Use it to make content width adaptive:
+  \`html[data-studio-width="full"] .content { max-width: 100%; }\`.
+  In standard/wide modes, keep a comfortable reading column; in full mode,
+  allow interactive widgets and visualisations to go full-bleed while keeping
+  prose readable with a centred max-width column.
 - Interactivity in the Brilliant tradition: let the learner *do* the idea.
   Sliders, toggles, small simulations, immediate visual feedback, one focused
   question at a time. Make the abstract concrete and manipulable.
