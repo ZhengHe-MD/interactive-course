@@ -161,6 +161,79 @@ describe("standalone course export", () => {
     expect(html).toContain("独立课程导出");
   });
 
+  it("embeds multilingual sibling pages with a Course Edition Switcher in standalone exports", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "course-export-test-"));
+    temporaryDirectories.push(directory);
+    await writeFile(join(directory, "syllabus.html"), "<!doctype html><html><head><title>Syllabus</title></head><body><main><h1>Plan</h1></main></body></html>");
+    await writeFile(join(directory, "syllabus.zh-CN.html"), "<!doctype html><html><head><title>课程大纲</title></head><body><main><h1>教学大纲</h1></main></body></html>");
+    await writeFile(join(directory, "session1.html"), "<!doctype html><html><head><title>Practice</title></head><body><main><h1>Practice Matters</h1></main></body></html>");
+    await writeFile(join(directory, "session1.zh-CN.html"), "<!doctype html><html><head><title>实战训练</title></head><body><main><h1>实战进阶</h1></main></body></html>");
+
+    const outline: CourseOutline = {
+      phase: "learning",
+      hasContent: true,
+      title: "Skills & Practice",
+      topic: "Mastering skills.",
+      availableLanguages: ["en", "zh-CN"],
+      pages: [
+        {
+          path: "syllabus.html",
+          basePath: "syllabus.html",
+          lang: "en",
+          title: "Syllabus",
+          kind: "syllabus",
+          translations: { en: "syllabus.html", "zh-CN": "syllabus.zh-CN.html" },
+          sections: [],
+        },
+        {
+          path: "syllabus.zh-CN.html",
+          basePath: "syllabus.html",
+          lang: "zh-CN",
+          title: "课程大纲",
+          kind: "syllabus",
+          translations: { en: "syllabus.html", "zh-CN": "syllabus.zh-CN.html" },
+          sections: [],
+        },
+        {
+          path: "session1.html",
+          basePath: "session1.html",
+          lang: "en",
+          title: "Practice",
+          kind: "lesson",
+          translations: { en: "session1.html", "zh-CN": "session1.zh-CN.html" },
+          sections: [],
+        },
+        {
+          path: "session1.zh-CN.html",
+          basePath: "session1.html",
+          lang: "zh-CN",
+          title: "实战训练",
+          kind: "lesson",
+          translations: { en: "session1.html", "zh-CN": "session1.zh-CN.html" },
+          sections: [],
+        },
+      ],
+      sections: [],
+      upNext: [],
+    };
+
+    const html = await buildStandaloneCourse({
+      courseDirectory: directory,
+      outline,
+      language: "en",
+    });
+
+    expect(html).toContain("cs-lang-switcher");
+    expect(html).toContain('data-lang="en"');
+    expect(html).toContain('data-lang="zh-CN"');
+    expect(html).toContain("实战进阶");
+    expect(html).toContain("Practice Matters");
+
+    const runtime = /<script>\n([\s\S]*?)\n<\/script>\n<\/body>/.exec(html)?.[1];
+    expect(runtime).toBeTruthy();
+    expect(() => new Function(runtime!)).not.toThrow();
+  });
+
   it("creates a portable filename from the course title", () => {
     expect(exportFilename("Practice & Humanity")).toBe("practice-humanity.html");
     expect(exportFilename("论语：仁与礼")).toBe("论语-仁与礼.html");

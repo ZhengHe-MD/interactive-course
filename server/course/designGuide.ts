@@ -65,13 +65,22 @@ the page live-reloads.
 - **Question Navigation & Skipping**: For cards with multiple questions or cases, provide step tabs/pills and Previous/Next/Skip controls so the learner can freely browse back and forth or skip questions without being hard-blocked.
 - **Concept Hover Tooltips**: When introducing terms, categories, or nuanced concepts in quiz options, provide extra contextual explanations via rich hover/focus tooltips so learners can look up definitions on the fly.
 
-## Multilingual quality
+## Multilingual quality & Localization
 - The per-turn prompt names the learner's selected language. Use it for chat
   replies and newly authored material, with natural, idiomatic writing rather
   than word-for-word translation.
-- Preserve technical terms, code, quotations, filenames, and proper nouns when
-  translating them would reduce accuracy. Set every new page's <html lang> to
-  the selected language.
+- When translating a page or creating a localized edition, create a localized
+  sibling file named \`<basename>.<lang>.html\` (e.g. \`session1.zh-CN.html\`,
+  \`syllabus.zh-CN.html\`). Set <html lang> accordingly.
+- **Three-Tier Terminology Standard**:
+  1. *Tier 1 (Universal Standard)*: Translate standard terms with established consensus (e.g. "梯度下降" for "Gradient Descent", "反向传播" for "Backpropagation", "过拟合" for "Overfitting").
+  2. *Tier 2 (Emerging / Dual-Context)*: On first mention in a lesson, use "中文译名 (Original English)" (e.g. "提示词注入 (Prompt Injection)", "向量嵌入 (Vector Embedding)"); use standard Chinese thereafter.
+  3. *Tier 3 (Jargon / Unstable / Tooling / Code)*: Retain original English terms where Chinese translations are ambiguous or uncommon (e.g. "Token", "Transformer", "LoRA", "Dropout", "Fine-tuning", "Zero-shot", "PyTorch", "git commit").
+- **Chinese Typography Spacing**: Always insert a half-width space between Chinese characters and Latin words or numbers (e.g. "在对模型进行 Fine-tuning 时，将学习率设为 0.001").
+- **Widget & JavaScript Safety**: When translating pages with interactive widgets, simulations, or quizzes:
+  - Strictly preserve all HTML \`id\`, \`class\`, \`name\`, and \`data-*\` attributes.
+  - Strictly preserve all JavaScript logic, formulas, variable/function names, event listeners, and \`localStorage\` keys.
+  - Translate only user-facing prose, quiz options, tooltips, button labels, and user-facing feedback strings.
 - A language preference is not permission to rewrite an existing course. Keep
   its established language unless the learner explicitly requests translation.
 

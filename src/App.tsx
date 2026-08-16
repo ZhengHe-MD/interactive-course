@@ -8,7 +8,7 @@ import { readReadingPosition, writeReadingPosition, type ReadingPosition } from 
 import { collapseToLatestSelection, mergeSelection } from "./selection";
 import { Toolbar } from "./components/Toolbar";
 import { Welcome } from "./components/Welcome";
-import { useI18n } from "./i18n";
+import { useI18n, type Language } from "./i18n";
 import { useStudio } from "./ws";
 import type {
   AgentConfig,
@@ -36,7 +36,7 @@ import { courseRoutePath, parseStudioRoute, type StudioRoute } from "./routes";
 
 export function App() {
   const { state, actions } = useStudio();
-  const { language, t } = useI18n();
+  const { language, setLanguage, t } = useI18n();
   const preview = useRef<PreviewHandle | null>(null);
   const chat = useRef<ChatHandle | null>(null);
   const readingSection = useRef<CourseSection | undefined>(undefined);
@@ -248,22 +248,33 @@ export function App() {
     if (route.kind === "course") {
       synchronizedRouteCourse.current = true;
       setShowWelcome(false);
+      if (route.lang && route.lang !== language) {
+        setLanguage(route.lang);
+      }
       if (route.page) {
         setActivePage(route.page);
       }
       if (route.courseId !== state.courseId) {
         actions.openCourse(route.courseId);
       }
+    } else if (route.lang && route.lang !== language) {
+      setLanguage(route.lang);
     }
-  }, [state.connected, state.courseId, actions]);
+  }, [state.connected, state.courseId, actions, language, setLanguage]);
 
   useEffect(() => {
     const onPopState = () => {
-      const route = parseStudioRoute(window.location.pathname);
+      const route = parseStudioRoute(window.location.pathname, window.location.search);
       if (route.kind === "home") {
         setShowWelcome(true);
+        if (route.lang && route.lang !== language) {
+          setLanguage(route.lang);
+        }
       } else if (route.kind === "course") {
         setShowWelcome(false);
+        if (route.lang && route.lang !== language) {
+          setLanguage(route.lang);
+        }
         if (route.page) {
           setActivePage(route.page);
         }
@@ -274,20 +285,21 @@ export function App() {
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, [actions, state.courseId]);
+  }, [actions, state.courseId, language, setLanguage]);
 
   useEffect(() => {
     if (typeof window === "undefined" || showWelcome || !state.course.hasContent || !state.courseId) return;
-    const current = parseStudioRoute(window.location.pathname);
-    const target = courseRoutePath(state.courseId, visiblePage);
+    const current = parseStudioRoute(window.location.pathname, window.location.search);
+    const target = courseRoutePath(state.courseId, visiblePage, language);
     if (
       current.kind !== "course" ||
       current.courseId !== state.courseId ||
-      (current.page ?? "syllabus.html") !== (visiblePage ?? "syllabus.html")
+      (current.page ?? "syllabus.html") !== (visiblePage ?? "syllabus.html") ||
+      (current.lang && current.lang !== language)
     ) {
       window.history.replaceState(null, "", target);
     }
-  }, [showWelcome, state.course.hasContent, state.courseId, visiblePage]);
+  }, [showWelcome, state.course.hasContent, state.courseId, visiblePage, language]);
 
   const onSelectSection = (section: CourseSection) => {
     setActiveSection(section.id ?? `index-${section.index}`);
@@ -303,9 +315,39 @@ export function App() {
     setActiveSection(null);
     setSelections([]);
     setInspecting(false);
-    if (state.courseId) {
-      window.history.pushState(null, "", courseRoutePath(state.courseId, page.path));
+    if (page.lang && page.lang !== language) {
+      setLanguage(page.lang as Language);
     }
+    if (state.courseId) {
+      window.history.pushState(null, "", courseRoutePath(state.courseId, page.path, (page.lang as Language) || language));
+    }
+  };
+
+  // When language switches, seamlessly navigate activePage to its sibling translation if available
+  useEffect(() => {
+    const currentPage = state.course.pages.find((p) => p.path === activePage);
+    if (!currentPage?.translations) return;
+    const targetSibling = currentPage.translations[language];
+    if (targetSibling && targetSibling !== activePage) {
+      setActivePage(targetSibling);
+      if (state.courseId) {
+        window.history.pushState(null, "", courseRoutePath(state.courseId, targetSibling, language));
+      }
+    }
+  }, [language, state.course.pages, activePage, state.courseId]);
+
+  const onTranslatePage = (page: CoursePage) => {
+    const targetLang = language === "zh-CN" ? "zh-CN" : "en";
+    const targetExt = targetLang === "zh-CN" ? ".zh-CN.html" : ".html";
+    const targetFileName = page.basePath
+      ? page.basePath.replace(/\.html$/i, targetExt)
+      : `${page.path.replace(/\.[a-zA-Z]{2}(?:-[a-zA-Z]{2,4})?\.html$/i, "")}${targetExt}`;
+
+    const instruction = targetLang === "zh-CN"
+      ? `请把这篇《${page.title}》（${page.path}）完整翻译为地道、专业的中文，创建 sibling 文件 ${targetFileName}。遵循 3-tier 术语标准，严格保留所有交互组件的 ID、类名与脚本逻辑。`
+      : `Please translate "${page.title}" (${page.path}) into English and save as sibling file ${targetFileName}. Follow the 3-tier terminology standard and preserve all interactive widget IDs, classes, and script logic.`;
+
+    send(instruction);
   };
 
   const send = (text: string) => {
@@ -608,6 +650,7 @@ export function App() {
           onSelectSection={onSelectSection}
           onChooseTopic={() => chat.current?.focusComposer()}
           onWriteNextLesson={(lesson) => send(`Please write the next section: ${lesson}`)}
+          onTranslatePage={onTranslatePage}
         />
 
         <main className="workspace">
