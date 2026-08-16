@@ -3,7 +3,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import chokidar, { type FSWatcher } from "chokidar";
-import type { Checkpoint, CourseOutline, CoursePage, CoursePhase, CourseSection } from "../../shared/protocol";
+import type { Checkpoint, CourseOutline, CoursePage, CoursePhase, CourseSection, Language } from "../../shared/protocol";
 
 const execFileAsync = promisify(execFile);
 
@@ -71,7 +71,7 @@ export class CourseManager {
 
   /** The course's entry page, or null when the course has not been born yet. */
   private async readEntry(): Promise<string | null> {
-    for (const path of ["syllabus.html", "index.html"]) {
+    for (const path of ["syllabus.html", "syllabus.zh-CN.html", "index.html", "index.zh-CN.html"]) {
       try {
         return await readFile(join(this.courseDirectory, path), "utf8");
       } catch (error) {
@@ -94,7 +94,10 @@ export class CourseManager {
   async getCoursePhase(): Promise<CoursePhase> {
     const [html, htmlFiles] = await Promise.all([this.readEntry(), this.readHtmlFiles()]);
     if (html === null) return "empty";
-    const hasLesson = htmlFiles.some((file) => file.path !== "syllabus.html" && file.path !== "index.html");
+    const hasLesson = htmlFiles.some((file) => {
+      const { kind } = parseFileIdentity(file.path, file.html);
+      return kind === "lesson";
+    });
     if (hasLesson) return "learning";
     return readPhase(html);
   }
@@ -109,23 +112,50 @@ export class CourseManager {
     const [html, manifest, htmlFiles] = await Promise.all([this.readEntry(), this.readManifest(), this.readHtmlFiles()]);
     if (html === null) return EMPTY_OUTLINE;
 
-    const pages = htmlFiles
-      .map(({ path, html: pageHtml }): CoursePage => {
-        const page = deriveMeta(pageHtml);
-        const declaredKind = metaContent(pageHtml, "course-studio-page");
-        const kind = declaredKind === "lesson" || (path !== "index.html" && path !== "syllabus.html") ? "lesson" : "syllabus";
-        return {
-          path,
-          kind,
-          title: clean(metaContent(pageHtml, "course-page-title")) || (kind === "syllabus" ? "Syllabus" : page.title),
-          sections: page.sections,
-        };
-      })
+    const parsedFiles = htmlFiles.map(({ path, html: pageHtml }) => {
+      const { basePath, lang, kind } = parseFileIdentity(path, pageHtml);
+      const page = deriveMeta(pageHtml);
+      return {
+        path,
+        basePath,
+        lang,
+        kind,
+        title: clean(metaContent(pageHtml, "course-page-title")) || (kind === "syllabus" ? "Syllabus" : page.title),
+        sections: page.sections,
+      };
+    });
+
+    const translationsByBasePath: Record<string, Record<string, string>> = {};
+    const langSet = new Set<Language>();
+
+    for (const item of parsedFiles) {
+      if (!translationsByBasePath[item.basePath]) {
+        translationsByBasePath[item.basePath] = {};
+      }
+      translationsByBasePath[item.basePath][item.lang] = item.path;
+      langSet.add(item.lang);
+    }
+
+    const pages: CoursePage[] = parsedFiles
+      .map((item) => ({
+        path: item.path,
+        basePath: item.basePath,
+        lang: item.lang,
+        kind: item.kind,
+        title: item.title,
+        translations: translationsByBasePath[item.basePath],
+        sections: item.sections,
+      }))
       .sort((left, right) => {
-        if (left.path === "syllabus.html") return -1;
-        if (right.path === "syllabus.html") return 1;
-        if (left.path === "index.html") return -1;
-        if (right.path === "index.html") return 1;
+        const leftIsSyllabus = left.kind === "syllabus" || left.basePath === "syllabus.html" || left.basePath === "index.html";
+        const rightIsSyllabus = right.kind === "syllabus" || right.basePath === "syllabus.html" || right.basePath === "index.html";
+        if (leftIsSyllabus && !rightIsSyllabus) return -1;
+        if (!leftIsSyllabus && rightIsSyllabus) return 1;
+        if (left.basePath !== right.basePath) {
+          return (left.basePath || left.path).localeCompare(right.basePath || right.path, undefined, { numeric: true });
+        }
+        if (left.lang === "en" && right.lang !== "en") return -1;
+        if (left.lang !== "en" && right.lang === "en") return 1;
         return left.path.localeCompare(right.path, undefined, { numeric: true });
       });
 
@@ -139,6 +169,7 @@ export class CourseManager {
       hasContent: true,
       title: text(manifest.title) || derived.title,
       topic: text(manifest.topic) || derived.topic || (phase === "syllabus" ? "Proposed syllabus" : "Your course"),
+      availableLanguages: Array.from(langSet).sort(),
       pages,
       sections: derived.sections,
       upNext: strings(manifest.upNext),
@@ -246,6 +277,36 @@ export class CourseManager {
     await this.watcher?.close();
     this.watcher = null;
   }
+}
+
+/** Parse language, base lesson path, and kind from a course file. */
+export function parseFileIdentity(filename: string, html: string): {
+  basePath: string;
+  lang: Language;
+  kind: "syllabus" | "lesson";
+} {
+  const langMatch = filename.match(/\.([a-zA-Z]{2}(?:-[a-zA-Z]{2,4})?)\.html$/i);
+  let lang: Language = "en";
+  let basePath = filename;
+
+  if (langMatch) {
+    const raw = langMatch[1].toLowerCase();
+    lang = raw === "zh-cn" || raw === "zh" ? "zh-CN" : "en";
+    basePath = filename.replace(/\.[a-zA-Z]{2}(?:-[a-zA-Z]{2,4})?\.html$/i, ".html");
+  } else {
+    const htmlLang = /<html\b[^>]*\blang=["']([^"']+)["']/i.exec(html)?.[1]?.toLowerCase();
+    if (htmlLang && (htmlLang.startsWith("zh") || htmlLang === "zh-cn")) {
+      lang = "zh-CN";
+    } else {
+      lang = "en";
+    }
+  }
+
+  const isSyllabus = basePath === "syllabus.html" || basePath === "index.html";
+  const declaredKind = metaContent(html, "course-studio-page");
+  const kind = declaredKind === "syllabus" || (isSyllabus && declaredKind !== "lesson") ? "syllabus" : "lesson";
+
+  return { basePath, lang, kind };
 }
 
 /** Course phase, stored in the course itself so it survives a studio restart. */

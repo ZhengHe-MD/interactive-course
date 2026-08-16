@@ -71,6 +71,9 @@ export type CoursePage = {
   path: string;
   title: string;
   kind: "syllabus" | "lesson";
+  lang?: Language | string;
+  basePath?: string;
+  translations?: Record<string, string>;
   sections: CourseSection[];
 };
 
@@ -80,6 +83,7 @@ export type CourseOutline = {
   hasContent: boolean;
   title: string;
   topic: string;
+  availableLanguages?: Language[];
   /** Syllabus first, followed by generated lessons in filename order. */
   pages: CoursePage[];
   sections: CourseSection[];

@@ -66,8 +66,13 @@ The founding design discussion, recorded as questions, the fork each one posed, 
 **Owner's take:** *"the agent already has the session history, so the agent is able to see what I'm doing anyway."* Clarified nuance: chat and edits are visible; in-widget actions (quiz clicks, simulator fumbling) are not — accepted.
 **Decision:** no telemetry subsystem. Conversation and course content are the adaptation channels.
 
-## Q13. What is v1, concretely?
-**Decision:** M1 **The Loop** (preview + chat + selection + auto-apply + checkpoints) → judge the whole bet there → M2 **The Mind** (profile, design guide, answer contract, birth flow) → M3 **The Home** (library, timeline). Studio stack: Node/TS + Vite/React — the no-build rule applies to courses, not the studio.
+## Q16. How should multilingual co-authoring and release work without token waste?
+**Fork:** simultaneous bilingual authoring on every turn vs. derivative export-time translation (Fork A) vs. bilingual sibling pages inside the same course (Fork B) vs. clone/fork as new library course (Fork C).
+**Owner's take:** simultaneous bilingual co-authoring is a waste of tokens and slows down the loop. Translations aren't strictly read-only exports; they often need iterative refinement.
+**Decision:** **Fork B (Bilingual Sibling Structure)**. Co-author initially in a single primary language (zero token overhead). Generate translated sibling files (`session1.zh-CN.html`, `syllabus.zh-CN.html`) on demand. Refine translated files independently via the normal select-and-edit studio loop.
+- **Terminology:** 3-tier strategy. Universally accepted terms are translated (e.g. `梯度下降` for `Gradient Descent`); emerging/complex concepts use `中文 (Original English)` on first mention; unstable jargon, tooling, and proper nouns stay in original English (`Token`, `Transformer`, `LoRA`, `PyTorch`).
+- **Interactive Widgets & Logic:** DOM IDs, CSS classes, `localStorage` keys, formulas, and JS event bindings are strictly preserved; only user-facing prose, quiz choices, tooltips, and feedback messages are translated.
+- **Co-Design Companion:** Conversations in `conversations.json` are translated along with the course content to provide localized design notes and Q&A.
 
 ---
 

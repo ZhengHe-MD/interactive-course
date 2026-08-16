@@ -86,6 +86,11 @@ const en = {
   "nav.status": "Course status",
   "nav.learning": "Learning session by session",
   "nav.learningDescription": "The syllabus remains available, and new sessions appear separately as you reach them.",
+  "nav.courseEdition": "Course edition",
+  "nav.translateLesson": "Translate lesson",
+  "nav.translateLessonTo": "Translate to {lang}",
+  "nav.untranslatedBadge": "Original",
+  "nav.switchToLang": "Switch to {lang}",
   "chat.label": "Course agent chat",
   "chat.open": "Open chat",
   "chat.agent": "Design agent",
@@ -294,6 +299,11 @@ const zh: Record<keyof typeof en, string> = {
   "nav.status": "课程状态",
   "nav.learning": "按课时逐步学习",
   "nav.learningDescription": "课程大纲会一直保留；随着学习推进，新的课时会分别出现。",
+  "nav.courseEdition": "课程语言版本",
+  "nav.translateLesson": "翻译此课",
+  "nav.translateLessonTo": "翻译为此语言",
+  "nav.untranslatedBadge": "原文",
+  "nav.switchToLang": "切换至 {lang}",
   "chat.label": "课程助手对话",
   "chat.open": "打开对话",
   "chat.agent": "设计助手",
@@ -425,8 +435,14 @@ export type TranslationKey = keyof typeof en;
 
 const catalogs: Record<Language, Record<TranslationKey, string>> = { en, "zh-CN": zh };
 
-function initialLanguage(): Language {
+export function initialLanguage(): Language {
   if (typeof window === "undefined") return "en";
+  const searchLang = new URLSearchParams(window.location.search).get("lang");
+  if (searchLang === "zh-CN" || searchLang === "zh") return "zh-CN";
+  if (searchLang === "en") return "en";
+  if (window.location.pathname.includes(".zh-CN.") || window.location.pathname.endsWith(".zh-CN.html")) {
+    return "zh-CN";
+  }
   const stored = window.localStorage.getItem(STORAGE_KEY);
   if (stored === "en" || stored === "zh-CN") return stored;
   return window.navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en";

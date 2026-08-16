@@ -129,4 +129,19 @@ describe("course prompt", () => {
     expect(prompt).toContain("Do not translate or rewrite existing course material merely because the Studio language changed");
     expect(prompt).toContain("unless the learner explicitly asks to translate it");
   });
+
+  it("includes 3-tier terminology and widget safety instructions for translation requests", () => {
+    const prompt = buildCoursePrompt("把这一课翻译成中文", [], {
+      coursePhase: "learning",
+      activePage: "session1.html",
+      language: "zh-CN",
+    });
+
+    expect(prompt).toContain("3-tier terminology standard");
+    expect(prompt).toContain("梯度下降, 反向传播, 过拟合");
+    expect(prompt).toContain("提示词注入 (Prompt Injection)");
+    expect(prompt).toContain("Token, Transformer, LoRA, Fine-tuning, PyTorch");
+    expect(prompt).toContain("session1.zh-CN.html");
+    expect(prompt).toContain("Strictly preserve all HTML element IDs, class names, data-* attributes, localStorage keys");
+  });
 });

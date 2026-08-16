@@ -24,6 +24,7 @@ const copy = {
     learnerPrompt: "Learner",
     agentResponse: "AI Mentor",
     sessionFallback: "Session",
+    courseEdition: "Course edition",
   },
   "zh-CN": {
     eyebrow: "一门在学习过程中共同设计的课程",
@@ -39,6 +40,7 @@ const copy = {
     learnerPrompt: "学习者",
     agentResponse: "AI 导师",
     sessionFallback: "会话",
+    courseEdition: "课程版本",
   },
 } as const;
 
@@ -53,7 +55,11 @@ export async function buildStandaloneCourse(options: {
   const [pages, storedConversations] = await Promise.all([
     Promise.all(outline.pages.map(async (page) => ({
       path: page.path,
+      basePath: page.basePath || page.path.replace(/\.[a-zA-Z]{2}(?:-[a-zA-Z]{2,4})?\.html$/i, ".html"),
+      lang: page.lang || (page.path.includes(".zh-CN.") ? "zh-CN" : "en"),
+      kind: page.kind,
       title: page.title,
+      translations: page.translations,
       html: await inlinePageAssets(
         await readFile(join(courseDirectory, page.path), "utf8"),
         courseDirectory,
@@ -64,11 +70,26 @@ export async function buildStandaloneCourse(options: {
   ]);
   if (!pages.length) throw new Error("This course has no HTML pages to export.");
 
+  const langSet = new Set<Language>();
+  for (const p of pages) {
+    if (p.lang === "zh-CN" || p.lang === "en") langSet.add(p.lang as Language);
+  }
+  const availableLanguages: Language[] = outline.availableLanguages?.length
+    ? outline.availableLanguages
+    : Array.from(langSet).sort();
+
   const exportedAt = options.exportedAt ?? new Date();
   const date = exportedAt.toISOString().slice(0, 10);
   const title = outline.title || pages[0].title;
   const summary = outline.topic || `${labels.standalone}: ${title}`;
-  const data = scriptJson({ pages, conversations: storedConversations.conversations, labels });
+  const data = scriptJson({
+    pages,
+    conversations: storedConversations.conversations,
+    labels,
+    allLabels: copy,
+    availableLanguages,
+    initialLanguage: language,
+  });
 
   return `<!doctype html>
 <html lang="${language}">
@@ -90,9 +111,14 @@ export async function buildStandaloneCourse(options: {
         <h1 class="cs-export-title">${escapeHtml(title)}</h1>
       </div>
       <div class="cs-export-actions">
+        ${availableLanguages.length > 1 ? `
+        <div class="cs-lang-switcher" id="cs-lang-switcher" role="group" aria-label="${escapeAttribute(labels.courseEdition || "Course edition")}">
+          <button type="button" class="cs-lang-pill ${language === "en" ? "active" : ""}" data-lang="en">EN</button>
+          <button type="button" class="cs-lang-pill ${language === "zh-CN" ? "active" : ""}" data-lang="zh-CN">中文</button>
+        </div>` : ""}
         <button id="cs-companion-toggle" class="cs-companion-toggle" type="button" aria-expanded="false" aria-controls="cs-companion-drawer">
           <span class="cs-companion-toggle-icon">💬</span>
-          <span>${escapeHtml(labels.companionToggle)}</span>
+          <span id="cs-companion-toggle-label">${escapeHtml(labels.companionToggle)}</span>
         </button>
       </div>
     </header>
@@ -139,9 +165,74 @@ export async function buildStandaloneCourse(options: {
   const companionBackdrop = document.getElementById("cs-companion-backdrop");
   const companionContent = document.getElementById("cs-companion-content");
 
-  let activeIndex = Math.max(0, data.pages.findIndex((page) => location.hash.slice(1).split("#")[0] === encodeURIComponent(page.path)));
   let drawerOpen = false;
   let observer;
+
+  function getSlots(lang) {
+    const slotMap = new Map();
+    data.pages.forEach((p) => {
+      const base = p.basePath || p.path.replace(/\.[a-zA-Z]{2}(?:-[a-zA-Z]{2,4})?\.html$/i, ".html");
+      if (!slotMap.has(base)) slotMap.set(base, []);
+      slotMap.get(base).push(p);
+    });
+
+    const slots = [];
+    for (const [basePath, variants] of slotMap.entries()) {
+      const matchLang = variants.find((v) => v.lang === lang || (lang === "zh-CN" ? v.path.includes(".zh-CN.") : !v.path.includes(".zh-CN.")));
+      const activeVariant = matchLang || variants[0];
+      const kind = activeVariant.kind || (basePath === "syllabus.html" || basePath === "index.html" ? "syllabus" : "lesson");
+      slots.push({
+        basePath,
+        kind,
+        activeVariant,
+        hasMatch: Boolean(matchLang),
+        variants,
+      });
+    }
+
+    return slots.sort((left, right) => {
+      const leftSyllabus = left.kind === "syllabus" || left.basePath === "syllabus.html" || left.basePath === "index.html";
+      const rightSyllabus = right.kind === "syllabus" || right.basePath === "syllabus.html" || right.basePath === "index.html";
+      if (leftSyllabus && !rightSyllabus) return -1;
+      if (!leftSyllabus && rightSyllabus) return 1;
+      return left.basePath.localeCompare(right.basePath, undefined, { numeric: true });
+    });
+  }
+
+  function parseInitialState() {
+    const params = new URLSearchParams(window.location.search);
+    const queryLang = params.get("lang");
+    const rawHash = decodeURIComponent(location.hash.slice(1));
+    const hashPath = rawHash.split("#")[0];
+    const hashSection = rawHash.includes("#") ? rawHash.slice(rawHash.indexOf("#") + 1) : undefined;
+
+    let initialLang = queryLang === "zh-CN" || queryLang === "en" ? queryLang : undefined;
+    let matchIndex = hashPath ? data.pages.findIndex((p) => p.path === hashPath) : -1;
+
+    if (matchIndex >= 0) {
+      const matchedPage = data.pages[matchIndex];
+      if (!initialLang) {
+        initialLang = matchedPage.lang || (matchedPage.path.includes(".zh-CN.") ? "zh-CN" : "en");
+      }
+    } else {
+      if (!initialLang) initialLang = data.initialLanguage || "en";
+      const defaultSlot = getSlots(initialLang)[0];
+      if (defaultSlot) {
+        matchIndex = data.pages.findIndex((p) => p.path === defaultSlot.activeVariant.path);
+      }
+      if (matchIndex < 0) matchIndex = 0;
+    }
+
+    return {
+      index: matchIndex >= 0 ? matchIndex : 0,
+      lang: initialLang || "en",
+      section: hashSection,
+    };
+  }
+
+  const initial = parseInitialState();
+  let activeIndex = initial.index;
+  let currentLang = initial.lang;
 
   function updateLayout() {
     const w = window.innerWidth;
@@ -187,16 +278,42 @@ export async function buildStandaloneCourse(options: {
     }
   }
 
+  function updateChromeLabels(lang) {
+    const labels = data.allLabels?.[lang] || data.labels;
+    document.documentElement.lang = lang;
+    if (previous) previous.textContent = "← " + labels.previous;
+    if (next) next.textContent = labels.next + " →";
+    const toggleLabel = document.getElementById("cs-companion-toggle-label");
+    if (toggleLabel) toggleLabel.textContent = labels.companionToggle;
+    const drawerHeading = companionDrawer?.querySelector(".cs-companion-header strong");
+    if (drawerHeading) drawerHeading.textContent = labels.companionTitle;
+    const navHeading = nav?.querySelector(".cs-export-nav-heading");
+    if (navHeading) navHeading.textContent = labels.contents;
+
+    document.querySelectorAll(".cs-lang-pill").forEach((pill) => {
+      pill.classList.toggle("active", pill.getAttribute("data-lang") === lang);
+    });
+  }
+
   function renderNavigation() {
-    pageList.replaceChildren(...data.pages.map((page, index) => {
+    const slots = getSlots(currentLang);
+    let lessonCount = 0;
+    pageList.replaceChildren(...slots.map((slot) => {
+      const page = slot.activeVariant;
+      const pageIndex = data.pages.findIndex((p) => p.path === page.path);
+      const isSyllabus = slot.kind === "syllabus";
+      if (!isSyllabus) lessonCount += 1;
+      const numLabel = isSyllabus ? "—" : String(lessonCount).padStart(2, "0");
+      const isSelected = slot.variants.some((v) => v.path === data.pages[activeIndex]?.path);
+
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "cs-nav-item" + (index === activeIndex ? " active" : "");
+      button.className = "cs-nav-item" + (isSelected ? " active" : "");
       button.title = page.title;
 
       const numBadge = document.createElement("span");
       numBadge.className = "cs-nav-num";
-      numBadge.textContent = String(index + 1).padStart(2, "0");
+      numBadge.textContent = numLabel;
 
       const labelSpan = document.createElement("span");
       labelSpan.className = "cs-nav-label";
@@ -204,10 +321,42 @@ export async function buildStandaloneCourse(options: {
 
       button.appendChild(numBadge);
       button.appendChild(labelSpan);
-      button.addEventListener("click", () => showPage(index));
+
+      if (!slot.hasMatch && data.availableLanguages && data.availableLanguages.length > 1) {
+        const badge = document.createElement("span");
+        badge.className = "cs-nav-badge";
+        badge.textContent = page.lang === "zh-CN" || page.path.includes(".zh-CN.") ? "中文" : "EN";
+        button.appendChild(badge);
+      }
+
+      button.addEventListener("click", () => showPage(pageIndex >= 0 ? pageIndex : 0));
       return button;
     }));
   }
+
+  function switchLanguage(lang) {
+    if (lang === currentLang) return;
+    currentLang = lang;
+    const currentPath = data.pages[activeIndex]?.path;
+    const currentBase = data.pages[activeIndex]?.basePath || currentPath?.replace(/\.[a-zA-Z]{2}(?:-[a-zA-Z]{2,4})?\.html$/i, ".html");
+
+    const targetPage = data.pages.find((p) => (p.basePath === currentBase || p.path === currentBase) && (p.lang === lang || (lang === "zh-CN" ? p.path.includes(".zh-CN.") : !p.path.includes(".zh-CN."))));
+    if (targetPage) {
+      const targetIndex = data.pages.findIndex((p) => p.path === targetPage.path);
+      if (targetIndex >= 0) activeIndex = targetIndex;
+    }
+
+    updateChromeLabels(lang);
+    renderNavigation();
+    showPage(activeIndex);
+  }
+
+  document.querySelectorAll(".cs-lang-pill").forEach((pill) => {
+    pill.addEventListener("click", () => {
+      const lang = pill.getAttribute("data-lang");
+      if (lang) switchLanguage(lang);
+    });
+  });
 
   function renderCompanion() {
     if (!data.conversations || !data.conversations.length) {
@@ -326,9 +475,18 @@ export async function buildStandaloneCourse(options: {
     const page = data.pages[activeIndex];
     if (!page) return;
 
+    const pageLang = page.lang || (page.path.includes(".zh-CN.") ? "zh-CN" : "en");
+    if (pageLang !== currentLang && data.availableLanguages?.includes(pageLang)) {
+      currentLang = pageLang;
+      updateChromeLabels(currentLang);
+    }
+
     previous.disabled = activeIndex === 0;
     next.disabled = activeIndex === data.pages.length - 1;
-    location.hash = encodeURIComponent(page.path);
+    const targetHash = encodeURIComponent(page.path) + (sectionId ? "#" + sectionId : "");
+    if (decodeURIComponent(location.hash.slice(1)) !== decodeURIComponent(targetHash)) {
+      location.hash = targetHash;
+    }
     renderNavigation();
 
     observer?.disconnect();
@@ -371,8 +529,9 @@ export async function buildStandaloneCourse(options: {
     }
   });
 
+  updateChromeLabels(currentLang);
   updateLayout();
-  showPage(activeIndex);
+  showPage(activeIndex, initial.section);
 })();
 </script>
 </body>
@@ -642,6 +801,48 @@ button { font: inherit; }
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: none;
+}
+.cs-lang-switcher {
+  display: inline-flex;
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-accent-300);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+.cs-lang-pill {
+  border: 0;
+  background: transparent;
+  color: var(--color-neutral-700);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all .15s ease;
+  line-height: 1.2;
+}
+.cs-lang-pill:hover {
+  color: var(--color-text);
+}
+.cs-lang-pill.active {
+  background: var(--color-accent);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+.cs-nav-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--color-neutral-200);
+  color: var(--color-neutral-600);
+  margin-left: auto;
   flex: none;
 }
 .cs-companion-toggle {

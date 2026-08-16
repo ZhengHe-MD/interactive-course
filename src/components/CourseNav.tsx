@@ -1,5 +1,5 @@
-import { ChevronLeft, ChevronRight, Edit3, Sparkles } from "lucide-react";
-import { useI18n } from "../i18n";
+import { ChevronLeft, ChevronRight, Edit3, Languages, Sparkles } from "lucide-react";
+import { useI18n, type Language } from "../i18n";
 import type { CourseOutline, CoursePage, CourseSection } from "../types";
 
 type Props = {
@@ -13,6 +13,15 @@ type Props = {
   onSelectSection: (section: CourseSection) => void;
   onChooseTopic: () => void;
   onWriteNextLesson?: (title: string) => void;
+  onTranslatePage?: (page: CoursePage) => void;
+};
+
+type LessonSlot = {
+  basePath: string;
+  kind: "syllabus" | "lesson";
+  activeVariant: CoursePage;
+  hasActiveLangVariant: boolean;
+  variants: CoursePage[];
 };
 
 export function CourseNav({
@@ -26,10 +35,61 @@ export function CourseNav({
   onSelectSection,
   onChooseTopic,
   onWriteNextLesson,
+  onTranslatePage,
 }: Props) {
-  const { t } = useI18n();
+  const { language, setLanguage, t } = useI18n();
   const empty = !course.hasContent;
-  const page = course.pages.find((entry) => entry.path === activePage) ?? course.pages[0];
+
+  const availableLanguages: Language[] = course.availableLanguages?.length
+    ? course.availableLanguages
+    : (Array.from(
+        new Set(
+          course.pages
+            .map((p) => (p.lang as Language) || (p.path.includes(".zh-CN.") ? "zh-CN" : "en")),
+        ),
+      ).filter(Boolean) as Language[]);
+
+  const hasMultipleLanguages = availableLanguages.length > 1;
+
+  // Group pages by their base slot identity so translations don't become separate numbered lessons
+  const slots: LessonSlot[] = (() => {
+    const slotMap = new Map<string, CoursePage[]>();
+    for (const p of course.pages) {
+      const base = p.basePath || p.path.replace(/\.[a-zA-Z]{2}(?:-[a-zA-Z]{2,4})?\.html$/i, ".html");
+      const existing = slotMap.get(base) ?? [];
+      existing.push(p);
+      slotMap.set(base, existing);
+    }
+
+    const result: LessonSlot[] = [];
+    for (const [basePath, variants] of slotMap.entries()) {
+      const matchLang = variants.find((v) => v.lang === language || (language === "zh-CN" ? v.path.includes(".zh-CN.") : !v.path.includes(".zh-CN.")));
+      const matchActive = variants.find((v) => v.path === activePage);
+      const activeVariant = matchActive ?? matchLang ?? variants[0];
+      const hasActiveLangVariant = Boolean(matchLang);
+      const kind = activeVariant.kind ?? (basePath === "syllabus.html" || basePath === "index.html" ? "syllabus" : "lesson");
+
+      result.push({
+        basePath,
+        kind,
+        activeVariant,
+        hasActiveLangVariant,
+        variants,
+      });
+    }
+
+    return result.sort((left, right) => {
+      const leftIsSyllabus = left.kind === "syllabus" || left.basePath === "syllabus.html" || left.basePath === "index.html";
+      const rightIsSyllabus = right.kind === "syllabus" || right.basePath === "syllabus.html" || right.basePath === "index.html";
+      if (leftIsSyllabus && !rightIsSyllabus) return -1;
+      if (!leftIsSyllabus && rightIsSyllabus) return 1;
+      return left.basePath.localeCompare(right.basePath, undefined, { numeric: true });
+    });
+  })();
+
+  const activeSlot = slots.find((s) => s.variants.some((v) => v.path === activePage)) ?? slots[0];
+  const page = activeSlot?.activeVariant ?? course.pages.find((entry) => entry.path === activePage) ?? course.pages[0];
+
   const sections: CourseSection[] = page?.sections.length
     ? page.sections
     : page
@@ -54,6 +114,8 @@ export function CourseNav({
     );
   }
 
+  let lessonCounter = 0;
+
   return (
     <aside className="course-nav-sidebar" aria-label={t("nav.materials")}>
       <div style={{ display: "none" }} aria-hidden="true">
@@ -61,18 +123,40 @@ export function CourseNav({
         <span>{t("nav.label")}</span>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div className="course-nav-header">
         <span className="course-nav-section-title">{t("nav.coursePlan")}</span>
-        <button
-          className="topbar-circle-btn"
-          style={{ width: "24px", height: "24px", border: "0" }}
-          type="button"
-          onClick={onToggleCollapsed}
-          aria-label={t("nav.collapse")}
-          title={t("nav.collapse")}
-        >
-          <ChevronLeft size={14} strokeWidth={2.5} />
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          {hasMultipleLanguages && (
+            <div className="course-nav-lang-switcher" role="group" aria-label={t("nav.courseEdition")}>
+              <button
+                type="button"
+                className={`course-nav-lang-pill ${language === "en" ? "active" : ""}`}
+                onClick={() => setLanguage("en")}
+                title={t("language.english")}
+              >
+                EN
+              </button>
+              <button
+                type="button"
+                className={`course-nav-lang-pill ${language === "zh-CN" ? "active" : ""}`}
+                onClick={() => setLanguage("zh-CN")}
+                title={t("language.chinese")}
+              >
+                中文
+              </button>
+            </div>
+          )}
+          <button
+            className="topbar-circle-btn"
+            style={{ width: "24px", height: "24px", border: "0" }}
+            type="button"
+            onClick={onToggleCollapsed}
+            aria-label={t("nav.collapse")}
+            title={t("nav.collapse")}
+          >
+            <ChevronLeft size={14} strokeWidth={2.5} />
+          </button>
+        </div>
       </div>
 
       <nav className="course-nav-list" aria-label={t("nav.materials")}>
@@ -86,11 +170,15 @@ export function CourseNav({
             <span>{working ? t("nav.writing") : t("nav.shape")}</span>
           </button>
         ) : (
-          course.pages.map((coursePage, pageIndex) => {
-            const isSelected = coursePage.path === page?.path;
-            const numLabel = coursePage.kind === "syllabus" ? "—" : String(pageIndex).padStart(2, "0");
+          slots.map((slot) => {
+            const coursePage = slot.activeVariant;
+            const isSelected = slot.variants.some((v) => v.path === activePage) || coursePage.path === page?.path;
+            const isSyllabus = slot.kind === "syllabus";
+            if (!isSyllabus) lessonCounter += 1;
+            const numLabel = isSyllabus ? "—" : String(lessonCounter).padStart(2, "0");
+
             return (
-              <div key={coursePage.path} className="course-nav-item">
+              <div key={slot.basePath} className="course-nav-item">
                 <button
                   type="button"
                   className={`course-nav-page-btn ${isSelected ? "active" : ""}`}
@@ -98,6 +186,28 @@ export function CourseNav({
                 >
                   <span className="course-nav-num">{numLabel}</span>
                   <span className="course-nav-page-title">{coursePage.title}</span>
+
+                  {!slot.hasActiveLangVariant && hasMultipleLanguages && (
+                    <span className="course-nav-badge" title={t("nav.untranslatedBadge")}>
+                      {coursePage.lang === "zh-CN" || coursePage.path.includes(".zh-CN.") ? "中文" : "EN"}
+                    </span>
+                  )}
+
+                  {!slot.hasActiveLangVariant && onTranslatePage && (
+                    <button
+                      type="button"
+                      className="course-nav-translate-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onTranslatePage(coursePage);
+                      }}
+                      title={t("nav.translateLesson")}
+                      aria-label={t("nav.translateLesson")}
+                    >
+                      <Languages size={12} strokeWidth={2.4} />
+                    </button>
+                  )}
+
                   {isSelected && working && (
                     <span className="course-nav-spinner" />
                   )}

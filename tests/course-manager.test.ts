@@ -67,8 +67,11 @@ describe("CourseManager", () => {
     ]);
     expect(outline.pages).toEqual([{
       path: "index.html",
+      basePath: "index.html",
+      lang: "en",
       title: "Syllabus",
       kind: "syllabus",
+      translations: { en: "index.html" },
       sections: [
         { id: "outcomes", index: 0, label: "What you'll be able to do" },
         { id: undefined, index: 1, label: "The learning path" },
@@ -114,10 +117,82 @@ describe("CourseManager", () => {
     const outline = await manager.getOutline();
     expect(outline.phase).toBe("learning");
     expect(outline.pages).toEqual([
-      { path: "syllabus.html", title: "Syllabus", kind: "syllabus", sections: [{ id: "arc", index: 0, label: "Course arc" }] },
-      { path: "session1.html", title: "Practice", kind: "lesson", sections: [{ id: "question", index: 0, label: "Opening question" }] },
-      { path: "session2.html", title: "Relationships", kind: "lesson", sections: [] },
+      {
+        path: "syllabus.html",
+        basePath: "syllabus.html",
+        lang: "en",
+        title: "Syllabus",
+        kind: "syllabus",
+        translations: { en: "syllabus.html" },
+        sections: [{ id: "arc", index: 0, label: "Course arc" }],
+      },
+      {
+        path: "session1.html",
+        basePath: "session1.html",
+        lang: "en",
+        title: "Practice",
+        kind: "lesson",
+        translations: { en: "session1.html" },
+        sections: [{ id: "question", index: 0, label: "Opening question" }],
+      },
+      {
+        path: "session2.html",
+        basePath: "session2.html",
+        lang: "en",
+        title: "Relationships",
+        kind: "lesson",
+        translations: { en: "session2.html" },
+        sections: [],
+      },
     ]);
+  });
+
+  it("organizes multilingual sibling pages and detects available languages", async () => {
+    const root = await repository();
+    const manager = new CourseManager(root, "demo");
+    managers.push(manager);
+
+    await writeFile(
+      join(root, "demo/syllabus.html"),
+      '<meta name="course-studio-phase" content="learning"><meta name="course-studio-page" content="syllabus"><h1>Skills</h1>',
+    );
+    await writeFile(
+      join(root, "demo/syllabus.zh-CN.html"),
+      '<meta name="course-studio-phase" content="learning"><meta name="course-studio-page" content="syllabus"><meta name="course-page-title" content="课程大纲"><h1>技能大纲</h1>',
+    );
+    await writeFile(
+      join(root, "demo/session1.html"),
+      '<meta name="course-studio-page" content="lesson"><meta name="course-page-title" content="Reading Skills"><h1>Reading</h1>',
+    );
+    await writeFile(
+      join(root, "demo/session1.zh-CN.html"),
+      '<meta name="course-studio-page" content="lesson"><meta name="course-page-title" content="技能系统解析"><h1>解析</h1>',
+    );
+    await writeFile(
+      join(root, "demo/session2.html"),
+      '<meta name="course-studio-page" content="lesson"><meta name="course-page-title" content="Designing Skills"><h1>Designing</h1>',
+    );
+
+    const outline = await manager.getOutline();
+    expect(outline.availableLanguages).toEqual(["en", "zh-CN"]);
+    expect(outline.pages.map((p) => p.path)).toEqual([
+      "syllabus.html",
+      "syllabus.zh-CN.html",
+      "session1.html",
+      "session1.zh-CN.html",
+      "session2.html",
+    ]);
+
+    const syllabusZh = outline.pages.find((p) => p.path === "syllabus.zh-CN.html");
+    expect(syllabusZh?.kind).toBe("syllabus");
+    expect(syllabusZh?.basePath).toBe("syllabus.html");
+    expect(syllabusZh?.translations).toEqual({ en: "syllabus.html", "zh-CN": "syllabus.zh-CN.html" });
+
+    const session1En = outline.pages.find((p) => p.path === "session1.html");
+    expect(session1En?.translations).toEqual({ en: "session1.html", "zh-CN": "session1.zh-CN.html" });
+
+    const session2En = outline.pages.find((p) => p.path === "session2.html");
+    expect(session2En?.translations).toEqual({ en: "session2.html" });
   });
 
   it("survives a course.json the agent wrote badly", async () => {
