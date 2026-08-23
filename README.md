@@ -61,7 +61,9 @@ npm run desktop:install
 
 That puts `Course Studio.app` in `/Applications`. It runs the same server and the same course library — the web app is unchanged and stays fully supported. If a studio server is already running, the desktop app attaches to it instead of starting a second one, so a browser tab and the app can be open at once.
 
-Building your own Mac app needs no Apple Developer account and no App Store: an app you compile locally carries no quarantine attribute, so it just launches. Anyone who clones this repo can build it the same way. See [docs/desktop-app.md](docs/desktop-app.md) for the details, including what would change if prebuilt downloads were ever published.
+Building your own Mac app needs no Apple Developer account and no App Store: an app you compile locally carries no quarantine attribute, so it just launches. Anyone who clones this repo can build it the same way.
+
+Prefer not to build? Every tagged version ships a `.dmg` and a `.zip` for both Apple Silicon and Intel on the [Releases page](https://github.com/ZhengHe-MD/interactive-course/releases). Those builds are ad-hoc signed rather than notarized, so macOS quarantines them on download — the release notes carry the one command that clears it. See [docs/desktop-app.md](docs/desktop-app.md) for the details, including how a release is cut and what notarization would change.
 
 ### Environment Variables
 
@@ -82,5 +84,5 @@ Click **Export** in the top bar to package your course:
 
 - [DESIGN.md](DESIGN.md) — Architecture decisions and core principles
 - [AGENTS.md](AGENTS.md) — How the AI agent reasons and creates courses
-- [docs/desktop-app.md](docs/desktop-app.md) — Building, installing, and code-signing the macOS app
+- [docs/desktop-app.md](docs/desktop-app.md) — Building, releasing, and code-signing the macOS app
 - [docs/language-policy.md](docs/language-policy.md) — Bilingual design contract

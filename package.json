@@ -12,6 +12,7 @@
     "desktop:pack": "npm run desktop:build && electron-builder --mac dir",
     "desktop:dist": "npm run desktop:build && electron-builder --mac dmg",
     "desktop:install": "npm run desktop:pack && node desktop/install.mjs",
+    "release": "node scripts/release.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

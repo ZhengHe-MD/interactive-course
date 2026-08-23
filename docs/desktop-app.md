@@ -18,6 +18,7 @@ That builds the client, stages the server, packages `Course Studio.app`, and cop
 | `npm run desktop:pack` | Packages `Course Studio.app` into `.desktop/release`. |
 | `npm run desktop:dist` | Packages a `.dmg` as well. |
 | `npm run desktop:install` | Packages, then installs into `/Applications`. |
+| `npm run release -- patch` | Bumps the version and pushes the tag that publishes a GitHub release. See [Releasing](#releasing). |
 
 ## How it coexists with the web app
 
@@ -57,15 +58,40 @@ What that means in practice:
 
 Apple Silicon does require every binary to carry *some* signature, so `desktop/afterPack.mjs` applies an ad-hoc one (`codesign --sign -`). Ad-hoc signatures are free, need no Apple account, and are enough to run an app locally. They carry no identity, which is exactly why they do not satisfy Gatekeeper for downloaded apps.
 
-**This repo ships no prebuilt binaries, by design.** Anyone who wants the desktop client builds it from source, which keeps the whole thing free and avoids the download friction entirely.
+**Tagged releases publish prebuilt `.dmg` and `.zip` builds anyway** — the last row of that table is a trade we take deliberately. The downloads exist so a second Mac, or anyone who would rather not install a toolchain, can still run the app; the cost is one `xattr` command after installing, which the release notes spell out. Building from source stays the recommended path precisely because it skips that step.
 
-If you ever do want to publish a downloadable build, the requirements are an Apple Developer Program membership ($99/yr), a Developer ID Application certificate, and notarization — Apple scans the upload and issues a ticket that gets stapled to the app. Until then, anyone who downloads an unsigned build has to clear the quarantine attribute by hand:
+Making those downloads open with no extra step means an Apple Developer Program membership ($99/yr), a Developer ID Application certificate, and notarization — Apple scans the upload and issues a ticket that gets stapled to the app. Until that is worth paying for, anyone who downloads a release clears the quarantine attribute by hand, once:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Course Studio.app"
 ```
 
 On macOS 15 and later the old Control-click → Open shortcut no longer works for this; the GUI path is System Settings → Privacy & Security → **Open Anyway**.
+
+## Releasing
+
+A release is a version tag. `.github/workflows/release.yml` watches `v*`; pushing one is the whole trigger.
+
+```bash
+npm run release -- patch     # or minor, major, or an exact 1.2.3
+```
+
+`scripts/release.mjs` refuses to run from anything but a clean `main` that matches `origin/main`, runs the typecheck and the tests, then hands off to `npm version` — which writes the version, commits it, and creates the tag — and pushes both. Add `--dry-run` to see what it would do without touching anything.
+
+From the tag, the workflow re-checks that the tag matches `package.json`, runs the tests, stages the app, and packages both architectures on an Apple Silicon runner:
+
+```
+course-studio-<version>-arm64.dmg    course-studio-<version>-arm64.zip
+course-studio-<version>-x64.dmg      course-studio-<version>-x64.zip
+SHA256SUMS.txt
+```
+
+Nothing in the app is a native module, so the Intel build cross-packages from the same runner. The release notes are GitHub's generated changelog with the install and quarantine instructions prepended.
+
+Two things worth knowing:
+
+- **Run the workflow by hand to rehearse it.** A `workflow_dispatch` run builds and checksums exactly the same assets and attaches them to the run, but publishes no release. That is how to find out that packaging broke without first cutting a tag.
+- **A failed release is recoverable.** The tag exists as soon as it is pushed, so if the build fails, fix the cause, then `git tag -d vX.Y.Z && git push origin :vX.Y.Z` and release again. The workflow creates the release only after every earlier step has passed.
 
 ## Why not Pake
 
