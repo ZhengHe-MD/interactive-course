@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Edit3, Languages, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, Languages, Sparkles } from "lucide-react";
 import { useI18n, type Language } from "../i18n";
 import type { CourseOutline, CoursePage, CourseSection } from "../types";
 
@@ -7,6 +7,7 @@ type Props = {
   activePage: string;
   activeSection: string | null;
   working: boolean;
+  loadingCourse?: boolean;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
   onSelectPage: (page: CoursePage) => void;
@@ -29,6 +30,7 @@ export function CourseNav({
   activePage,
   activeSection,
   working,
+  loadingCourse = false,
   collapsed = false,
   onToggleCollapsed = () => undefined,
   onSelectPage,
@@ -160,14 +162,15 @@ export function CourseNav({
       </div>
 
       <nav className="course-nav-list" aria-label={t("nav.materials")}>
-        {empty ? (
+        {empty || loadingCourse ? (
           <button
             type="button"
             className="course-nav-page-btn active"
-            onClick={onChooseTopic}
+            onClick={loadingCourse ? undefined : onChooseTopic}
+            disabled={loadingCourse}
           >
             <Sparkles size={12} strokeWidth={2.5} />
-            <span>{working ? t("nav.writing") : t("nav.shape")}</span>
+            <span>{working || loadingCourse ? t("nav.writing") : t("nav.shape")}</span>
           </button>
         ) : (
           slots.map((slot) => {
@@ -238,26 +241,6 @@ export function CourseNav({
           })
         )}
       </nav>
-
-      {/* Up Next Card at bottom */}
-      {(course.upNext.length > 0 || working) && (
-        <div className="up-next-panel">
-          <span className="course-nav-section-title">{t("nav.upNextHeader")}</span>
-          {(course.upNext.length ? course.upNext : [t("nav.writtenWhenReady")]).map((lesson) => (
-            <button
-              key={lesson}
-              type="button"
-              className="up-next-item-btn"
-              onClick={() => onWriteNextLesson?.(lesson)}
-            >
-              <Edit3 size={12} strokeWidth={2.5} style={{ flex: "none", color: "var(--color-accent)" }} />
-              <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {lesson}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
 
       {course.phase === "learning" && (
         <div style={{ display: "none" }} aria-hidden="true">

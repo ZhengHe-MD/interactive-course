@@ -40,6 +40,7 @@ type Props = {
   conversations: ConversationSummary[];
   open: boolean;
   selections: Selection[];
+  loadingCourse?: boolean;
   models?: AgentModel[];
   agentConfig?: AgentConfig | null;
   onAgentConfigChange?: (config: AgentConfig) => void;
@@ -55,7 +56,7 @@ type Props = {
 
 export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
   const { t } = useI18n();
-  const { codex, statusText, connected, working, items, open, selections } = props;
+  const { codex, statusText, connected, working, items, open, selections, loadingCourse = false } = props;
   const scroller = useRef<HTMLDivElement | null>(null);
   const composer = useRef<HTMLTextAreaElement | null>(null);
   const [draft, setDraft] = useState("");
@@ -90,7 +91,7 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
     setDraft("");
   }, [props.conversationId]);
 
-  const canSend = connected && (draft.trim().length > 0 || selections.length > 0);
+  const canSend = !loadingCourse && connected && (draft.trim().length > 0 || selections.length > 0);
   const lastItem = items.at(-1);
   const activeAgent = working && lastItem?.kind === "agent" ? lastItem : undefined;
   const activeAgentId = activeAgent?.id;
@@ -276,26 +277,41 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
       </header>
 
       <div className="codesign-messages-list" ref={scroller}>
-        {items.map((item) => (
-          <Message key={item.id} item={item} hideActivities={item.id === activeAgentId} />
-        ))}
-        {codex.state === "starting" && (
-          <div className="system-message" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--color-neutral-600)" }}>
-            <LoaderCircle className="spin" size={13} /> {t("chat.connectingCodex")}
+        {loadingCourse ? (
+          <div className="course-loading-message" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "200px", padding: "48px 16px", gap: "12px", color: "var(--color-neutral-600)", textAlign: "center" }}>
+            <LoaderCircle className="spin" size={22} style={{ color: "var(--color-accent)" }} />
+            <span style={{ fontSize: "13.5px", fontWeight: 500 }}>
+              {statusText.toLowerCase().includes("switch") || statusText.includes("加载") || statusText.includes("切换")
+                ? t("chat.switchingCourse")
+                : t("chat.loadingCourse")}
+            </span>
           </div>
+        ) : (
+          <>
+            {items.map((item) => (
+              <Message key={item.id} item={item} hideActivities={item.id === activeAgentId} />
+            ))}
+            {codex.state === "starting" && (
+              <div className="system-message" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--color-neutral-600)" }}>
+                <LoaderCircle className="spin" size={13} /> {t("chat.connectingCodex")}
+              </div>
+            )}
+          </>
         )}
       </div>
 
       <div className="codesign-composer-wrap">
-        {working && <WorkingBanner activities={activeAgent?.activities ?? []} />}
+        {!loadingCourse && working && <WorkingBanner activities={activeAgent?.activities ?? []} />}
 
-        <PhaseGuide
-          phase={props.phase}
-          canAct={connected && !working}
-          onApprove={() => props.onSend(t("chat.approvePrompt"))}
-        />
+        {!loadingCourse && (
+          <PhaseGuide
+            phase={props.phase}
+            canAct={connected && !working}
+            onApprove={() => props.onSend(t("chat.approvePrompt"))}
+          />
+        )}
 
-        {selections.length > 0 && (
+        {!loadingCourse && selections.length > 0 && (
           <div className="attached-chips-row">
             {selections.map((selection) => (
               <span className="attached-chip-pill" key={selection.id}>
@@ -328,7 +344,7 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
           </div>
         )}
 
-        {quickSuggestions.length > 0 && (
+        {!loadingCourse && quickSuggestions.length > 0 && (
           <div className="quick-prompts-row">
             {quickSuggestions.map((q, idx) => (
               <button
@@ -347,6 +363,7 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
           <textarea
             ref={composer}
             value={draft}
+            disabled={loadingCourse}
             onChange={(event) => {
               setDraft(event.target.value);
               event.target.style.height = "auto";
@@ -358,19 +375,29 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
                 submit();
               }
             }}
-            placeholder={working ? t("chat.steerPlaceholder") : props.placeholder}
+            placeholder={
+              loadingCourse
+                ? (statusText.toLowerCase().includes("switch") || statusText.includes("加载") || statusText.includes("切换")
+                    ? t("chat.switchingCourse")
+                    : t("chat.loadingCourse"))
+                : working
+                  ? t("chat.steerPlaceholder")
+                  : props.placeholder
+            }
             rows={1}
           />
           <div className="composer-controls-row">
             <span className={`intent-status-hint ${intent === "edit" ? "editing" : ""}`}>
-              {intent === "edit"
-                ? t("chat.intentEdit")
-                : intent === "ask"
-                  ? t("chat.intentAsk")
-                  : t("chat.intentDefault")}
+              {loadingCourse
+                ? ""
+                : intent === "edit"
+                  ? t("chat.intentEdit")
+                  : intent === "ask"
+                    ? t("chat.intentAsk")
+                    : t("chat.intentDefault")}
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              {working && (
+              {working && !loadingCourse && (
                 <button
                   className="stop-button"
                   type="button"
@@ -382,12 +409,12 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
                 </button>
               )}
               <button
-                className={working ? "steer-button" : "send-button"}
+                className={working && !loadingCourse ? "steer-button" : "send-button"}
                 type="button"
                 onClick={submit}
                 disabled={!canSend}
-                aria-label={working ? t("chat.steerAgent") : t("chat.send")}
-                title={working ? t("chat.steerAgent") : t("chat.send")}
+                aria-label={working && !loadingCourse ? t("chat.steerAgent") : t("chat.send")}
+                title={working && !loadingCourse ? t("chat.steerAgent") : t("chat.send")}
               >
                 <ArrowRight size={15} strokeWidth={2.75} />
               </button>
@@ -398,7 +425,7 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
         <AgentControls
           models={props.models ?? []}
           value={props.agentConfig ?? null}
-          disabled={working}
+          disabled={working || loadingCourse}
           onChange={props.onAgentConfigChange ?? (() => {})}
         />
 
@@ -417,35 +444,45 @@ function PhaseGuide({ phase, canAct, onApprove }: { phase: CoursePhase; canAct: 
   if (phase === "syllabus") {
     return (
       <section className="phase-guide syllabus" aria-label={t("chat.courseDesignPhase")}>
-        <strong className="phase-guide-title">{t("chat.reviewSyllabus")}</strong>
-        <p className="phase-guide-desc">{t("chat.reviewSyllabusDescription")}</p>
+        <div className="phase-guide-content">
+          <Milestone size={14} className="phase-guide-icon" />
+          <div className="phase-guide-text">
+            <strong>{t("chat.reviewSyllabus")}</strong>
+            <span>{t("chat.reviewSyllabusDescription")}</span>
+          </div>
+        </div>
         <button
           type="button"
-          className="phase-guide-approve-btn"
+          className="phase-guide-action-btn"
           disabled={!canAct}
           onClick={onApprove}
         >
+          <Check size={12} strokeWidth={3} />
           <span>{t("chat.approve")}</span>
-          <ArrowRight size={15} strokeWidth={2.75} />
         </button>
       </section>
     );
   }
 
   return (
-    <section className="phase-guide" aria-label={t("chat.courseDesignPhase")}>
-      <strong className="phase-guide-title">{t("chat.shapeCourse")}</strong>
-      <p className="phase-guide-desc">{t("chat.shapeCourseDescription")}</p>
+    <section className="phase-guide empty" aria-label={t("chat.courseDesignPhase")}>
+      <div className="phase-guide-content">
+        <Sparkles size={14} className="phase-guide-icon" />
+        <div className="phase-guide-text">
+          <strong>{t("chat.shapeCourse")}</strong>
+          <span>{t("chat.shapeCourseDescription")}</span>
+        </div>
+      </div>
     </section>
   );
 }
 
 function Message({ item, hideActivities = false }: { item: ChatItem; hideActivities?: boolean }) {
   const { t } = useI18n();
+
   if (item.kind === "system") {
     return (
-      <div className={`system-message ${item.failed ? "failed" : ""}`} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--color-neutral-600)" }}>
-        <CornerUpLeft size={13} />
+      <div className={`system-message message system ${item.failed ? "failed" : ""}`}>
         {item.text}
       </div>
     );
@@ -491,7 +528,15 @@ function Message({ item, hideActivities = false }: { item: ChatItem; hideActivit
         )}
 
         {!hideActivities && otherActivities.length > 0 && (
-          <ActivityTimeline activities={otherActivities} label={t("chat.completedActivity")} />
+          <details className="agent-activity-details agent-thinking-details" style={{ marginTop: thinkingActivity ? "6px" : "0" }}>
+            <summary className="agent-thinking-summary">
+              <span className="agent-thinking-dot" style={{ background: "var(--color-accent-2-700)" }} />
+              <span>{t("chat.completedActivity")} ({otherActivities.length})</span>
+            </summary>
+            <div className="agent-thinking-content" style={{ marginTop: "6px", padding: "6px 8px" }}>
+              <ActivityTimeline activities={otherActivities} label={t("chat.completedActivity")} />
+            </div>
+          </details>
         )}
 
         {item.text && (
