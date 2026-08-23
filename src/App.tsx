@@ -91,7 +91,8 @@ export function App() {
     ?? state.course.pages[0]?.path
     ?? activePage;
 
-  const canInspect = state.course.hasContent && !startingNewCourse;
+  const isCourseLoading = startingNewCourse || Boolean(state.switchingCourseId) || (!state.course.hasContent && state.working);
+  const canInspect = state.course.hasContent && !isCourseLoading;
 
   useEffect(() => {
     if (state.agentConfig) setAgentConfig(state.agentConfig);
@@ -611,7 +612,7 @@ export function App() {
         "--course-nav-width": courseNavOpen ? "236px" : "52px",
       } as CSSProperties}
     >
-      {Boolean(state.switchingCourseId) && (
+      {isCourseLoading && (
         <div className="studio-top-progress-bar" role="progressbar" aria-label={t("toolbar.switchingCourse")} />
       )}
       <Toolbar
@@ -644,6 +645,7 @@ export function App() {
           activePage={visiblePage}
           activeSection={activeSection}
           working={state.working}
+          loadingCourse={isCourseLoading}
           collapsed={!courseNavOpen}
           onToggleCollapsed={() => setCourseNavOpen((open) => !open)}
           onSelectPage={onSelectPage}
@@ -739,6 +741,7 @@ export function App() {
           statusText={statusText}
           connected={state.connected}
           working={state.working}
+          loadingCourse={isCourseLoading}
           phase={state.course.phase}
           items={state.items}
           conversationId={state.conversationId}

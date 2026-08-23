@@ -234,6 +234,80 @@ export class CodexClient extends EventEmitter {
     return conversations[0] ? this.openConversation(conversations[0].id) : this.newConversation();
   }
 
+  async translateTopicToSlug(
+    topic: string,
+    options: { agent?: AgentConfig; timeoutMs?: number } = {},
+  ): Promise<string | null> {
+    if (this.status.state !== "ready" || !this.peer) return null;
+    const timeoutMs = options.timeoutMs ?? 3500;
+
+    try {
+      const thread = await this.peer.request<ThreadStartResponse>("thread/start", {
+        cwd: this.courseDirectory,
+        approvalPolicy: "never",
+        sandbox: "read-only",
+        ephemeral: true,
+        developerInstructions:
+          "You are an expert slug generator. Convert the course topic into a concise (2-4 words) English slug for a folder name. Output only the lowercase hyphen-separated slug and nothing else.",
+      });
+
+      const prompt = `Topic: "${topic}"\n\nProvide a concise 2-4 word English slug (lowercase, letters and numbers with hyphens only, e.g. "naruto-main-storyline"). Reply ONLY with the slug.`;
+      const agent = await this.validateAgentConfig(options.agent);
+
+      const turnResponse = await this.peer.request<TurnStartResponse>(
+        "turn/start",
+        {
+          threadId: thread.thread.id,
+          input: [{ type: "text", text: prompt, text_elements: [] }],
+          ...(agent.model ? { model: agent.model } : {}),
+          ...(agent.effort ? { effort: agent.effort } : {}),
+        },
+        timeoutMs + 1000,
+      );
+
+      const turnId = turnResponse.turn.id;
+      let text = "";
+
+      const onDelta = (event: { turnId: string; delta: string }) => {
+        if (event.turnId === turnId) text += event.delta;
+      };
+      this.on("agentDelta", onDelta);
+
+      const turnPromise = new Promise<string | null>((resolve) => {
+        const onCompleted = (event: { turnId: string; status: string }) => {
+          if (event.turnId === turnId) {
+            cleanup();
+            resolve(text.trim());
+          }
+        };
+        const cleanup = () => {
+          this.off("agentDelta", onDelta);
+          this.off("turnCompleted", onCompleted);
+        };
+        this.on("turnCompleted", onCompleted);
+      });
+
+      const timeoutPromise = new Promise<null>((resolve) => {
+        setTimeout(() => {
+          this.off("agentDelta", onDelta);
+          resolve(null);
+        }, timeoutMs);
+      });
+
+      const result = await Promise.race([turnPromise, timeoutPromise]);
+      if (result) {
+        return result
+          .replace(/```[a-z]*\n?/gi, "")
+          .replace(/```/g, "")
+          .replace(/^["'`]|["'`]$/g, "")
+          .trim();
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   async getThread(threadId: string): Promise<import("./types").PersistedThread | null> {
     await this.requireReady();
     try {

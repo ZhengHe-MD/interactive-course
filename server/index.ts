@@ -527,7 +527,10 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
         const currentStatus = await codex.connect();
         if (currentStatus.state !== "ready") throw new Error(currentStatus.message ?? "Codex is unavailable.");
 
-        const nextCourseId = await allocateCourseId(courseLibraryRoot, message.topic);
+        const nextCourseId = await allocateCourseId(courseLibraryRoot, message.topic, {
+          codex,
+          agent: message.agent,
+        });
         await activateCourse(nextCourseId);
         const nextStatus = await codex.connect();
         if (nextStatus.state !== "ready") throw new Error(nextStatus.message ?? "Codex is unavailable.");

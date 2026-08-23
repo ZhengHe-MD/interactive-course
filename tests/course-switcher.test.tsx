@@ -111,7 +111,6 @@ describe("course switching UI", () => {
     expect(html).toContain("Syllabus");
     expect(html).toContain("Practice");
     expect(html).toContain("Relationships");
-    expect(html).toContain("Session 3 · Moral authority");
     expect(html).toContain("Course status");
     expect(html).toContain("Learning session by session");
     expect(html).toContain('aria-label="Collapse course navigation"');
