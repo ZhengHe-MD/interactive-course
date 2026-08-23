@@ -51,6 +51,18 @@ Open [http://127.0.0.1:4311](http://127.0.0.1:4311) in your browser.
 
 > **Production build**: Run `npm run build && npm start`, then open [http://127.0.0.1:4310](http://127.0.0.1:4310).
 
+### Desktop app (macOS)
+
+Prefer a real app to a terminal and a browser tab? Build and install one:
+
+```bash
+npm run desktop:install
+```
+
+That puts `Course Studio.app` in `/Applications`. It runs the same server and the same course library — the web app is unchanged and stays fully supported. If a studio server is already running, the desktop app attaches to it instead of starting a second one, so a browser tab and the app can be open at once.
+
+Building your own Mac app needs no Apple Developer account and no App Store: an app you compile locally carries no quarantine attribute, so it just launches. Anyone who clones this repo can build it the same way. See [docs/desktop-app.md](docs/desktop-app.md) for the details, including what would change if prebuilt downloads were ever published.
+
 ### Environment Variables
 
 | Variable | Default | Description |
@@ -70,4 +82,5 @@ Click **Export** in the top bar to package your course:
 
 - [DESIGN.md](DESIGN.md) — Architecture decisions and core principles
 - [AGENTS.md](AGENTS.md) — How the AI agent reasons and creates courses
+- [docs/desktop-app.md](docs/desktop-app.md) — Building, installing, and code-signing the macOS app
 - [docs/language-policy.md](docs/language-policy.md) — Bilingual design contract

@@ -311,12 +311,17 @@ app.post("/api/package/import", express.raw({ type: "*/*", limit: "100mb" }), as
   }
 });
 
+// These serve fixed, server-owned files. They go through `root` rather than an
+// absolute path because sendFile refuses any absolute path with a dot-segment
+// in it, which a checkout or an install location is free to have.
 app.get("/studio-preview.js", (_request, response) => {
-  response.type("application/javascript").sendFile(join(here, "assets/preview-bridge.js"));
+  response.type("application/javascript").sendFile("preview-bridge.js", { root: join(here, "assets") });
 });
 
 app.get("/studio-vendor/html2canvas.min.js", (_request, response) => {
-  response.type("application/javascript").sendFile(join(repositoryRoot, "node_modules/html2canvas/dist/html2canvas.min.js"));
+  response
+    .type("application/javascript")
+    .sendFile("html2canvas.min.js", { root: join(repositoryRoot, "node_modules/html2canvas/dist") });
 });
 
 app.use("/course", async (request, response, next) => {
@@ -351,7 +356,7 @@ app.use("/course", (request, response, next) => {
 
 const distDirectory = join(repositoryRoot, "dist");
 app.use(express.static(distDirectory));
-app.get("/{*splat}", (_request, response) => response.sendFile(join(distDirectory, "index.html")));
+app.get("/{*splat}", (_request, response) => response.sendFile("index.html", { root: distDirectory }));
 
 const websocket = new WebSocketServer({ server, path: "/ws" });
 websocket.on("connection", async (socket) => {
@@ -622,20 +627,32 @@ async function handleTurnCompleted(turn: { turnId: string; status: string; error
   broadcast({ type: "turn.completed", ...turn });
 }
 
-async function startServer() {
+export async function startServer() {
   await ensureCourseLibrary(courseLibraryRoot);
   await mkdir(courseDirectory, { recursive: true });
   wireCodex(codex);
   watchCourse(course);
-  server.listen(port, "127.0.0.1", () => {
-    console.log(`Course Studio server: http://127.0.0.1:${port} (${courseDirectory})`);
-    void codex.connect();
+  await new Promise<void>((ready, fail) => {
+    server.once("error", fail);
+    server.listen(port, "127.0.0.1", () => {
+      server.off("error", fail);
+      console.log(`Course Studio server: http://127.0.0.1:${port} (${courseDirectory})`);
+      void codex.connect();
+      ready();
+    });
   });
+  return { port, courseDirectory };
 }
 
-void startServer();
+// The desktop shell hosts this server in-process, so it owns startup and
+// shutdown itself. Everywhere else, importing the module is the whole program.
+if (!process.env.COURSE_STUDIO_EMBEDDED) {
+  void startServer();
+  process.on("SIGINT", () => void shutdown());
+  process.on("SIGTERM", () => void shutdown());
+}
 
-async function shutdown() {
+export async function shutdown() {
   if (changeTimer) clearTimeout(changeTimer);
   stopCourseChange?.();
   codex.removeAllListeners();
@@ -644,5 +661,3 @@ async function shutdown() {
   server.close();
 }
 
-process.on("SIGINT", () => void shutdown());
-process.on("SIGTERM", () => void shutdown());
