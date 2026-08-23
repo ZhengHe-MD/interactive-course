@@ -334,16 +334,49 @@ export async function buildStandaloneCourse(options: {
     }));
   }
 
+  function getCurrentSlotIndex(slots) {
+    const currentPage = data.pages[activeIndex];
+    if (!currentPage) return 0;
+    const currentBase = currentPage.basePath || currentPage.path.replace(/\\.[a-zA-Z]{2}(?:-[a-zA-Z]{2,4})?\\.html$/i, ".html");
+    const idx = slots.findIndex((slot) => slot.basePath === currentBase || slot.variants.some((v) => v.path === currentPage.path));
+    return idx >= 0 ? idx : 0;
+  }
+
+  function updatePagerState() {
+    const slots = getSlots(currentLang);
+    const slotIdx = getCurrentSlotIndex(slots);
+    if (previous) previous.disabled = slotIdx <= 0;
+    if (next) next.disabled = slotIdx >= slots.length - 1;
+  }
+
+  function goToAdjacentSlot(delta) {
+    const slots = getSlots(currentLang);
+    const slotIdx = getCurrentSlotIndex(slots);
+    const targetSlot = slots[slotIdx + delta];
+    if (!targetSlot) return;
+    const targetIndex = data.pages.findIndex((p) => p.path === targetSlot.activeVariant.path);
+    if (targetIndex >= 0) {
+      showPage(targetIndex);
+    }
+  }
+
   function switchLanguage(lang) {
     if (lang === currentLang) return;
     currentLang = lang;
     const currentPath = data.pages[activeIndex]?.path;
-    const currentBase = data.pages[activeIndex]?.basePath || currentPath?.replace(/\.[a-zA-Z]{2}(?:-[a-zA-Z]{2,4})?\.html$/i, ".html");
+    const currentBase = data.pages[activeIndex]?.basePath || currentPath?.replace(/\\.[a-zA-Z]{2}(?:-[a-zA-Z]{2,4})?\\.html$/i, ".html");
 
     const targetPage = data.pages.find((p) => (p.basePath === currentBase || p.path === currentBase) && (p.lang === lang || (lang === "zh-CN" ? p.path.includes(".zh-CN.") : !p.path.includes(".zh-CN."))));
     if (targetPage) {
       const targetIndex = data.pages.findIndex((p) => p.path === targetPage.path);
       if (targetIndex >= 0) activeIndex = targetIndex;
+    } else {
+      const slots = getSlots(lang);
+      const currentSlot = slots.find((s) => s.basePath === currentBase);
+      if (currentSlot) {
+        const targetIndex = data.pages.findIndex((p) => p.path === currentSlot.activeVariant.path);
+        if (targetIndex >= 0) activeIndex = targetIndex;
+      }
     }
 
     updateChromeLabels(lang);
@@ -450,20 +483,70 @@ export async function buildStandaloneCourse(options: {
         return;
       }
       const path = raw.split("#")[0].replace(/^\\.\\//, "");
-      const index = data.pages.findIndex((page) => page.path === path);
+      let index = data.pages.findIndex((page) => page.path === path);
+      if (index >= 0 && currentLang !== "en") {
+        const slots = getSlots(currentLang);
+        const base = data.pages[index].basePath || data.pages[index].path.replace(/\\.[a-zA-Z]{2}(?:-[a-zA-Z]{2,4})?\\.html$/i, ".html");
+        const slot = slots.find((s) => s.basePath === base);
+        if (slot) {
+          const localizedIndex = data.pages.findIndex((p) => p.path === slot.activeVariant.path);
+          if (localizedIndex >= 0) index = localizedIndex;
+        }
+      }
       if (index < 0) return;
       event.preventDefault();
       showPage(index, raw.includes("#") ? raw.slice(raw.indexOf("#") + 1) : undefined);
     });
   }
 
+  function getContentHeight(doc) {
+    if (!doc || !doc.body) return 560;
+    const body = doc.body;
+    const docEl = doc.documentElement;
+
+    let maxBottom = 0;
+    const children = body.children;
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
+      if (
+        child.tagName === "SCRIPT" ||
+        child.tagName === "STYLE" ||
+        child.tagName === "LINK" ||
+        child.tagName === "META" ||
+        child.tagName === "NOSCRIPT" ||
+        child.hasAttribute("hidden")
+      ) {
+        continue;
+      }
+      const style = doc.defaultView?.getComputedStyle(child);
+      if (!style || style.display === "none" || style.position === "fixed") continue;
+
+      const marginBottom = parseFloat(style.marginBottom || "0") || 0;
+      const bottom = child.offsetTop + child.offsetHeight + marginBottom;
+      if (bottom > maxBottom) {
+        maxBottom = bottom;
+      }
+    }
+
+    const bodyStyle = doc.defaultView?.getComputedStyle(body);
+    const bodyPaddingBottom = parseFloat(bodyStyle?.paddingBottom || "0") || 0;
+    const bodyMarginBottom = parseFloat(bodyStyle?.marginBottom || "0") || 0;
+    const computedBottom = maxBottom > 0 ? maxBottom + bodyPaddingBottom + bodyMarginBottom : 0;
+
+    const naturalHeight = computedBottom > 0
+      ? computedBottom
+      : Math.max(body.scrollHeight || 0, docEl.scrollHeight || 0);
+
+    return Math.max(560, Math.ceil(naturalHeight));
+  }
+
   function resizeFrame() {
     const doc = frame.contentDocument;
     if (!doc) return;
     try {
-      const h = Math.max(560, doc.documentElement.scrollHeight, doc.body?.scrollHeight || 0);
+      const h = getContentHeight(doc);
       if (String(h) + "px" !== frame.style.height) {
-        requestAnimationFrame(() => { frame.style.height = h + "px"; });
+        frame.style.height = h + "px";
       }
     } catch (err) {
       console.warn("frame resize error:", err);
@@ -475,14 +558,7 @@ export async function buildStandaloneCourse(options: {
     const page = data.pages[activeIndex];
     if (!page) return;
 
-    const pageLang = page.lang || (page.path.includes(".zh-CN.") ? "zh-CN" : "en");
-    if (pageLang !== currentLang && data.availableLanguages?.includes(pageLang)) {
-      currentLang = pageLang;
-      updateChromeLabels(currentLang);
-    }
-
-    previous.disabled = activeIndex === 0;
-    next.disabled = activeIndex === data.pages.length - 1;
+    updatePagerState();
     const targetHash = encodeURIComponent(page.path) + (sectionId ? "#" + sectionId : "");
     if (decodeURIComponent(location.hash.slice(1)) !== decodeURIComponent(targetHash)) {
       location.hash = targetHash;
@@ -490,10 +566,12 @@ export async function buildStandaloneCourse(options: {
     renderNavigation();
 
     observer?.disconnect();
+    frame.style.height = "0px";
     frame.onload = () => {
       const doc = frame.contentDocument;
       if (!doc) return;
       wireCourseLinks(doc);
+      resizeFrame();
       if (sectionId) {
         const target = doc.getElementById(sectionId);
         if (target) {
@@ -504,8 +582,8 @@ export async function buildStandaloneCourse(options: {
         }
       }
       observer = new ResizeObserver(resizeFrame);
-      observer.observe(doc.documentElement);
-      resizeFrame();
+      if (doc.body) observer.observe(doc.body);
+      if (doc.documentElement) observer.observe(doc.documentElement);
     };
     frame.srcdoc = page.html;
     window.scrollTo({ top: 0, behavior: "instant" });
@@ -515,15 +593,24 @@ export async function buildStandaloneCourse(options: {
     return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
-  window.addEventListener("resize", updateLayout);
+  window.addEventListener("resize", () => {
+    updateLayout();
+    resizeFrame();
+  });
   renderCompanion();
-  previous.addEventListener("click", () => showPage(activeIndex - 1));
-  next.addEventListener("click", () => showPage(activeIndex + 1));
+  previous.addEventListener("click", () => goToAdjacentSlot(-1));
+  next.addEventListener("click", () => goToAdjacentSlot(1));
   window.addEventListener("hashchange", () => {
     const rawHash = decodeURIComponent(location.hash.slice(1));
     const pagePath = rawHash.split("#")[0];
     const index = data.pages.findIndex((page) => page.path === pagePath);
     if (index >= 0 && index !== activeIndex) {
+      const targetPage = data.pages[index];
+      const pageLang = targetPage.lang || (targetPage.path.includes(".zh-CN.") ? "zh-CN" : "en");
+      if (pageLang !== currentLang && data.availableLanguages?.includes(pageLang)) {
+        currentLang = pageLang;
+        updateChromeLabels(currentLang);
+      }
       const section = rawHash.includes("#") ? rawHash.slice(rawHash.indexOf("#") + 1) : undefined;
       showPage(index, section);
     }
