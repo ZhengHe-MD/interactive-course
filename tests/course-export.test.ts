@@ -234,6 +234,152 @@ describe("standalone course export", () => {
     expect(() => new Function(runtime!)).not.toThrow();
   });
 
+  it("navigates slot-by-slot respecting the active language switcher in exported runtime", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "course-export-test-"));
+    temporaryDirectories.push(directory);
+    await writeFile(join(directory, "syllabus.html"), "<!doctype html><html><head><title>Syllabus</title></head><body><main><h1>Plan</h1></main></body></html>");
+    await writeFile(join(directory, "syllabus.zh-CN.html"), "<!doctype html><html><head><title>课程大纲</title></head><body><main><h1>教学大纲</h1></main></body></html>");
+    await writeFile(join(directory, "session1.html"), "<!doctype html><html><head><title>Practice</title></head><body><main><h1>Practice Matters</h1></main></body></html>");
+    await writeFile(join(directory, "session1.zh-CN.html"), "<!doctype html><html><head><title>实战训练</title></head><body><main><h1>实战进阶</h1></main></body></html>");
+
+    const outline: CourseOutline = {
+      phase: "learning",
+      hasContent: true,
+      title: "Skills & Practice",
+      topic: "Mastering skills.",
+      availableLanguages: ["en", "zh-CN"],
+      pages: [
+        {
+          path: "syllabus.html",
+          basePath: "syllabus.html",
+          lang: "en",
+          title: "Syllabus",
+          kind: "syllabus",
+          translations: { en: "syllabus.html", "zh-CN": "syllabus.zh-CN.html" },
+          sections: [],
+        },
+        {
+          path: "syllabus.zh-CN.html",
+          basePath: "syllabus.html",
+          lang: "zh-CN",
+          title: "课程大纲",
+          kind: "syllabus",
+          translations: { en: "syllabus.html", "zh-CN": "syllabus.zh-CN.html" },
+          sections: [],
+        },
+        {
+          path: "session1.html",
+          basePath: "session1.html",
+          lang: "en",
+          title: "Practice",
+          kind: "lesson",
+          translations: { en: "session1.html", "zh-CN": "session1.zh-CN.html" },
+          sections: [],
+        },
+        {
+          path: "session1.zh-CN.html",
+          basePath: "session1.html",
+          lang: "zh-CN",
+          title: "实战训练",
+          kind: "lesson",
+          translations: { en: "session1.html", "zh-CN": "session1.zh-CN.html" },
+          sections: [],
+        },
+      ],
+      sections: [],
+      upNext: [],
+    };
+
+    const html = await buildStandaloneCourse({
+      courseDirectory: directory,
+      outline,
+      language: "zh-CN",
+    });
+
+    const { JSDOM } = (await import("jsdom" as string)) as any;
+    const dom = new JSDOM(html, { runScripts: "dangerously", resources: "usable" });
+    const { document } = dom.window;
+
+    const prevBtn = document.getElementById("cs-previous") as HTMLButtonElement;
+    const nextBtn = document.getElementById("cs-next") as HTMLButtonElement;
+    const frame = document.getElementById("cs-course-frame") as HTMLIFrameElement;
+
+    // Initially on first slot (syllabus) in zh-CN
+    expect(prevBtn.disabled).toBe(true);
+    expect(nextBtn.disabled).toBe(false);
+    expect(frame.srcdoc).toContain("教学大纲");
+    expect(dom.window.location.hash).toBe("#syllabus.zh-CN.html");
+
+    // Clicking Next should navigate to session1.zh-CN.html, staying in zh-CN
+    nextBtn.click();
+    expect(prevBtn.disabled).toBe(false);
+    expect(nextBtn.disabled).toBe(true);
+    expect(frame.srcdoc).toContain("实战进阶");
+    expect(dom.window.location.hash).toBe("#session1.zh-CN.html");
+    expect(document.documentElement.lang).toBe("zh-CN");
+
+    // Clicking Previous should navigate back to syllabus.zh-CN.html
+    prevBtn.click();
+    expect(prevBtn.disabled).toBe(true);
+    expect(nextBtn.disabled).toBe(false);
+    expect(frame.srcdoc).toContain("教学大纲");
+    expect(dom.window.location.hash).toBe("#syllabus.zh-CN.html");
+
+    // Clicking EN switcher should switch to English edition of the current slot (syllabus.html)
+    const enPill = document.querySelector('.cs-lang-pill[data-lang="en"]') as HTMLButtonElement;
+    enPill.click();
+    expect(document.documentElement.lang).toBe("en");
+    expect(frame.srcdoc).toContain("Plan");
+    expect(prevBtn.disabled).toBe(true);
+    expect(nextBtn.disabled).toBe(false);
+
+    // Clicking Next in EN should navigate to session1.html
+    nextBtn.click();
+    expect(document.documentElement.lang).toBe("en");
+    expect(frame.srcdoc).toContain("Practice Matters");
+    expect(prevBtn.disabled).toBe(false);
+    expect(nextBtn.disabled).toBe(true);
+  });
+
+  it("resets and computes iframe content height dynamically on page transitions", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "course-export-test-"));
+    temporaryDirectories.push(directory);
+    await writeFile(join(directory, "syllabus.html"), "<!doctype html><html><head><title>Syllabus</title></head><body><main><h1>Plan</h1></main></body></html>");
+    await writeFile(join(directory, "session1.html"), "<!doctype html><html><head><title>Long Session</title></head><body><main style=\"height: 2500px;\"><h1>Long Content</h1></main></body></html>");
+    await writeFile(join(directory, "session2.html"), "<!doctype html><html><head><title>Short Session</title></head><body><main style=\"height: 300px;\"><h1>Short Content</h1></main></body></html>");
+
+    const outline: CourseOutline = {
+      phase: "learning",
+      hasContent: true,
+      title: "Height Test Course",
+      topic: "Testing height sizing",
+      pages: [
+        { path: "syllabus.html", title: "Syllabus", kind: "syllabus", sections: [] },
+        { path: "session1.html", title: "Long Session", kind: "lesson", sections: [] },
+        { path: "session2.html", title: "Short Session", kind: "lesson", sections: [] },
+      ],
+      sections: [],
+      upNext: [],
+    };
+
+    const html = await buildStandaloneCourse({
+      courseDirectory: directory,
+      outline,
+      language: "en",
+    });
+
+    const { JSDOM } = (await import("jsdom" as string)) as any;
+    const dom = new JSDOM(html, { runScripts: "dangerously", resources: "usable" });
+    const frame = dom.window.document.getElementById("cs-course-frame") as HTMLIFrameElement;
+    const nextBtn = dom.window.document.getElementById("cs-next") as HTMLButtonElement;
+
+    // Simulate page navigation and frame height reset
+    frame.style.height = "2500px";
+    nextBtn.click();
+    // In showPage, frame.style.height is immediately reset to 0px so it doesn't force a large minimum height
+    expect(frame.style.height).toBe("0px");
+  });
+
   it("creates a portable filename from the course title", () => {
     expect(exportFilename("Practice & Humanity")).toBe("practice-humanity.html");
     expect(exportFilename("论语：仁与礼")).toBe("论语-仁与礼.html");
