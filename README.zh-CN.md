@@ -61,7 +61,9 @@ npm run desktop:install
 
 这会把 `Course Studio.app` 安装到 `/Applications`。它运行同一个服务端、读取同一个课程库——Web 版完全不受影响，仍是一等公民。若已有 Studio 服务在运行，桌面端会直接接入，而不是另起一个，因此浏览器标签页和桌面应用可以同时打开。
 
-自己构建 Mac 应用无需 Apple 开发者账号，也不必上架 App Store：本地编译出的应用不带隔离属性（quarantine），双击即可运行。任何人克隆本仓库都能以同样方式构建。详情（以及若要发布预编译安装包需要什么）见 [docs/desktop-app.md](docs/desktop-app.md)。
+自己构建 Mac 应用无需 Apple 开发者账号，也不必上架 App Store：本地编译出的应用不带隔离属性（quarantine），双击即可运行。任何人克隆本仓库都能以同样方式构建。
+
+不想自己构建？每个版本标签都会在 [Releases 页面](https://github.com/ZhengHe-MD/interactive-course/releases) 发布 Apple Silicon 与 Intel 两种架构的 `.dmg` 和 `.zip`。这些安装包只做了 ad-hoc 签名、未经 Apple 公证，下载后会被 macOS 加上隔离属性——发布说明里给出了解除它的那一条命令。详情（包括版本发布流程，以及公证能改变什么）见 [docs/desktop-app.md](docs/desktop-app.md)。
 
 ### 常用环境变量
 
@@ -82,5 +84,5 @@ npm run desktop:install
 
 - [DESIGN.md](DESIGN.md) — 架构决策与设计考量
 - [AGENTS.md](AGENTS.md) — AI Agent 的工作机制与教学提示词设计
-- [docs/desktop-app.md](docs/desktop-app.md) — macOS 桌面应用的构建、安装与代码签名
+- [docs/desktop-app.md](docs/desktop-app.md) — macOS 桌面应用的构建、发布与代码签名
 - [docs/language-policy.md](docs/language-policy.md) — 双语开发与多语言行为规范

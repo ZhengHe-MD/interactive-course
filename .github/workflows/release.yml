@@ -1,0 +1,115 @@
+# Cuts a desktop release from a version tag.
+#
+# `npm run release -- patch` (scripts/release.mjs) bumps the version, tags it,
+# and pushes; the tag is what starts this workflow. A manual run packages the
+# same assets without publishing anything, which is the way to check that
+# packaging still works before committing to a tag.
+#
+# macOS only. electron-builder.yml configures no other platform, and the icon
+# pipeline in desktop/build.mjs is Apple-toolchain specific.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+# The final step creates a release and uploads its assets.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+
+jobs:
+  macos:
+    name: macOS desktop app
+    # Apple Silicon. sips/iconutil and the ad-hoc `codesign` in
+    # desktop/afterPack.mjs all need a real macOS host; the x64 build is
+    # cross-packaged from here, which is safe because nothing in the app is a
+    # native module.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      # The version in the tag is the version the app reports, so a mismatch is
+      # a mistake worth catching before anything is built.
+      - name: Check the tag matches package.json
+        if: github.ref_type == 'tag'
+        run: |
+          tagged="${GITHUB_REF_NAME#v}"
+          declared="$(node -p 'require("./package.json").version')"
+          if [ "$tagged" != "$declared" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $declared. Cut releases with 'npm run release'."
+            exit 1
+          fi
+
+      - run: npm ci
+
+      - run: npm test
+
+      # Runs the typecheck and the Vite build, then stages .desktop/app.
+      - name: Stage the desktop app
+        run: npm run desktop:build
+
+      - name: Package both architectures
+        env:
+          # electron-builder.yml already sets `identity: null`; this keeps the
+          # runner from searching its keychain for one anyway.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npx electron-builder --mac dmg zip --arm64 --x64 --publish never
+
+      - name: Checksum the assets
+        working-directory: .desktop/release
+        run: shasum -a 256 *.dmg *.zip > SHA256SUMS.txt
+
+      # Attached to every run, so a manual rehearsal still produces something
+      # installable to test.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: course-studio-macos
+          path: |
+            .desktop/release/*.dmg
+            .desktop/release/*.zip
+            .desktop/release/SHA256SUMS.txt
+
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+            -f tag_name="$GITHUB_REF_NAME" --jq .body > generated-notes.md
+          cat > release-notes.md <<'MARKDOWN'
+          ## Install (macOS)
+
+          Download `-arm64` for Apple Silicon or `-x64` for Intel, open the `.dmg`, and drag **Course Studio** into `/Applications`.
+
+          These builds are ad-hoc signed rather than notarized, so macOS quarantines them on download. Clear that once, after installing:
+
+          ```bash
+          xattr -dr com.apple.quarantine "/Applications/Course Studio.app"
+          ```
+
+          To check a download against `SHA256SUMS.txt` first:
+
+          ```bash
+          shasum -a 256 --ignore-missing -c SHA256SUMS.txt
+          ```
+
+          The app hosts the same server as `npm run dev` and drives the same Codex CLI, so `codex` still has to be installed. Building from source stays supported and skips the quarantine step entirely — see [docs/desktop-app.md](https://github.com/ZhengHe-MD/interactive-course/blob/main/docs/desktop-app.md).
+
+          MARKDOWN
+          cat generated-notes.md >> release-notes.md
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            .desktop/release/*.dmg \
+            .desktop/release/*.zip \
+            .desktop/release/SHA256SUMS.txt

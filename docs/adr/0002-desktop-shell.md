@@ -12,7 +12,7 @@ We decided to:
 2. **Attach to an already-running server instead of starting a second one.** On launch the shell probes `GET /api/health` on the studio port. If a server answers, the window attaches to it; otherwise the shell starts one in-process. A browser tab and the desktop window are then peer clients of a single server and a single course library, which keeps checkpoints and the Codex session coherent.
 3. **Reject Pake and other URL-wrapper tools.** They wrap a URL in a system WebView and ship no Node runtime, so they cannot host the server, spawn `codex`, or reach the course library. They solve the window, which was never the missing piece.
 4. **Choose Electron over Tauri.** Electron's main process is Node, so the server moves in with one seam (`COURSE_STUDIO_EMBEDDED`) and subprocess work keeps functioning unchanged. Tauri would still have to ship a Node runtime as a sidecar to run the same server, so most of the size advantage disappears while Rust becomes a build requirement for anyone building from source.
-5. **Ship no prebuilt binaries.** The app is built from source and ad-hoc signed. See `docs/desktop-app.md` for the code-signing reasoning.
+5. **Ship no prebuilt binaries.** The app is built from source and ad-hoc signed. See `docs/desktop-app.md` for the code-signing reasoning. *Amended by [ADR 0003](0003-tagged-desktop-releases.md): tagged releases now publish ad-hoc signed downloads, and building from source remains the recommended path.*
 
 ## Considered Options
 

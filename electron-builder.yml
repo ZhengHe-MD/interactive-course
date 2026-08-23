@@ -1,5 +1,8 @@
 appId: com.zhenghe.course-studio
 productName: Course Studio
+# Release assets are downloaded and checksummed by hand, so keep the names free
+# of spaces and always carry the architecture.
+artifactName: ${name}-${version}-${arch}.${ext}
 
 directories:
   app: .desktop/app
