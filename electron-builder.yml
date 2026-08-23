@@ -1,0 +1,24 @@
+appId: com.zhenghe.course-studio
+productName: Course Studio
+
+directories:
+  app: .desktop/app
+  buildResources: .desktop/resources
+  output: .desktop/release
+
+afterPack: desktop/afterPack.mjs
+
+mac:
+  category: public.app-category.education
+  icon: .desktop/resources/icon.icns
+  target:
+    - dmg
+    - dir
+  # No Developer ID certificate. desktop/afterPack.mjs applies the ad-hoc
+  # signature that Apple Silicon requires; see docs/desktop-app.md for what
+  # this does and does not let you distribute.
+  identity: null
+  gatekeeperAssess: false
+
+dmg:
+  sign: false

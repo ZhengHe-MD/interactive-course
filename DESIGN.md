@@ -11,7 +11,7 @@ In the AI-coding era, every learner should co-design a course tailored to their 
 | # | Area | Decision | Rationale |
 |---|------|----------|-----------|
 | 1 | Audience | Personal tool for one user; product-for-others deferred | Core loop must be proven by dogfooding before any product plumbing |
-| 2 | Form | Local web app (`localhost`); no desktop shell | Identical capability, zero packaging friction; wrap in Tauri later if ever |
+| 2 | Form | Local web app (`localhost`), plus an Electron desktop shell as a second client. The shell hosts the same server in-process and attaches to an already-running one instead of starting a second | The browser client is unchanged and stays first-class; the shell only removes the manual `npm start`. Electron over Tauri because its main process is Node, so the server and its subprocesses move in unchanged, and building from source needs no Rust (amended 2026-08-23, ADR 0002) |
 | 3 | Agent backend | Codex `app-server` (JSON-RPC), hardwired, behind a thin seam | Only backend where subscription-based programmatic use is documented and permitted; rich events (deltas, file-change items, approvals, mid-turn steering); Apache-2.0. ACP is the future multi-agent path |
 | 4 | Course format | Self-contained static directory of plain HTML/CSS/JS per course; **no build step** | Rendered DOM ≈ source, which makes selection→edit cheap and reliable |
 | 5 | Selection | Free-form text or DOM-block context; no imposed block vocabulary. New context replaces old by default, with an explicit Multiple switch for additive selection. Payload = `outerHTML` snippet + highlighted screenshot + location hint | HTML is the shared human↔agent language; models locate raw snippets reliably, while single-selection default prevents accidental context accumulation. Principle: **quality over cost** |
@@ -33,10 +33,10 @@ In the AI-coding era, every learner should co-design a course tailored to their 
 - Agents must write disciplined vanilla JS — the design guide's job.
 - Subscription 5-hour rate windows bound bursty sessions.
 - Design-guide improvements don't retroactively restyle old courses (copy-at-birth semantics).
+- The desktop shell ships no notarized build, so distribution is build-from-source only (ADR 0002).
 
 ## Open branches (deferred, not decided)
 
 - Organizing the learner profile's knowledge beyond free-form HTML.
 - Agent-improvised widget-state persistence (design-guide experiment, post-M1).
 - Multi-agent support via ACP.
-- Desktop shell (Tauri).

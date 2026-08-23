@@ -8,6 +8,7 @@ A local web app where a learner co-designs personalized interactive HTML courses
 - [design-brief.md](design-brief.md) — self-contained UI brief, written to hand off to Claude Design for the first visual design.
 - [grill-qa.md](grill-qa.md) — the founding Q&A: each design fork, the debate, and the owner's reasoning in their own words.
 - [docs/language-policy.md](docs/language-policy.md) — required bilingual product and development contract. Read before changing UI copy, language behavior, or course-agent prompts.
+- [docs/desktop-app.md](docs/desktop-app.md) — the macOS desktop client: how it hosts the server, and what code signing does and does not allow. Read before changing `desktop/` or packaging.
 
 ## Hard rules
 

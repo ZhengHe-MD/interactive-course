@@ -51,6 +51,18 @@ npm run dev
 
 > **生产模式运行**：执行 `npm run build && npm start`，访问 [http://127.0.0.1:4310](http://127.0.0.1:4310)。
 
+### 桌面客户端（macOS）
+
+不想每次都开终端、开浏览器标签页？可以构建一个真正的桌面应用：
+
+```bash
+npm run desktop:install
+```
+
+这会把 `Course Studio.app` 安装到 `/Applications`。它运行同一个服务端、读取同一个课程库——Web 版完全不受影响，仍是一等公民。若已有 Studio 服务在运行，桌面端会直接接入，而不是另起一个，因此浏览器标签页和桌面应用可以同时打开。
+
+自己构建 Mac 应用无需 Apple 开发者账号，也不必上架 App Store：本地编译出的应用不带隔离属性（quarantine），双击即可运行。任何人克隆本仓库都能以同样方式构建。详情（以及若要发布预编译安装包需要什么）见 [docs/desktop-app.md](docs/desktop-app.md)。
+
 ### 常用环境变量
 
 | 变量名 | 默认值 | 说明 |
@@ -70,4 +82,5 @@ npm run dev
 
 - [DESIGN.md](DESIGN.md) — 架构决策与设计考量
 - [AGENTS.md](AGENTS.md) — AI Agent 的工作机制与教学提示词设计
+- [docs/desktop-app.md](docs/desktop-app.md) — macOS 桌面应用的构建、安装与代码签名
 - [docs/language-policy.md](docs/language-policy.md) — 双语开发与多语言行为规范
