@@ -283,4 +283,51 @@ describe("chat activity timeline", () => {
     expect(html).not.toContain("Step 3 of 3");
     expect(html).not.toContain('aria-label="Course design phase"');
   });
+
+  it("hides intermediate creation steps and shows clean loading state when course is loading", () => {
+    const html = renderToStaticMarkup(
+      <Chat
+        codex={{ state: "ready" }}
+        statusText="Agent is working"
+        connected
+        working
+        loadingCourse
+        phase="empty"
+        conversationId="conversation-1"
+        conversations={[]}
+        items={[{
+          kind: "agent",
+          id: "agent-1",
+          text: "",
+          activities: [{
+            id: "reason-1",
+            kind: "reasoning",
+            label: "Thinking",
+            detail: "Analyzing curriculum requirements",
+          }, {
+            id: "edit-1",
+            kind: "edit",
+            label: "Editing the course",
+            file: "syllabus.html",
+          }],
+        }]}
+        open
+        selections={[]}
+        onToggleOpen={() => {}}
+        onNewConversation={() => {}}
+        onSwitchConversation={() => {}}
+        onExpandSelection={() => {}}
+        onRemoveSelection={() => {}}
+        onSend={() => {}}
+        onInterrupt={() => {}}
+        placeholder="Ask"
+      />,
+    );
+
+    expect(html).toContain("Creating your course…");
+    expect(html).not.toContain("Analyzing curriculum requirements");
+    expect(html).not.toContain("Editing the course");
+    expect(html).not.toContain("Agent work details");
+    expect(html).toContain("<textarea disabled");
+  });
 });
