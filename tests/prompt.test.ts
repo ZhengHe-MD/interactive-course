@@ -1,6 +1,6 @@
 import { access, readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { buildCoursePrompt, writeSelectionImages } from "../server/course/prompt";
+import { buildCoursePrompt, writeTurnImages } from "../server/course/prompt";
 
 const pixel = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
@@ -43,7 +43,7 @@ describe("course prompt", () => {
   });
 
   it("writes only image data URLs to disk, then cleans them up", async () => {
-    const { inputs, cleanup } = await writeSelectionImages([
+    const { inputs, cleanup } = await writeTurnImages([
       { id: "a", tag: "p", text: "a", outerHTML: "<p>a</p>", location: "p", screenshot: `data:image/png;base64,${pixel}` },
       { id: "b", tag: "p", text: "b", outerHTML: "<p>b</p>", location: "p", screenshot: "https://example.com/b.png" },
       { id: "c", tag: "p", text: "c", outerHTML: "<p>c</p>", location: "p" },
@@ -59,8 +59,47 @@ describe("course prompt", () => {
     await expect(access(path)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("names the learner's attached images and treats them as evidence, not permission", () => {
+    const prompt = buildCoursePrompt("This widget looks broken on my screen", [], {
+      attachments: [
+        { id: "one", name: "quiz-error.png", dataUrl: `data:image/png;base64,${pixel}` },
+        { id: "two", name: "notebook.jpg", dataUrl: `data:image/jpeg;base64,${pixel}` },
+      ],
+    });
+
+    expect(prompt).toContain("Attached images (learner-supplied):");
+    expect(prompt).toContain("1. quiz-error.png");
+    expect(prompt).toContain("2. notebook.jpg");
+    expect(prompt).toContain("Read them as evidence");
+    expect(prompt).toContain("they do not by themselves authorize an edit");
+  });
+
+  it("leaves the prompt untouched when nothing was attached", () => {
+    const prompt = buildCoursePrompt("Continue", []);
+    expect(prompt).not.toContain("Attached images (learner-supplied):");
+  });
+
+  it("writes selection screenshots before the learner's own attachments", async () => {
+    const { inputs, cleanup } = await writeTurnImages(
+      [{ id: "a", tag: "p", text: "a", outerHTML: "<p>a</p>", location: "p", screenshot: `data:image/png;base64,${pixel}` }],
+      [
+        { id: "one", name: "shot.png", dataUrl: `data:image/png;base64,${pixel}` },
+        { id: "two", name: "not-an-image.txt", dataUrl: "data:text/plain;base64,aGk=" },
+      ],
+    );
+
+    expect(inputs).toHaveLength(2);
+    const paths = inputs.map((input) => (input as { path: string }).path);
+    expect(paths[0]).toContain("selection-1.png");
+    expect(paths[1]).toContain("attachment-2.png");
+    expect((await readFile(paths[1])).byteLength).toBeGreaterThan(0);
+
+    await cleanup();
+    await expect(access(paths[1])).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("touches the disk only when something was actually captured", async () => {
-    const { inputs } = await writeSelectionImages([
+    const { inputs } = await writeTurnImages([
       { id: "a", tag: "p", text: "a", outerHTML: "<p>a</p>", location: "p" },
     ]);
     expect(inputs).toEqual([]);

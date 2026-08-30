@@ -1544,6 +1544,90 @@ button:disabled {
   color: var(--color-accent-800);
 }
 
+.attached-images-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 2px;
+}
+
+.attached-image-thumb {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--color-accent-400);
+  background: var(--color-neutral-100);
+  animation: cs-pop .2s ease-out;
+}
+
+.attached-image-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.attached-image-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: #fff;
+  background: rgba(0, 0, 0, .55);
+}
+
+.attached-image-remove:hover {
+  background: rgba(0, 0, 0, .8);
+}
+
+.user-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 3px;
+}
+
+.user-attachment-thumb {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-neutral-300);
+  display: block;
+}
+
+.attach-button {
+  border: 0;
+  background: transparent;
+  color: var(--color-neutral-600);
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+  transition: color .12s ease, background .12s ease;
+}
+
+.attach-button:hover:not(:disabled) {
+  color: var(--color-accent-800);
+  background: var(--color-accent-100);
+}
+
+.attach-button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
 .quick-prompts-row {
   display: flex;
   flex-wrap: wrap;
@@ -1585,6 +1669,12 @@ button:disabled {
   border-color: var(--color-accent);
 }
 
+.composer-box-card.drop-target {
+  border-color: var(--color-accent);
+  border-style: dashed;
+  background: var(--color-accent-100);
+}
+
 .composer-box-card textarea {
   border: 0;
   background: transparent;
@@ -1602,8 +1692,13 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   margin-top: 4px;
+}
+
+.composer-controls-row .intent-status-hint {
+  flex: 1;
+  min-width: 0;
 }
 
 .intent-status-hint {

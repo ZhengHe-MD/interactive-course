@@ -14,6 +14,7 @@ import {
   storedConversationToTranscriptItems,
   syncConversationsWithCodex,
 } from "./course/conversations";
+import { attachmentsDroppedNotice, sanitizeAttachments } from "./course/attachments";
 import { exportCoursePackage, importCoursePackage } from "./course/packageCourse";
 import { buildStandaloneCourse, exportFilename } from "./course/exportCourse";
 import { prepareCourseForExport } from "./course/prepareExport";
@@ -491,6 +492,16 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
       });
     }
 
+    const turnAttachments = message.type === "course.start"
+      ? { attachments: [], rejected: 0 }
+      : sanitizeAttachments(message.attachments);
+    if (turnAttachments.rejected > 0) {
+      broadcast({
+        type: "system",
+        message: attachmentsDroppedNotice(turnAttachments.rejected, message.language),
+      });
+    }
+
     if (activeTurn && message.type !== "course.start") {
       try {
         broadcast({
@@ -506,6 +517,7 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
             activeSection: message.section,
             agent: message.agent,
             language: message.language,
+            attachments: turnAttachments.attachments,
           },
         );
         broadcast({ type: "turn.steered", turnId: response.turnId });
@@ -564,6 +576,7 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
           activeSection: message.type === "turn.start" || message.type === "turn.steer" ? message.section : undefined,
           agent: message.agent,
           language: message.language,
+          attachments: turnAttachments.attachments,
         },
       );
       activeTurn = turn.id;
