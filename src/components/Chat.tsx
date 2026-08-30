@@ -29,6 +29,9 @@ import { AgentControls } from "./AgentControls";
 
 export type ChatHandle = { focusComposer: () => void };
 
+/** How far from the bottom still counts as "following" the conversation. */
+const BOTTOM_SLACK_PX = 48;
+
 type Props = {
   codex: CodexStatus;
   statusText: string;
@@ -59,6 +62,8 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
   const { codex, statusText, connected, working, items, open, selections, loadingCourse = false } = props;
   const scroller = useRef<HTMLDivElement | null>(null);
   const composer = useRef<HTMLTextAreaElement | null>(null);
+  const followOutput = useRef(true);
+  const [atBottom, setAtBottom] = useState(true);
   const [draft, setDraft] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
@@ -69,10 +74,34 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
     },
   }));
 
-  useEffect(() => {
+  const pinToBottom = () => {
+    followOutput.current = true;
+    setAtBottom(true);
     const node = scroller.current;
     if (node) node.scrollTop = node.scrollHeight;
-  }, [items, working]);
+  };
+
+  // Opening the panel or switching conversation starts parked at the latest message.
+  useEffect(() => {
+    const node = scroller.current;
+    if (!node) return;
+    pinToBottom();
+    const onScroll = () => {
+      const bottom = node.scrollHeight - node.scrollTop - node.clientHeight <= BOTTOM_SLACK_PX;
+      if (bottom === followOutput.current) return;
+      followOutput.current = bottom;
+      setAtBottom(bottom);
+    };
+    node.addEventListener("scroll", onScroll, { passive: true });
+    return () => node.removeEventListener("scroll", onScroll);
+  }, [open, props.conversationId]);
+
+  // Follow streaming output only while the reader is parked at the bottom, so scrolling
+  // up to reread history is not undone by the next chunk the agent writes.
+  useEffect(() => {
+    const node = scroller.current;
+    if (node && followOutput.current) node.scrollTop = node.scrollHeight;
+  }, [items, working, open]);
 
   useEffect(() => {
     if (!working) {
@@ -96,9 +125,14 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
   const activeAgent = working && lastItem?.kind === "agent" ? lastItem : undefined;
   const activeAgentId = activeAgent?.id;
 
+  const sendMessage = (text: string) => {
+    pinToBottom();
+    props.onSend(text);
+  };
+
   const submit = () => {
     if (!canSend) return;
-    props.onSend(draft.trim());
+    sendMessage(draft.trim());
     setDraft("");
     if (composer.current) composer.current.style.height = "auto";
   };
@@ -276,27 +310,42 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
         </button>
       </header>
 
-      <div className="codesign-messages-list" ref={scroller}>
-        {loadingCourse ? (
-          <div className="course-loading-message" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "200px", padding: "48px 16px", gap: "12px", color: "var(--color-neutral-600)", textAlign: "center" }}>
-            <LoaderCircle className="spin" size={22} style={{ color: "var(--color-accent)" }} />
-            <span style={{ fontSize: "13.5px", fontWeight: 500 }}>
-              {statusText.toLowerCase().includes("switch") || statusText.includes("加载") || statusText.includes("切换")
-                ? t("chat.switchingCourse")
-                : t("chat.loadingCourse")}
-            </span>
-          </div>
-        ) : (
-          <>
-            {items.map((item) => (
-              <Message key={item.id} item={item} hideActivities={item.id === activeAgentId} />
-            ))}
-            {codex.state === "starting" && (
-              <div className="system-message" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--color-neutral-600)" }}>
-                <LoaderCircle className="spin" size={13} /> {t("chat.connectingCodex")}
-              </div>
-            )}
-          </>
+      <div className="codesign-messages-area">
+        <div className="codesign-messages-list" ref={scroller}>
+          {loadingCourse ? (
+            <div className="course-loading-message" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "200px", padding: "48px 16px", gap: "12px", color: "var(--color-neutral-600)", textAlign: "center" }}>
+              <LoaderCircle className="spin" size={22} style={{ color: "var(--color-accent)" }} />
+              <span style={{ fontSize: "13.5px", fontWeight: 500 }}>
+                {statusText.toLowerCase().includes("switch") || statusText.includes("加载") || statusText.includes("切换")
+                  ? t("chat.switchingCourse")
+                  : t("chat.loadingCourse")}
+              </span>
+            </div>
+          ) : (
+            <>
+              {items.map((item) => (
+                <Message key={item.id} item={item} hideActivities={item.id === activeAgentId} />
+              ))}
+              {codex.state === "starting" && (
+                <div className="system-message" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--color-neutral-600)" }}>
+                  <LoaderCircle className="spin" size={13} /> {t("chat.connectingCodex")}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {!atBottom && (
+          <button
+            className="codesign-jump-latest"
+            type="button"
+            onClick={pinToBottom}
+            aria-label={t("chat.jumpToLatest")}
+            title={t("chat.jumpToLatest")}
+          >
+            <ChevronDown size={13} strokeWidth={2.5} />
+            <span>{t("chat.jumpToLatest")}</span>
+          </button>
         )}
       </div>
 
@@ -307,7 +356,7 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
           <PhaseGuide
             phase={props.phase}
             canAct={connected && !working}
-            onApprove={() => props.onSend(t("chat.approvePrompt"))}
+            onApprove={() => sendMessage(t("chat.approvePrompt"))}
           />
         )}
 
@@ -351,7 +400,7 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
                 key={idx}
                 type="button"
                 className="quick-prompt-btn"
-                onClick={() => props.onSend(q.text)}
+                onClick={() => sendMessage(q.text)}
               >
                 {q.label}
               </button>
