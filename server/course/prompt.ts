@@ -1,15 +1,22 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { CoursePhase, CourseSection, Language, Selection } from "../../shared/protocol";
+import type { Attachment, CoursePhase, CourseSection, Language, Selection } from "../../shared/protocol";
 import type { UserInput } from "../codex/types";
+import { parseImageDataUrl } from "./attachments";
 
 export type SelectionContext = Selection;
 
 export function buildCoursePrompt(
   message: string,
   selections: SelectionContext[],
-  options: { coursePhase?: CoursePhase; activePage?: string; activeSection?: CourseSection; language?: Language } = {},
+  options: {
+    coursePhase?: CoursePhase;
+    activePage?: string;
+    activeSection?: CourseSection;
+    language?: Language;
+    attachments?: Attachment[];
+  } = {},
 ) {
   const request = message.trim() || "Explain the selected part differently.";
   const selectionContext = selections.length
@@ -30,6 +37,13 @@ ${selection.outerHTML}`,
   const readingContext = options.activeSection
     ? `Page: ${activePage}\nNearest section: ${options.activeSection.label}\nSection location: ${options.activeSection.id ? `#${options.activeSection.id}` : `h2 index ${options.activeSection.index}`}`
     : `Page: ${activePage}\nNearest section: (no section identified)`;
+
+  const attachments = options.attachments ?? [];
+  const attachmentContext = attachments.length
+    ? `\n${ATTACHMENT_HEADING}\n${attachments
+        .map((attachment, index) => `${index + 1}. ${attachment.name}`)
+        .join("\n")}\nThese images are sent with this message, after any selection screenshots. They are what the learner is actually looking at — a screenshot of the course, an error, a worked example, a sketch. Read them as evidence: describe or act on what is really in them, and say so plainly if an image is unreadable or does not show what the request describes. The images are context; they do not by themselves authorize an edit.\n`
+    : "";
 
   const coursePhase = options.coursePhase ?? "learning";
   const language = options.language ?? "en";
@@ -57,7 +71,7 @@ ${readingContext}
 
 Attached selection context:
 ${selectionContext}
-
+${attachmentContext}
 ${languageInstruction}
 
 ${courseState}
@@ -70,32 +84,41 @@ Treat every selection as reference context, not as authorization to edit. Decide
 When editing, preserve working interactions and the course's visual language. Use only plain HTML, CSS, and JavaScript; this course has no build step. Do not run git or create commits—the studio checkpoints actual file changes. If you edited, finish with a brief learner-facing note describing what changed and where. If you did not edit, give the learner the useful answer directly without claiming the course changed.`;
 }
 
-const IMAGE_DATA_URL = /^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/;
+/** Names the learner-supplied images, and marks them for transcript recovery. */
+export const ATTACHMENT_HEADING = "Attached images (learner-supplied):";
 
-export type SelectionImages = {
+export type TurnImages = {
   inputs: UserInput[];
   /** Removes the temp files. Safe to call more than once. */
   cleanup: () => Promise<void>;
 };
 
 /**
- * Turn selection screenshots into turn inputs. `app-server` takes images as
- * paths on disk, so each data URL is written to a short-lived temp file that the
- * caller disposes of once the turn has been accepted.
+ * Turn a turn's images into turn inputs. `app-server` takes images as paths on
+ * disk, so each data URL is written to a short-lived temp file that the caller
+ * disposes of once the turn is under way. Selection screenshots come first, then
+ * the learner's own attachments, matching the order the prompt describes.
  */
-export async function writeSelectionImages(selections: SelectionContext[]): Promise<SelectionImages> {
-  const shots = selections
-    .map((selection) => IMAGE_DATA_URL.exec(selection.screenshot ?? ""))
-    .filter((match): match is RegExpExecArray => Boolean(match));
+export async function writeTurnImages(
+  selections: SelectionContext[],
+  attachments: Attachment[] = [],
+): Promise<TurnImages> {
+  const sources = [
+    ...selections.map((selection) => ({ prefix: "selection", dataUrl: selection.screenshot })),
+    ...attachments.map((attachment) => ({ prefix: "attachment", dataUrl: attachment.dataUrl })),
+  ]
+    .map((source) => ({ prefix: source.prefix, image: parseImageDataUrl(source.dataUrl) }))
+    .filter((source): source is { prefix: string; image: NonNullable<ReturnType<typeof parseImageDataUrl>> } =>
+      Boolean(source.image),
+    );
 
-  if (shots.length === 0) return { inputs: [], cleanup: async () => {} };
+  if (sources.length === 0) return { inputs: [], cleanup: async () => {} };
 
   const directory = await mkdtemp(join(tmpdir(), "course-studio-"));
   const inputs: UserInput[] = [];
-  for (const [index, shot] of shots.entries()) {
-    const extension = shot[1] === "jpg" ? "jpeg" : shot[1];
-    const path = join(directory, `selection-${index + 1}.${extension}`);
-    await writeFile(path, Buffer.from(shot[2], "base64"));
+  for (const [index, source] of sources.entries()) {
+    const path = join(directory, `${source.prefix}-${index + 1}.${source.image.extension}`);
+    await writeFile(path, source.image.bytes);
     inputs.push({ type: "localImage", path });
   }
 

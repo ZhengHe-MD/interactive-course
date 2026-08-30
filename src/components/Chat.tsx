@@ -8,6 +8,7 @@ import {
   CornerUpLeft,
   Expand,
   FilePenLine,
+  ImagePlus,
   ListChecks,
   LoaderCircle,
   MessageSquarePlus,
@@ -23,8 +24,9 @@ import {
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { imageFilesFrom, MAX_ATTACHMENTS } from "../attachments";
 import { useI18n, type TranslationKey } from "../i18n";
-import type { Activity, AgentConfig, AgentModel, ChatItem, CodexStatus, ConversationSummary, CoursePhase, Selection } from "../types";
+import type { Activity, AgentConfig, AgentModel, Attachment, ChatItem, CodexStatus, ConversationSummary, CoursePhase, Selection } from "../types";
 import { AgentControls } from "./AgentControls";
 
 export type ChatHandle = { focusComposer: () => void };
@@ -43,6 +45,8 @@ type Props = {
   conversations: ConversationSummary[];
   open: boolean;
   selections: Selection[];
+  /** Images the learner attached to the message they are writing. */
+  attachments?: Attachment[];
   loadingCourse?: boolean;
   models?: AgentModel[];
   agentConfig?: AgentConfig | null;
@@ -52,6 +56,8 @@ type Props = {
   onSwitchConversation: (conversationId: string) => void;
   onExpandSelection: (id: string) => void;
   onRemoveSelection: (id: string) => void;
+  onAttachFiles?: (files: File[]) => void;
+  onRemoveAttachment?: (id: string) => void;
   onSend: (text: string) => void;
   onInterrupt: () => void;
   placeholder: string;
@@ -60,12 +66,22 @@ type Props = {
 export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
   const { t } = useI18n();
   const { codex, statusText, connected, working, items, open, selections, loadingCourse = false } = props;
+  const attachments = props.attachments ?? [];
   const scroller = useRef<HTMLDivElement | null>(null);
   const composer = useRef<HTMLTextAreaElement | null>(null);
+  const filePicker = useRef<HTMLInputElement | null>(null);
   const followOutput = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
   const [draft, setDraft] = useState("");
+  const [dropTarget, setDropTarget] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  const attachFiles = (files: ArrayLike<File> | null | undefined) => {
+    const images = imageFilesFrom(files);
+    if (images.length === 0) return false;
+    props.onAttachFiles?.(images);
+    return true;
+  };
 
   useImperativeHandle(ref, () => ({
     focusComposer: () => {
@@ -120,7 +136,9 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
     setDraft("");
   }, [props.conversationId]);
 
-  const canSend = !loadingCourse && connected && (draft.trim().length > 0 || selections.length > 0);
+  const canSend = !loadingCourse
+    && connected
+    && (draft.trim().length > 0 || selections.length > 0 || attachments.length > 0);
   const lastItem = items.at(-1);
   const activeAgent = working && lastItem?.kind === "agent" ? lastItem : undefined;
   const activeAgentId = activeAgent?.id;
@@ -393,6 +411,25 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
           </div>
         )}
 
+        {!loadingCourse && attachments.length > 0 && (
+          <div className="attached-images-row" aria-label={t("chat.attachedImages")}>
+            {attachments.map((attachment) => (
+              <span className="attached-image-thumb" key={attachment.id} title={attachment.name}>
+                <img src={attachment.dataUrl} alt={attachment.name} />
+                <button
+                  type="button"
+                  className="attached-image-remove"
+                  onClick={() => props.onRemoveAttachment?.(attachment.id)}
+                  aria-label={`${t("chat.removeAttachment")} · ${attachment.name}`}
+                  title={t("chat.removeAttachment")}
+                >
+                  <X size={10} strokeWidth={3} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
         {!loadingCourse && quickSuggestions.length > 0 && (
           <div className="quick-prompts-row">
             {quickSuggestions.map((q, idx) => (
@@ -408,11 +445,35 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
           </div>
         )}
 
-        <div className="composer-box-card">
+        <div
+          className={`composer-box-card ${dropTarget ? "drop-target" : ""}`}
+          onDragOver={(event) => {
+            if (loadingCourse || !event.dataTransfer.types.includes("Files")) return;
+            event.preventDefault();
+            setDropTarget(true);
+          }}
+          onDragLeave={(event) => {
+            if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+            setDropTarget(false);
+          }}
+          onDrop={(event) => {
+            setDropTarget(false);
+            if (loadingCourse) return;
+            // Stop the window-level handler, which reads drops as course packages.
+            if (attachFiles(event.dataTransfer?.files)) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          }}
+        >
           <textarea
             ref={composer}
             value={draft}
             disabled={loadingCourse}
+            onPaste={(event) => {
+              if (loadingCourse) return;
+              if (attachFiles(event.clipboardData?.files)) event.preventDefault();
+            }}
             onChange={(event) => {
               setDraft(event.target.value);
               event.target.style.height = "auto";
@@ -436,6 +497,29 @@ export const Chat = forwardRef<ChatHandle, Props>(function Chat(props, ref) {
             rows={1}
           />
           <div className="composer-controls-row">
+            <input
+              ref={filePicker}
+              className="sr-only"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              multiple
+              tabIndex={-1}
+              aria-hidden="true"
+              onChange={(event) => {
+                attachFiles(event.target.files);
+                event.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              className="attach-button"
+              onClick={() => filePicker.current?.click()}
+              disabled={loadingCourse || attachments.length >= MAX_ATTACHMENTS}
+              aria-label={t("chat.attachImage")}
+              title={dropTarget ? t("chat.dropImages") : t("chat.attachImageHint")}
+            >
+              <ImagePlus size={15} strokeWidth={2.2} />
+            </button>
             <span className={`intent-status-hint ${intent === "edit" ? "editing" : ""}`}>
               {loadingCourse
                 ? ""
@@ -538,8 +622,28 @@ function Message({ item, hideActivities = false }: { item: ChatItem; hideActivit
   }
 
   if (item.kind === "user") {
+    const attachments = item.attachments ?? [];
     return (
       <article className="message-row user message user">
+        {attachments.length > 0 && (
+          <div className="user-attachments" aria-label={t("chat.attachedImages")}>
+            {attachments.map((attachment, index) => (
+              attachment.dataUrl ? (
+                <img
+                  key={`${attachment.name}-${index}`}
+                  className="user-attachment-thumb"
+                  src={attachment.dataUrl}
+                  alt={attachment.name}
+                  title={attachment.name}
+                />
+              ) : (
+                <span key={`${attachment.name}-${index}`} className="user-chip-badge">
+                  {t("chat.attachedImage")} · {attachment.name.slice(0, 34)}
+                </span>
+              )
+            ))}
+          </div>
+        )}
         {item.selections.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "3px" }}>
             {item.selections.map((selection, index) => (

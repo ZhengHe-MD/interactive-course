@@ -3,6 +3,7 @@ import type {
   Activity,
   AgentConfig,
   AgentModel,
+  Attachment,
   Checkpoint,
   ClientMessage,
   CodexStatus,
@@ -75,7 +76,7 @@ export const initialState: StudioState = {
 type Action =
   | { type: "connection"; connected: boolean }
   | { type: "server"; message: ServerMessage }
-  | { type: "send"; id: string; agentId: string; text: string; selections: Selection[] }
+  | { type: "send"; id: string; agentId: string; text: string; selections: Selection[]; attachments?: Attachment[] }
   | { type: "start"; id: string; agentId: string; topic: string }
   | { type: "course.switching"; courseId: string }
   | { type: "changed.clear" };
@@ -177,6 +178,7 @@ export function reducer(state: StudioState, action: Action): StudioState {
           id: action.id,
           text: action.text,
           selections: action.selections.map(({ kind, tag, text }) => ({ kind, tag, text })),
+          attachments: (action.attachments ?? []).map(({ name, dataUrl }) => ({ name, dataUrl })),
         },
         { kind: "agent", id: action.agentId, text: "", activities: [startingActivity] },
       ],
@@ -353,7 +355,15 @@ export function reducer(state: StudioState, action: Action): StudioState {
 }
 
 export type StudioActions = {
-  sendTurn: (text: string, selections: Selection[], page: string, section?: CourseSection, agent?: AgentConfig, language?: Language) => void;
+  sendTurn: (
+    text: string,
+    selections: Selection[],
+    attachments: Attachment[],
+    page: string,
+    section?: CourseSection,
+    agent?: AgentConfig,
+    language?: Language,
+  ) => void;
   startCourse: (topic: string, agent?: AgentConfig, language?: Language) => void;
   openCourse: (courseId: string) => void;
   newConversation: () => void;
@@ -433,18 +443,19 @@ export function useStudio(): { state: StudioState; actions: StudioActions } {
       if (live?.readyState === WebSocket.OPEN) live.send(JSON.stringify(message));
     };
     return {
-      sendTurn(text, selections, page, section, agent, language) {
+      sendTurn(text, selections, attachments, page, section, agent, language) {
         const isWorking = stateRef.current.working;
         post({
           type: isWorking ? "turn.steer" : "turn.start",
           message: text,
           selections,
+          attachments,
           page,
           section,
           agent,
           language,
         });
-        dispatch({ type: "send", id: uid(), agentId: uid(), text, selections });
+        dispatch({ type: "send", id: uid(), agentId: uid(), text, selections, attachments });
       },
       startCourse(topic, agent, language) {
         post({ type: "course.start", topic, agent, language });

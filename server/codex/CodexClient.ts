@@ -5,6 +5,7 @@ import type {
   Activity,
   AgentConfig,
   AgentModel,
+  Attachment,
   CodexStatus,
   ConversationSummary,
   CoursePhase,
@@ -13,7 +14,8 @@ import type {
   TranscriptItem,
 } from "../../shared/protocol";
 import { DESIGN_GUIDE } from "../course/designGuide";
-import { buildCoursePrompt, writeSelectionImages, type SelectionContext } from "../course/prompt";
+import { imagesRejectedNotice } from "../course/attachments";
+import { ATTACHMENT_HEADING, buildCoursePrompt, writeTurnImages, type SelectionContext } from "../course/prompt";
 import { JsonRpcPeer } from "./JsonRpcPeer";
 import type {
   AccountReadResponse,
@@ -39,6 +41,17 @@ import type {
   UserInput,
 } from "./types";
 
+/** Everything a turn needs beyond its words and the learner's selections. */
+export type TurnOptions = {
+  coursePhase?: CoursePhase;
+  activePage?: string;
+  activeSection?: CourseSection;
+  agent?: AgentConfig;
+  language?: Language;
+  /** Images the learner attached to this message. */
+  attachments?: Attachment[];
+};
+
 /**
  * The thin seam over Codex `app-server` (DESIGN.md decision 3). It owns the child
  * process and the JSON-RPC handshake, and exposes exactly what the studio needs:
@@ -56,6 +69,12 @@ export class CodexClient extends EventEmitter {
   private reasoningSummaries = new Map<string, string[]>();
   private toolActivities = new Map<string, Activity>();
   private activeTurn: string | null = null;
+  /**
+   * Temp image files, kept alive until the turn that references them finishes.
+   * `turn/start` returns as soon as the turn is queued, so deleting the files at
+   * that point can race app-server's own read of them.
+   */
+  private turnImages = new Map<string, () => Promise<void>>();
   private models: AgentModel[] | null = null;
   private agentConfig: AgentConfig = { model: "", effort: null };
 
@@ -351,13 +370,7 @@ export class CodexClient extends EventEmitter {
   async startTurn(
     message: string,
     selections: SelectionContext[],
-    options: {
-      coursePhase?: CoursePhase;
-      activePage?: string;
-      activeSection?: CourseSection;
-      agent?: AgentConfig;
-      language?: Language;
-    } = {},
+    options: TurnOptions = {},
   ) {
     await this.requireReady();
     if (!this.threadId) await this.ensureConversation();
@@ -367,23 +380,26 @@ export class CodexClient extends EventEmitter {
       text: buildCoursePrompt(message, selections, options),
       text_elements: [],
     };
-    const images = await writeSelectionImages(selections);
+    const images = await writeTurnImages(selections, options.attachments);
+    let inFlight = false;
 
     try {
       const turn = await this.send([text, ...images.inputs], options.agent);
       this.activeTurn = turn.id;
+      this.holdTurnImages(turn.id, images.cleanup);
+      inFlight = true;
       return turn;
     } catch (error) {
-      // The screenshot is a bonus, never the point: if app-server rejects the
+      // The images are a bonus, never the point: if app-server rejects the
       // image input, retry once on words alone rather than losing the turn.
       if (images.inputs.length === 0) throw error;
-      this.emit("diagnostic", `Retrying the turn without selection screenshots: ${describe(error)}`);
-      this.emit("notice", "Sent your selection without its screenshot — Codex rejected the image.");
+      this.emit("diagnostic", `Retrying the turn without images: ${describe(error)}`);
+      this.emit("notice", imagesRejectedNotice(options.attachments?.length ?? 0, options.language));
       const turn = await this.send([text], options.agent);
       this.activeTurn = turn.id;
       return turn;
     } finally {
-      await images.cleanup().catch(() => {});
+      if (!inFlight) await images.cleanup().catch(() => {});
     }
   }
 
@@ -429,13 +445,7 @@ export class CodexClient extends EventEmitter {
   async steerTurn(
     message: string,
     selections: SelectionContext[],
-    options: {
-      coursePhase?: CoursePhase;
-      activePage?: string;
-      activeSection?: CourseSection;
-      agent?: AgentConfig;
-      language?: Language;
-    } = {},
+    options: TurnOptions = {},
   ) {
     await this.requireReady();
     if (!this.threadId) throw new Error("No conversation is open.");
@@ -446,17 +456,21 @@ export class CodexClient extends EventEmitter {
       text: buildCoursePrompt(message, selections, options),
       text_elements: [],
     };
-    const images = await writeSelectionImages(selections);
+    const images = await writeTurnImages(selections, options.attachments);
+    let inFlight = false;
 
     try {
-      return await this.sendSteer([text, ...images.inputs]);
+      const steered = await this.sendSteer([text, ...images.inputs]);
+      this.holdTurnImages(steered.turnId, images.cleanup);
+      inFlight = true;
+      return steered;
     } catch (error) {
       if (images.inputs.length === 0) throw error;
-      this.emit("diagnostic", `Retrying steer without selection screenshots: ${describe(error)}`);
-      this.emit("notice", "Sent your selection without its screenshot — Codex rejected the image.");
+      this.emit("diagnostic", `Retrying steer without images: ${describe(error)}`);
+      this.emit("notice", imagesRejectedNotice(options.attachments?.length ?? 0, options.language));
       return await this.sendSteer([text]);
     } finally {
-      await images.cleanup().catch(() => {});
+      if (!inFlight) await images.cleanup().catch(() => {});
     }
   }
 
@@ -468,6 +482,27 @@ export class CodexClient extends EventEmitter {
       input,
     };
     return this.peer!.request<TurnSteerResponse>("turn/steer", params, 60_000);
+  }
+
+  /** Keep a turn's images on disk for as long as app-server may still read them. */
+  private holdTurnImages(turnId: string, cleanup: () => Promise<void>) {
+    const previous = this.turnImages.get(turnId);
+    this.turnImages.set(
+      turnId,
+      previous
+        ? async () => {
+            await previous();
+            await cleanup();
+          }
+        : cleanup,
+    );
+  }
+
+  private releaseTurnImages(turnId: string) {
+    const cleanup = this.turnImages.get(turnId);
+    if (!cleanup) return;
+    this.turnImages.delete(turnId);
+    void cleanup().catch(() => {});
   }
 
   /** Ask Codex to stop the turn in flight. Best effort — never throws. */
@@ -497,6 +532,7 @@ export class CodexClient extends EventEmitter {
     if (!turnId) return;
     this.activeTurn = null;
     this.turnsWithDelta.delete(turnId);
+    this.releaseTurnImages(turnId);
     this.emit("turnCompleted", { turnId, status: "failed", error: message });
   }
 
@@ -611,6 +647,7 @@ export class CodexClient extends EventEmitter {
       this.turnsWithDelta.delete(turnId);
       this.reasoningSummaries.clear();
       this.toolActivities.clear();
+      this.releaseTurnImages(turnId);
       if (this.activeTurn === turnId) this.activeTurn = null;
       this.emit("turnCompleted", {
         turnId,
@@ -731,6 +768,7 @@ export class CodexClient extends EventEmitter {
     this.turnsWithDelta.clear();
     this.reasoningSummaries.clear();
     this.toolActivities.clear();
+    for (const turnId of [...this.turnImages.keys()]) this.releaseTurnImages(turnId);
   }
 }
 
@@ -801,6 +839,7 @@ export function transcriptFromThread(thread: import("./types").PersistedThread):
             id: item.id ?? `user-${turn.id}${agentSegmentIndex > 0 ? `-${agentSegmentIndex}` : ""}`,
             text: extractLearnerRequest(prompt),
             selections: extractSelections(prompt),
+            attachments: extractAttachments(prompt),
           });
         }
       } else if (item.type === "agentMessage" && item.text) {
@@ -831,6 +870,23 @@ function extractSelections(prompt: string) {
     });
   }
   return selections;
+}
+
+/**
+ * Recover the names of images the learner attached. The images themselves are
+ * temp files that are long gone by the time a thread is reopened, so the reloaded
+ * transcript names them rather than showing them.
+ */
+export function extractAttachments(prompt: string) {
+  const section = prompt.split(ATTACHMENT_HEADING)[1];
+  if (!section) return undefined;
+  const attachments: Array<{ name: string }> = [];
+  for (const line of section.split("\n").slice(1)) {
+    const match = /^\d+\. (.+)$/.exec(line.trim());
+    if (!match) break;
+    attachments.push({ name: match[1] });
+  }
+  return attachments.length ? attachments : undefined;
 }
 
 function historicalActivity(item: import("./types").PersistedThreadItem): Activity[] {

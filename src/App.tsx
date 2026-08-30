@@ -4,6 +4,7 @@ import { CourseNav } from "./components/CourseNav";
 import { ExportDialog } from "./components/ExportDialog";
 import { ImportConflictModal } from "./components/ImportConflictModal";
 import { Preview, type PreviewHandle } from "./components/Preview";
+import { imageFilesFrom, readAttachments } from "./attachments";
 import { readReadingPosition, writeReadingPosition, type ReadingPosition } from "./readingPosition";
 import { collapseToLatestSelection, mergeSelection } from "./selection";
 import { Toolbar } from "./components/Toolbar";
@@ -12,6 +13,7 @@ import { useI18n, type Language } from "./i18n";
 import { useStudio } from "./ws";
 import type {
   AgentConfig,
+  Attachment,
   CoursePage,
   CourseSection,
   Selection,
@@ -47,6 +49,9 @@ export function App() {
   const [inspecting, setInspecting] = useState(false);
   const [multipleSelection, setMultipleSelection] = useState(false);
   const [selections, setSelections] = useState<Selection[]>([]);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  // The window-level drop handler reads this instead of closing over the state.
+  const attachedCount = useRef(0);
   const [chatOpen, setChatOpen] = useState(true);
   const [chatWidth, setChatWidth] = useState(storedChatWidth);
   const [chatResizing, setChatResizing] = useState(false);
@@ -352,10 +357,49 @@ export function App() {
   };
 
   const send = (text: string) => {
-    actions.sendTurn(text || t("app.explainDifferently"), selections, visiblePage, readingSection.current, agentConfig ?? undefined, language);
+    actions.sendTurn(
+      text || t("app.explainDifferently"),
+      selections,
+      attachments,
+      visiblePage,
+      readingSection.current,
+      agentConfig ?? undefined,
+      language,
+    );
     setSelections([]);
+    setAttachments([]);
     preview.current?.clearSelections();
   };
+
+  // Screenshots the learner brings from outside the course: pasted, dropped on
+  // the composer, or picked from disk. They ride along with the next turn.
+  const attachFiles = useCallback(async (files: File[]) => {
+    const result = await readAttachments(files, attachedCount.current);
+    if (result.attachments.length) {
+      setAttachments((current) => [...current, ...result.attachments]);
+      // An attached image is only useful beside the composer; make sure it shows.
+      setChatOpen(true);
+    }
+    if (result.rejected > 0) window.alert(t("app.attachmentsRejected"));
+  }, [t]);
+
+  useEffect(() => {
+    attachedCount.current = attachments.length;
+  }, [attachments]);
+
+  // Pasting a screenshot anywhere in the studio attaches it, the way it does in
+  // the composer itself. The composer's own handler wins when it is focused.
+  useEffect(() => {
+    const handlePaste = (event: ClipboardEvent) => {
+      if (event.defaultPrevented) return;
+      const images = imageFilesFrom(event.clipboardData?.files);
+      if (images.length === 0) return;
+      event.preventDefault();
+      void attachFiles(images);
+    };
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [attachFiles]);
 
   const startCourse = (topic: string) => {
     setBirthTopic(topic);
@@ -363,6 +407,7 @@ export function App() {
     sawNewCourseEmpty.current = false;
     setShowWelcome(false);
     setSelections([]);
+    setAttachments([]);
     setActivePage("syllabus.html");
     setResumePosition(null);
     setResumeCourseId(null);
@@ -482,11 +527,18 @@ export function App() {
       }
     };
     const handleDrop = (e: DragEvent) => {
-      const file = e.dataTransfer?.files?.[0];
-      if (file && file.name.toLowerCase().endsWith(".zip")) {
-        e.preventDefault();
-        void handleImportFile(file);
+      const files = Array.from(e.dataTransfer?.files ?? []);
+      if (files.length === 0) return;
+      // The composer handles its own drops and stops them here. Anything that
+      // reaches the window must still not navigate the studio away.
+      e.preventDefault();
+      const zip = files.find((file) => file.name.toLowerCase().endsWith(".zip"));
+      if (zip) {
+        void handleImportFile(zip);
+        return;
       }
+      const images = imageFilesFrom(files);
+      if (images.length > 0) void attachFiles(images);
     };
     window.addEventListener("dragover", handleDragOver);
     window.addEventListener("drop", handleDrop);
@@ -494,7 +546,7 @@ export function App() {
       window.removeEventListener("dragover", handleDragOver);
       window.removeEventListener("drop", handleDrop);
     };
-  }, [handleImportFile]);
+  }, [handleImportFile, attachFiles]);
 
   const exportCourse = async () => {
     if (exporting || state.working || !state.course.hasContent) return;
@@ -748,6 +800,7 @@ export function App() {
           conversations={state.conversations}
           open={chatOpen}
           selections={selections}
+          attachments={attachments}
           models={state.models}
           agentConfig={agentConfig}
           onAgentConfigChange={setAgentConfig}
@@ -760,6 +813,8 @@ export function App() {
             preview.current?.removeSelection(id);
             setSelections((current) => current.filter((item) => item.id !== id));
           }}
+          onAttachFiles={(files) => void attachFiles(files)}
+          onRemoveAttachment={(id) => setAttachments((current) => current.filter((item) => item.id !== id))}
           onSend={send}
           onInterrupt={actions.interrupt}
         />

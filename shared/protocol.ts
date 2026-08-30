@@ -18,6 +18,19 @@ export type Selection = {
   canExpand?: boolean;
 };
 
+/**
+ * A learner-supplied image sent with a turn — a screenshot of something they are
+ * stuck on, a photo of a worked example, a diagram. Distinct from a selection's
+ * screenshot, which the studio captures from the course itself.
+ */
+export type Attachment = {
+  id: string;
+  /** The original file name, shown in the composer and the transcript. */
+  name: string;
+  /** `data:image/png;base64,…`. The server writes it to a temp file for Codex. */
+  dataUrl: string;
+};
+
 /** A git checkpoint on the course's timeline (newest first). */
 export type Checkpoint = {
   id: string;
@@ -148,15 +161,22 @@ export type Activity = {
 
 /** A display-safe transcript reconstructed from a persisted Codex thread. */
 export type TranscriptItem =
-  | { kind: "user"; id: string; text: string; selections: Array<Pick<Selection, "kind" | "tag" | "text">> }
+  | {
+      kind: "user";
+      id: string;
+      text: string;
+      selections: Array<Pick<Selection, "kind" | "tag" | "text">>;
+      /** Images the learner attached. `dataUrl` is present only for the live turn. */
+      attachments?: Array<{ name: string; dataUrl?: string }>;
+    }
   | { kind: "agent"; id: string; text: string; activities: Activity[]; failed?: boolean }
   | { kind: "system"; id: string; text: string; failed?: boolean };
 
 // ---- browser → server ----------------------------------------------------
 
 export type ClientMessage =
-  | { type: "turn.start"; message: string; selections: Selection[]; page: string; section?: CourseSection; agent?: AgentConfig; language?: Language }
-  | { type: "turn.steer"; message: string; selections: Selection[]; page: string; section?: CourseSection; agent?: AgentConfig; language?: Language }
+  | { type: "turn.start"; message: string; selections: Selection[]; attachments?: Attachment[]; page: string; section?: CourseSection; agent?: AgentConfig; language?: Language }
+  | { type: "turn.steer"; message: string; selections: Selection[]; attachments?: Attachment[]; page: string; section?: CourseSection; agent?: AgentConfig; language?: Language }
   | { type: "course.start"; topic: string; agent?: AgentConfig; language?: Language }
   | { type: "course.open"; courseId: string }
   | { type: "conversation.new" }
