@@ -429,6 +429,25 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
     return;
   }
 
+  if (message.type === "course.rename") {
+    if (activeTurn || exportActive) {
+      send(socket, { type: "error", message: "Wait for the current work to finish before renaming the course." });
+      return;
+    }
+    try {
+      if (!(await outline()).hasContent) throw new Error("This course has no content to rename yet.");
+      const title = await course.setTitle(message.title);
+      await course.createCheckpoint(`Renamed the course to \u201c${title}\u201d`);
+      courseVersion = Date.now();
+      broadcast({ type: "course.changed", courseVersion, course: await outline() });
+      broadcast({ type: "checkpoints", checkpoints: await checkpoints() });
+      await broadcastCourses();
+    } catch (error) {
+      send(socket, { type: "error", message: error instanceof Error ? error.message : "Could not rename the course." });
+    }
+    return;
+  }
+
   if (message.type === "conversation.new" || message.type === "conversation.open") {
     if (activeTurn || exportActive) {
       send(socket, { type: "error", message: "Wait for the current work to finish before switching conversations." });

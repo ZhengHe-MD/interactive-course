@@ -179,6 +179,7 @@ export type ClientMessage =
   | { type: "turn.steer"; message: string; selections: Selection[]; attachments?: Attachment[]; page: string; section?: CourseSection; agent?: AgentConfig; language?: Language }
   | { type: "course.start"; topic: string; agent?: AgentConfig; language?: Language }
   | { type: "course.open"; courseId: string }
+  | { type: "course.rename"; title: string }
   | { type: "conversation.new" }
   | { type: "conversation.open"; conversationId: string }
   | { type: "turn.interrupt" }

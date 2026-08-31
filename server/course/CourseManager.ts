@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import chokidar, { type FSWatcher } from "chokidar";
@@ -19,6 +19,9 @@ export const EMPTY_OUTLINE: CourseOutline = {
   sections: [],
   upNext: [],
 };
+
+/** Long enough for a real course name, short enough to stay a name. */
+export const MAX_COURSE_TITLE_LENGTH = 120;
 
 /**
  * Optional, agent-written metadata. Nothing requires it, so every field is
@@ -174,6 +177,24 @@ export class CourseManager {
       sections: derived.sections,
       upNext: strings(manifest.upNext),
     };
+  }
+
+  /**
+   * Rename the course. The learner's title is stored as the `course.json`
+   * override rather than written into the pages, so it survives every later
+   * rewrite of the HTML by the agent, and the rest of the manifest is left
+   * exactly as the agent wrote it.
+   */
+  async setTitle(title: unknown): Promise<string> {
+    const next = clean(typeof title === "string" ? title : "").slice(0, MAX_COURSE_TITLE_LENGTH).trim();
+    if (!next) throw new Error("A course title cannot be empty.");
+    const manifest = await this.readManifest();
+    await writeFile(
+      join(this.courseDirectory, "course.json"),
+      `${JSON.stringify({ ...manifest, title: next }, null, 2)}\n`,
+      "utf8",
+    );
+    return next;
   }
 
   private async readHtmlFiles() {

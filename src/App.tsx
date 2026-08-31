@@ -674,6 +674,7 @@ export function App() {
         inspecting={inspecting}
         multipleSelection={multipleSelection}
         canInspect={canInspect}
+        canRename={canInspect}
         courseChanged={state.courseChanged}
         checkpoints={state.checkpoints}
         working={state.working}
@@ -683,6 +684,7 @@ export function App() {
         widthMode={widthMode}
         onHome={goHome}
         onSwitchCourse={switchCourse}
+        onRenameCourse={actions.renameCourse}
         onToggleInspect={toggleInspect}
         onToggleMultipleSelection={toggleMultipleSelection}
         onWidthModeChange={handleWidthModeChange}

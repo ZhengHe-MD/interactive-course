@@ -366,6 +366,7 @@ export type StudioActions = {
   ) => void;
   startCourse: (topic: string, agent?: AgentConfig, language?: Language) => void;
   openCourse: (courseId: string) => void;
+  renameCourse: (title: string) => void;
   newConversation: () => void;
   openConversation: (conversationId: string) => void;
   interrupt: () => void;
@@ -465,6 +466,7 @@ export function useStudio(): { state: StudioState; actions: StudioActions } {
         post({ type: "course.open", courseId });
         dispatch({ type: "course.switching", courseId });
       },
+      renameCourse: (title) => post({ type: "course.rename", title }),
       newConversation: () => post({ type: "conversation.new" }),
       openConversation: (conversationId) => post({ type: "conversation.open", conversationId }),
       interrupt: () => post({ type: "turn.interrupt" }),

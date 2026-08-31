@@ -6,6 +6,7 @@ import {
   Download,
   Inspect,
   LoaderCircle,
+  Pencil,
   Plus,
   RotateCcw,
   Upload,
@@ -15,6 +16,9 @@ import { useI18n } from "../i18n";
 import type { Checkpoint, CourseSummary, WidthMode } from "../types";
 import { LanguageSwitch } from "./LanguageSwitch";
 
+/** Mirrors the server's cap, so the field cannot promise a name it will truncate. */
+const MAX_COURSE_TITLE_LENGTH = 120;
+
 type Props = {
   courseTitle: string;
   courseId: string;
@@ -22,6 +26,7 @@ type Props = {
   inspecting: boolean;
   multipleSelection: boolean;
   canInspect: boolean;
+  canRename?: boolean;
   courseChanged: boolean;
   checkpoints: Checkpoint[];
   working: boolean;
@@ -31,6 +36,7 @@ type Props = {
   widthMode?: WidthMode;
   onHome: () => void;
   onSwitchCourse: (courseId: string) => void;
+  onRenameCourse?: (title: string) => void;
   onToggleInspect: () => void;
   onToggleMultipleSelection: () => void;
   onWidthModeChange?: (mode: WidthMode) => void;
@@ -46,6 +52,7 @@ export function Toolbar({
   inspecting,
   multipleSelection,
   canInspect,
+  canRename = false,
   courseChanged,
   checkpoints,
   working,
@@ -55,6 +62,7 @@ export function Toolbar({
   widthMode,
   onHome,
   onSwitchCourse,
+  onRenameCourse,
   onToggleInspect,
   onToggleMultipleSelection,
   onWidthModeChange,
@@ -65,8 +73,30 @@ export function Toolbar({
   const { t } = useI18n();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(courseTitle);
   const isSwitching = Boolean(switchingCourseId);
+  const renameAllowed = canRename && Boolean(onRenameCourse) && !working && !isSwitching;
   const currentCheckpoint = checkpoints[0]?.label ?? (working ? t("toolbar.designing") : t("toolbar.created"));
+
+  // A turn, a course switch, or a course that lost its content all take the
+  // title out of the learner's hands mid-edit. Drop the draft rather than
+  // saving a name against a course that is no longer the one being renamed.
+  useEffect(() => {
+    if (!renameAllowed) setRenaming(false);
+  }, [renameAllowed]);
+
+  const startRenaming = () => {
+    if (!renameAllowed) return;
+    setDraftTitle(courseTitle);
+    setRenaming(true);
+  };
+
+  const commitRename = () => {
+    setRenaming(false);
+    const next = draftTitle.trim();
+    if (next && next !== courseTitle) onRenameCourse?.(next);
+  };
 
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
@@ -107,23 +137,54 @@ export function Toolbar({
           ))}
         </select>
 
-        <button
-          type="button"
-          className={`course-switcher-btn ${menuOpen ? "open" : ""}`}
-          onClick={() => setMenuOpen((open) => !open)}
-          aria-label={t("toolbar.switchCourse")}
-          disabled={working || isSwitching}
-          title={isSwitching ? t("toolbar.switchingCourse") : t("toolbar.switchCourse")}
-        >
-          <span className="course-switcher-title">{courseTitle}</span>
-          {isSwitching ? (
-            <LoaderCircle className="spin course-switcher-spinner" size={13} />
-          ) : (
-            <span className={`course-switcher-caret ${menuOpen ? "open" : ""}`}>
-              <ChevronDown size={13} strokeWidth={2.5} />
-            </span>
-          )}
-        </button>
+        {renaming ? (
+          <form
+            className="course-rename-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              commitRename();
+            }}
+          >
+            <input
+              className="course-rename-input"
+              aria-label={t("toolbar.renameLabel")}
+              value={draftTitle}
+              maxLength={MAX_COURSE_TITLE_LENGTH}
+              autoFocus
+              onChange={(event) => setDraftTitle(event.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setRenaming(false);
+                }
+              }}
+            />
+          </form>
+        ) : (
+          <button
+            type="button"
+            className={`course-switcher-btn ${menuOpen ? "open" : ""}`}
+            onClick={() => setMenuOpen((open) => !open)}
+            onDoubleClick={startRenaming}
+            aria-label={t("toolbar.switchCourse")}
+            disabled={working || isSwitching}
+            title={isSwitching
+              ? t("toolbar.switchingCourse")
+              : renameAllowed
+                ? t("toolbar.switchOrRename")
+                : t("toolbar.switchCourse")}
+          >
+            <span className="course-switcher-title">{courseTitle}</span>
+            {isSwitching ? (
+              <LoaderCircle className="spin course-switcher-spinner" size={13} />
+            ) : (
+              <span className={`course-switcher-caret ${menuOpen ? "open" : ""}`}>
+                <ChevronDown size={13} strokeWidth={2.5} />
+              </span>
+            )}
+          </button>
+        )}
 
         {menuOpen && (
           <div data-course-menu="1" className="course-menu-dropdown">
@@ -154,6 +215,18 @@ export function Toolbar({
               );
             })}
             <span className="course-menu-divider" />
+            <button
+              type="button"
+              className="course-menu-new-btn"
+              disabled={!renameAllowed}
+              onClick={() => {
+                setMenuOpen(false);
+                startRenaming();
+              }}
+            >
+              <Pencil size={13} strokeWidth={2.75} />
+              <span>{t("toolbar.rename")}</span>
+            </button>
             <button
               type="button"
               className="course-menu-new-btn"
