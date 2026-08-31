@@ -96,6 +96,38 @@ describe("CourseManager", () => {
     expect(outline.upNext).toEqual(["Naive Bayes"]);
   });
 
+  it("renames the course through course.json without touching the pages", async () => {
+    const root = await repository();
+    const manager = new CourseManager(root, "demo");
+    managers.push(manager);
+
+    const page = '<meta name="course-studio-phase" content="syllabus"><h1>From Silicon to a Simple CPU</h1>';
+    await writeFile(join(root, "demo/index.html"), page);
+    await writeFile(
+      join(root, "demo/course.json"),
+      JSON.stringify({ title: "From Silicon to a Simple CPU", topic: "Computer architecture", upNext: ["Adders"] }),
+    );
+
+    expect(await manager.setTitle("  How a  <em>CPU</em> works  ")).toBe("How a CPU works");
+
+    const outline = await manager.getOutline();
+    expect(outline.title).toBe("How a CPU works");
+    // A rename is the learner naming their course, not an edit to the material.
+    expect(outline.topic).toBe("Computer architecture");
+    expect(outline.upNext).toEqual(["Adders"]);
+    expect(await readFile(join(root, "demo/index.html"), "utf8")).toBe(page);
+  });
+
+  it("refuses a course title that is only whitespace", async () => {
+    const root = await repository();
+    const manager = new CourseManager(root, "demo");
+    managers.push(manager);
+
+    await writeFile(join(root, "demo/index.html"), "<h1>Lesson one</h1>");
+    await expect(manager.setTitle("   ")).rejects.toThrow(/title/i);
+    expect((await manager.getOutline()).title).toBe("Lesson one");
+  });
+
   it("keeps the syllabus and generated sessions as separate navigable pages", async () => {
     const root = await repository();
     const manager = new CourseManager(root, "demo");

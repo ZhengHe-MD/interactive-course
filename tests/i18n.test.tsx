@@ -57,6 +57,35 @@ describe("Studio localization", () => {
     expect(html).toContain('title="准备并下载独立课程文件"');
   });
 
+  it("localizes the course rename affordance in Simplified Chinese", () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider initialLanguage="zh-CN">
+        <Toolbar
+          courseTitle="论语"
+          courseId="confucious"
+          courses={[]}
+          inspecting={false}
+          multipleSelection={false}
+          canInspect
+          canRename
+          courseChanged={false}
+          checkpoints={[]}
+          working={false}
+          exporting={false}
+          onHome={() => {}}
+          onSwitchCourse={() => {}}
+          onRenameCourse={() => {}}
+          onToggleInspect={() => {}}
+          onToggleMultipleSelection={() => {}}
+          onRevert={() => {}}
+          onExport={() => {}}
+        />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain('title="切换课程 — 双击可重命名"');
+  });
+
   it("offers export format options and optional prompt in Simplified Chinese", () => {
     const html = renderToStaticMarkup(
       <I18nProvider initialLanguage="zh-CN">
