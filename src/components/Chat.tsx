@@ -574,6 +574,20 @@ function PhaseGuide({ phase, canAct, onApprove }: { phase: CoursePhase; canAct: 
   const { t } = useI18n();
   if (phase === "learning") return null;
 
+  if (phase === "brief-review" || phase === "brief-approved") {
+    return (
+      <section className="phase-guide empty" aria-label={t("chat.courseDesignPhase")}>
+        <div className="phase-guide-content">
+          <Sparkles size={14} className="phase-guide-icon" />
+          <div className="phase-guide-text">
+            <strong>{t("chat.reviewBrief")}</strong>
+            <span>{phase === "brief-approved" ? t("chat.briefApprovedDescription") : t("chat.reviewBriefDescription")}</span>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   if (phase === "syllabus") {
     return (
       <section className="phase-guide syllabus" aria-label={t("chat.courseDesignPhase")}>

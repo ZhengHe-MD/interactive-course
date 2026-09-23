@@ -170,7 +170,9 @@ export function CourseNav({
             disabled={loadingCourse}
           >
             <Sparkles size={12} strokeWidth={2.5} />
-            <span>{working || loadingCourse ? t("nav.writing") : t("nav.shape")}</span>
+            <span>{course.phase === "discovery" || course.phase === "brief-review" || course.phase === "brief-approved"
+              ? t("nav.discovery")
+              : working || loadingCourse ? t("nav.writing") : t("nav.shape")}</span>
           </button>
         ) : (
           slots.map((slot) => {

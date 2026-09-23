@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import { WebSocket, WebSocketServer } from "ws";
 import { CodexClient } from "./codex/CodexClient";
-import { CourseManager, EMPTY_OUTLINE } from "./course/CourseManager";
+import { CourseBriefError, CourseManager, EMPTY_OUTLINE } from "./course/CourseManager";
 import {
   appendStoredTurn,
   curateStoredTurn,
@@ -452,6 +452,53 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
     return;
   }
 
+  if (message.type === "course.brief.review" || message.type === "course.brief.explore" || message.type === "course.brief.preset" || message.type === "course.brief.approve") {
+    if (activeTurn || exportActive) {
+      send(socket, { type: "error", code: "brief.errorBusy", message: "Wait for the current work to finish before reviewing the Course Brief." });
+      return;
+    }
+    try {
+      if (message.type === "course.brief.review") await course.reviewBrief();
+      if (message.type === "course.brief.explore") await course.exploreBrief();
+      if (message.type === "course.brief.preset") await course.selectTeachingPreset(message.preset);
+      if (message.type === "course.brief.approve") {
+        activeTurn = "pending";
+        const brief = await course.approveBrief(message.revision);
+        await course.createCheckpoint("Approved Course Brief");
+        courseVersion = Date.now();
+        broadcast({ type: "course.changed", courseVersion, course: await outline() });
+        broadcast({ type: "checkpoints", checkpoints: await checkpoints() });
+        const turn = await codex.startTurn("Create the syllabus from the approved Course Brief.", [], {
+          coursePhase: "brief-approved",
+          brief: brief.markdown,
+          selectedPreset: brief.selectedPreset,
+          language: message.language,
+          agent: message.agent,
+        });
+        activeTurn = turn.id;
+        broadcast({ type: "turn.accepted", turnId: turn.id });
+        return;
+      }
+      await course.createCheckpoint("Updated Course Brief review");
+      courseVersion = Date.now();
+      broadcast({ type: "course.changed", courseVersion, course: await outline() });
+      broadcast({ type: "checkpoints", checkpoints: await checkpoints() });
+    } catch (error) {
+      if (message.type === "course.brief.approve") {
+        activeTurn = null;
+        await course.reviewBrief().catch(() => {});
+        courseVersion = Date.now();
+        broadcast({ type: "course.changed", courseVersion, course: await outline() });
+      }
+      send(socket, {
+        type: "error",
+        code: error instanceof CourseBriefError ? error.code : "brief.errorGeneric",
+        message: error instanceof Error ? error.message : "Could not update the Course Brief.",
+      });
+    }
+    return;
+  }
+
   if (message.type === "conversation.new" || message.type === "conversation.open") {
     if (activeTurn || exportActive) {
       send(socket, { type: "error", message: "Wait for the current work to finish before switching conversations." });
@@ -527,6 +574,7 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
 
     if (activeTurn && message.type !== "course.start") {
       try {
+        const currentOutline = await course.getOutline();
         broadcast({
           type: "activity",
           activity: { id: "steer", kind: "reasoning", label: "Steering the agent…" },
@@ -535,7 +583,10 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
           message.message,
           message.selections,
           {
-            coursePhase: await course.getCoursePhase(),
+            coursePhase: currentOutline.phase,
+            brief: currentOutline.brief?.markdown,
+            selectedPreset: currentOutline.brief?.selectedPreset,
+            discoveryAnswerCount: currentOutline.brief?.answerCount,
             activePage: message.page,
             activeSection: message.section,
             agent: message.agent,
@@ -572,6 +623,7 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
           agent: message.agent,
         });
         await activateCourse(nextCourseId);
+        await course.startDiscovery(message.topic);
         const nextStatus = await codex.connect();
         if (nextStatus.state !== "ready") throw new Error(nextStatus.message ?? "Codex is unavailable.");
         const nextConversation = await codex.newConversation();
@@ -590,11 +642,15 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
         type: "activity",
         activity: { id: "prepare", kind: "reasoning", label: "Reading your course context…" },
       });
+      const currentOutline = await course.getOutline();
       const turn = await codex.startTurn(
         message.type === "course.start" ? message.topic : message.message,
         message.type === "course.start" ? [] : message.selections,
         {
-          coursePhase: await course.getCoursePhase(),
+          coursePhase: currentOutline.phase,
+          brief: currentOutline.brief?.markdown,
+          selectedPreset: currentOutline.brief?.selectedPreset,
+          discoveryAnswerCount: currentOutline.brief?.answerCount,
           activePage: message.type === "turn.start" || message.type === "turn.steer" ? message.page : "syllabus.html",
           activeSection: message.type === "turn.start" || message.type === "turn.steer" ? message.section : undefined,
           agent: message.agent,
@@ -605,6 +661,11 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
       activeTurn = turn.id;
       broadcast({ type: "turn.accepted", turnId: turn.id });
       broadcast({ type: "activity", activity: { id: "prepare", kind: "reasoning", label: "Reading your course context…", done: true } });
+      if (message.type === "turn.start" && currentOutline.phase === "discovery") {
+        await course.recordDiscoveryAnswer().catch(() => {
+          broadcast({ type: "error", code: "brief.errorProgress", message: "Could not save discovery progress." });
+        });
+      }
     } catch (error) {
       activeTurn = null;
       broadcast({ type: "activity", activity: { id: "prepare", kind: "reasoning", label: "Reading your course context…", done: true } });
@@ -645,6 +706,7 @@ async function handleTurnCompleted(turn: { turnId: string; status: string; error
   activeTurn = null;
   try {
     if (turn.status === "completed") {
+      await course.syncSelectedPresetMarker();
       await course.createCheckpoint("Agent course update");
       await syncCourseConversations(courseDirectory);
     }

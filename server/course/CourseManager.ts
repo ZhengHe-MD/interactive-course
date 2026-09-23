@@ -1,9 +1,10 @@
 import { execFile } from "node:child_process";
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import chokidar, { type FSWatcher } from "chokidar";
-import type { Checkpoint, CourseOutline, CoursePage, CoursePhase, CourseSection, Language } from "../../shared/protocol";
+import type { BriefErrorCode, Checkpoint, CourseBrief, CourseOutline, CoursePage, CoursePhase, CourseSection, Language, TeachingPreset } from "../../shared/protocol";
 
 const execFileAsync = promisify(execFile);
 
@@ -31,7 +32,25 @@ type Manifest = {
   title?: unknown;
   topic?: unknown;
   upNext?: unknown;
+  studioDiscovery?: {
+    status?: "discovering" | "reviewing" | "approved";
+    selectedPreset?: TeachingPreset;
+    approvedRevision?: string;
+    answerCount?: number;
+  };
 };
+
+const PRESETS: TeachingPreset[] = ["guided-inquiry", "worked-examples", "retrieval-practice"];
+
+function isPreset(value: unknown): value is TeachingPreset {
+  return PRESETS.includes(value as TeachingPreset);
+}
+
+export class CourseBriefError extends Error {
+  constructor(readonly code: BriefErrorCode, message: string) {
+    super(message);
+  }
+}
 
 /**
  * Owns one course's files and its git-backed timeline (DESIGN.md decisions 4 and
@@ -94,9 +113,116 @@ export class CourseManager {
     }
   }
 
+  private async writeDiscovery(patch: NonNullable<Manifest["studioDiscovery"]>) {
+    const manifest = await this.readManifest();
+    await writeFile(
+      join(this.courseDirectory, "course.json"),
+      `${JSON.stringify({ ...manifest, studioDiscovery: { ...manifest.studioDiscovery, ...patch } }, null, 2)}\n`,
+      "utf8",
+    );
+  }
+
+  private async readBrief(manifest: Manifest): Promise<CourseBrief | undefined> {
+    let markdown: string;
+    try {
+      markdown = await readFile(join(this.courseDirectory, "COURSE.md"), "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+      throw error;
+    }
+    if (!markdown.trim()) return undefined;
+    const marker = markdown.match(/<!--\s*course-studio-recommended-preset:\s*([\w-]+)\s*-->/i)?.[1];
+    const recommendedPreset = isPreset(marker) ? marker : undefined;
+    const selectedMarker = markdown.match(/<!--\s*course-studio-selected-preset:\s*([\w-]+)\s*-->/i)?.[1];
+    const selectedPreset = isPreset(manifest.studioDiscovery?.selectedPreset)
+      ? manifest.studioDiscovery.selectedPreset
+      : isPreset(selectedMarker) ? selectedMarker : recommendedPreset;
+    const revision = createHash("sha256").update(markdown).update("\0").update(selectedPreset ?? "").digest("hex");
+    return { markdown, revision, recommendedPreset, selectedPreset, answerCount: manifest.studioDiscovery?.answerCount ?? 0 };
+  }
+
+  async startDiscovery(topic: string) {
+    await mkdir(this.courseDirectory, { recursive: true });
+    const manifest = await this.readManifest();
+    await writeFile(join(this.courseDirectory, "course.json"), `${JSON.stringify({
+      ...manifest,
+      topic,
+      title: topic,
+      studioDiscovery: { status: "discovering", answerCount: 0 },
+    }, null, 2)}\n`, "utf8");
+  }
+
+  async recordDiscoveryAnswer() {
+    const manifest = await this.readManifest();
+    const answerCount = Math.max(0, manifest.studioDiscovery?.answerCount ?? 0) + 1;
+    await this.writeDiscovery({ answerCount });
+  }
+
+  async reviewBrief() {
+    const manifest = await this.readManifest();
+    const brief = await this.readBrief(manifest);
+    if (!brief) throw new CourseBriefError("brief.errorNotReady", "The Course Brief is not ready yet.");
+    if (!brief.recommendedPreset) throw new CourseBriefError("brief.errorRecommendation", "The Course Brief needs a recommended Teaching Preset before review.");
+    await this.writeDiscovery({ status: "reviewing", approvedRevision: undefined });
+  }
+
+  async exploreBrief() {
+    await this.writeDiscovery({ status: "discovering", approvedRevision: undefined });
+  }
+
+  async selectTeachingPreset(preset: TeachingPreset) {
+    if (!isPreset(preset)) throw new CourseBriefError("brief.errorPreset", "Unknown Teaching Preset.");
+    const manifest = await this.readManifest();
+    if (!(await this.readBrief(manifest))) throw new CourseBriefError("brief.errorNotReady", "The Course Brief is not ready yet.");
+    await this.writeDiscovery({ selectedPreset: preset, approvedRevision: undefined, status: "reviewing" });
+    await this.syncSelectedPresetMarker();
+  }
+
+  /** Keep the learner's selection in the same portable COURSE.md artifact. */
+  async syncSelectedPresetMarker() {
+    const manifest = await this.readManifest();
+    const preset = manifest.studioDiscovery?.selectedPreset;
+    if (!isPreset(preset)) return;
+    const brief = await this.readBrief(manifest);
+    if (!brief) return;
+    const marker = `<!-- course-studio-selected-preset: ${preset} -->`;
+    const existing = /<!--\s*course-studio-selected-preset:\s*[\w-]+\s*-->/i;
+    const markdown = existing.test(brief.markdown)
+      ? brief.markdown.replace(existing, marker)
+      : `${brief.markdown.trimEnd()}\n\n${marker}\n`;
+    if (markdown !== brief.markdown) await writeFile(join(this.courseDirectory, "COURSE.md"), markdown, "utf8");
+  }
+
+  async approveBrief(revision: string): Promise<CourseBrief> {
+    const manifest = await this.readManifest();
+    const brief = await this.readBrief(manifest);
+    if (!brief) throw new CourseBriefError("brief.errorNotReady", "The Course Brief is not ready yet.");
+    if (!brief.recommendedPreset || !brief.selectedPreset) throw new CourseBriefError("brief.errorRecommendation", "The Course Brief needs a recommended Teaching Preset before approval.");
+    if (brief.revision !== revision) throw new CourseBriefError("brief.errorChanged", "The Course Brief changed. Review the latest draft before approving.");
+    if (manifest.studioDiscovery?.status !== "reviewing" && manifest.studioDiscovery?.status !== "approved") {
+      throw new CourseBriefError("brief.errorReview", "Review the Course Brief before approving it.");
+    }
+    await this.writeDiscovery({ selectedPreset: brief.selectedPreset });
+    await this.syncSelectedPresetMarker();
+    const approvedBrief = (await this.readBrief(await this.readManifest()))!;
+    await this.writeDiscovery({ status: "approved", approvedRevision: approvedBrief.revision });
+    return approvedBrief;
+  }
+
   async getCoursePhase(): Promise<CoursePhase> {
-    const [html, htmlFiles] = await Promise.all([this.readEntry(), this.readHtmlFiles()]);
-    if (html === null) return "empty";
+    const [html, htmlFiles, manifest] = await Promise.all([this.readEntry(), this.readHtmlFiles(), this.readManifest()]);
+    const brief = await this.readBrief(manifest);
+    const approvalCurrent = Boolean(brief && manifest.studioDiscovery?.approvedRevision === brief.revision);
+    if (manifest.studioDiscovery && (!manifest.studioDiscovery.approvedRevision || (html === null && !approvalCurrent))) {
+      if (!brief) return "discovery";
+      return manifest.studioDiscovery.status === "reviewing" || manifest.studioDiscovery.status === "approved"
+        ? "brief-review"
+        : "discovery";
+    }
+    if (html === null) {
+      if (!manifest.studioDiscovery && !brief) return "empty";
+      return approvalCurrent ? "brief-approved" : "discovery";
+    }
     const hasLesson = htmlFiles.some((file) => {
       const { kind } = parseFileIdentity(file.path, file.html);
       return kind === "lesson";
@@ -113,7 +239,18 @@ export class CourseManager {
    */
   async getOutline(): Promise<CourseOutline> {
     const [html, manifest, htmlFiles] = await Promise.all([this.readEntry(), this.readManifest(), this.readHtmlFiles()]);
-    if (html === null) return EMPTY_OUTLINE;
+    const brief = await this.readBrief(manifest);
+    const coursePhase = await this.getCoursePhase();
+    if (html === null || coursePhase === "discovery" || coursePhase === "brief-review" || coursePhase === "brief-approved") {
+      const phase = coursePhase;
+      return phase === "empty" ? EMPTY_OUTLINE : {
+        ...EMPTY_OUTLINE,
+        phase,
+        title: text(manifest.title) || text(manifest.topic) || EMPTY_OUTLINE.title,
+        topic: text(manifest.topic) || EMPTY_OUTLINE.topic,
+        brief,
+      };
+    }
 
     const parsedFiles = htmlFiles.map(({ path, html: pageHtml }) => {
       const { basePath, lang, kind } = parseFileIdentity(path, pageHtml);
@@ -170,6 +307,7 @@ export class CourseManager {
     return {
       phase,
       hasContent: true,
+      brief,
       title: text(manifest.title) || derived.title,
       topic: text(manifest.topic) || derived.topic || (phase === "syllabus" ? "Proposed syllabus" : "Your course"),
       availableLanguages: Array.from(langSet).sort(),

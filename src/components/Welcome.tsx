@@ -146,7 +146,7 @@ export function Welcome({
             <div className="welcome-shelf-track-wrapper">
               <div className="welcome-shelf-track" ref={shelfTrackRef}>
                 {courses.map((c) => {
-                  const inProgress = c.phase !== "syllabus" && c.hasContent;
+                  const inProgress = c.phase !== "syllabus";
                   return (
                     <button
                       key={c.id}
@@ -189,4 +189,3 @@ export function Welcome({
     </div>
   );
 }
-

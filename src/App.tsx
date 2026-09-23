@@ -1,6 +1,7 @@
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Chat, type ChatHandle } from "./components/Chat";
 import { CourseNav } from "./components/CourseNav";
+import { CourseBriefPanel } from "./components/CourseBriefPanel";
 import { ExportDialog } from "./components/ExportDialog";
 import { ImportConflictModal } from "./components/ImportConflictModal";
 import { Preview, type PreviewHandle } from "./components/Preview";
@@ -96,7 +97,7 @@ export function App() {
     ?? state.course.pages[0]?.path
     ?? activePage;
 
-  const isCourseLoading = startingNewCourse || Boolean(state.switchingCourseId) || (!state.course.hasContent && state.working);
+  const isCourseLoading = startingNewCourse || Boolean(state.switchingCourseId);
   const canInspect = state.course.hasContent && !isCourseLoading;
 
   useEffect(() => {
@@ -166,6 +167,12 @@ export function App() {
   // request fails before switching, normal rendering can resume.
   useEffect(() => {
     if (!startingNewCourse) return;
+    if (state.course.phase === "discovery" || state.course.phase === "brief-review") {
+      setStartingNewCourse(false);
+      setBirthTopic(null);
+      sawNewCourseEmpty.current = false;
+      return;
+    }
     if (!state.course.hasContent) {
       sawNewCourseEmpty.current = true;
       return;
@@ -175,7 +182,7 @@ export function App() {
       setBirthTopic(null);
       sawNewCourseEmpty.current = false;
     }
-  }, [startingNewCourse, state.course.hasContent, state.working]);
+  }, [startingNewCourse, state.course.hasContent, state.course.phase, state.working]);
 
   // The preview bridge handles Escape inside the course page; this covers the
   // same key when focus is anywhere in the studio chrome.
@@ -294,7 +301,7 @@ export function App() {
   }, [actions, state.courseId, language, setLanguage]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || showWelcome || !state.course.hasContent || !state.courseId) return;
+    if (typeof window === "undefined" || showWelcome || state.course.phase === "empty" || !state.courseId) return;
     const current = parseStudioRoute(window.location.pathname, window.location.search);
     const target = courseRoutePath(state.courseId, visiblePage, language);
     if (
@@ -305,7 +312,7 @@ export function App() {
     ) {
       window.history.replaceState(null, "", target);
     }
-  }, [showWelcome, state.course.hasContent, state.courseId, visiblePage, language]);
+  }, [showWelcome, state.course.phase, state.courseId, visiblePage, language]);
 
   const onSelectSection = (section: CourseSection) => {
     setActiveSection(section.id ?? `index-${section.index}`);
@@ -591,6 +598,8 @@ export function App() {
 
   const placeholder = selections.length
     ? t("app.askSelection")
+    : state.course.phase === "discovery" || state.course.phase === "brief-review"
+      ? t("app.discoveryReply")
     : state.course.phase === "syllabus"
       ? t("app.askSyllabus")
       : state.course.hasContent
@@ -602,7 +611,7 @@ export function App() {
 
   const isDirectCourseRoute = initialRouteRef.current.kind === "course";
 
-  if (!state.course.hasContent && !birthTopic && !hasDesignHistory && !state.switchingCourseId && !isDirectCourseRoute) {
+  if (state.course.phase === "empty" && !birthTopic && !hasDesignHistory && !state.switchingCourseId && !isDirectCourseRoute) {
     return (
       <Welcome
         connected={state.connected}
@@ -658,6 +667,7 @@ export function App() {
         chatOpen ? "chat-is-open" : "chat-is-closed",
         courseNavOpen ? "course-nav-is-open" : "course-nav-is-closed",
         chatResizing ? "chat-is-resizing" : "",
+        state.course.phase === "discovery" || state.course.phase === "brief-review" || state.course.phase === "brief-approved" ? "is-discovering" : "",
       ].join(" ")}
       style={{
         "--chat-width": `${chatWidth}px`,
@@ -710,7 +720,18 @@ export function App() {
         />
 
         <main className="workspace">
-          <Preview
+          {state.course.phase === "discovery" || state.course.phase === "brief-review" || state.course.phase === "brief-approved" ? (
+            <CourseBriefPanel
+              brief={state.course.brief}
+              phase={state.course.phase}
+              working={state.working}
+              connected={state.connected}
+              onReview={actions.reviewBrief}
+              onExplore={actions.exploreBrief}
+              onPreset={actions.selectTeachingPreset}
+              onApprove={(revision) => actions.approveBrief(revision, t("brief.approve"), agentConfig ?? undefined, language)}
+            />
+          ) : <Preview
             ref={preview}
             courseId={state.courseId}
             courseVersion={state.courseVersion}
@@ -736,7 +757,7 @@ export function App() {
             onReadingPosition={onReadingPosition}
             onInspectCancelled={stopInspecting}
             onStartRequested={() => chat.current?.focusComposer()}
-          />
+          />}
         </main>
 
         <div
