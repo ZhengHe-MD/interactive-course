@@ -15,7 +15,7 @@ export async function listCourses(libraryRoot: string, currentCourseId: string):
     const outline = await manager.getOutline();
     return {
       id: entry.name,
-      title: outline.hasContent ? outline.title : humanize(entry.name),
+      title: outline.phase !== "empty" ? outline.title : humanize(entry.name),
       phase: outline.phase,
       hasContent: outline.hasContent,
     } satisfies CourseSummary;
@@ -49,4 +49,3 @@ export async function allocateCourseId(
 function humanize(value: string) {
   return value.split("-").filter(Boolean).map((word) => word[0].toUpperCase() + word.slice(1)).join(" ") || "New course";
 }
-

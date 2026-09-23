@@ -3,9 +3,12 @@ import { describe, expect, it } from "vitest";
 import { Welcome } from "../src/components/Welcome";
 import { Toolbar } from "../src/components/Toolbar";
 import { ExportDialog } from "../src/components/ExportDialog";
-import { I18nProvider } from "../src/i18n";
+import { I18nProvider, translate } from "../src/i18n";
 
 describe("Studio localization", () => {
+  it("localizes a stale Course Brief approval", () => {
+    expect(translate("brief.errorChanged", "zh-CN")).toContain("课程简述已更改");
+  });
   it("renders the welcome flow and language switch in Simplified Chinese", () => {
     const html = renderToStaticMarkup(
       <I18nProvider initialLanguage="zh-CN">

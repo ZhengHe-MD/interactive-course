@@ -57,6 +57,7 @@ describe("course package export and import", () => {
     const manager = new CourseManager(libraryRoot, "quantum-computing");
     const outline = await manager.getOutline();
     expect(outline.hasContent).toBe(true);
+    expect(outline.brief?.markdown).toBe("# Quantum Brief");
 
     const checkpoints = await manager.listCheckpoints();
     expect(checkpoints).toHaveLength(1);

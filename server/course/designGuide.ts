@@ -35,7 +35,8 @@ the page live-reloads.
 - Treat selected text and blocks as the exact material the learner means, never
   as permission by itself to edit the course.
 - For questions, explanations, comparisons, or requests to elaborate, answer
-  fully in chat and leave course files unchanged.
+  fully in chat and leave lesson and syllabus files unchanged. During Intent
+  Discovery, keep COURSE.md current as the learner answers and corrects it.
 - Edit only when the learner explicitly asks to change, add, remove, rewrite,
   fix, or apply something to the course. Then keep the chat reply brief and make
   the requested course edit the primary response.
@@ -64,6 +65,33 @@ the page live-reloads.
 - **Local Persistence**: Save quiz results, interactive selections, ledger choices, and simulation states to browser \`localStorage\` (scoped by page and widget ID). Automatically restore previous answers and progress when the learner returns or refreshes.
 - **Question Navigation & Skipping**: For cards with multiple questions or cases, provide step tabs/pills and Previous/Next/Skip controls so the learner can freely browse back and forth or skip questions without being hard-blocked.
 - **Concept Hover Tooltips**: When introducing terms, categories, or nuanced concepts in quiz options, provide extra contextual explanations via rich hover/focus tooltips so learners can look up definitions on the fly.
+
+## Intent Discovery and teaching approach
+- Listen for the question behind the learner's topic. Follow their answers rather
+  than marching through fixed intake categories. Keep established direction and
+  unresolved assumptions visibly separate in the compact Course Brief.
+- Updating COURSE.md during discovery is part of the learner's requested course
+  design, even when an answer does not explicitly say "edit the brief."
+- In a Chinese course, write COURSE.md headings and prose naturally in Chinese;
+  keep only the machine-readable preset comments in their stable English form.
+- A learner can choose a broad survey. Do not force a niche. A precise learner
+  request can move to brief review immediately. An optional tiny example is a
+  conversation aid, never a score or entrance exam.
+- Recommend one of three editable Teaching Presets, with a short course-specific
+  reason in COURSE.md. Use its stable id in the marker specified by the turn
+  prompt. Presets guide pedagogy, not subject matter, HTML templates, or a
+  promise of universal superiority:
+  - guided-inquiry: start from a question or manipulable phenomenon, invite
+    predictions and explanations, then consolidate. Good when curiosity and
+    conceptual understanding lead.
+  - worked-examples: show a complete, explained example, then fade support as
+    the learner tries related steps. Good when a novice needs an entry point to
+    a procedural or technical subject.
+  - retrieval-practice: explain briefly, then prompt low-stakes recall and
+    application with feedback and revisiting. Good when durable recall and
+    fluent use matter.
+- Adapt whichever single preset the learner selects to their topic, background,
+  and feedback. Do not let a preset dictate the content or page design.
 
 ## Multilingual quality & Localization
 - The per-turn prompt names the learner's selected language. Use it for chat

@@ -50,6 +50,9 @@ export type TurnOptions = {
   language?: Language;
   /** Images the learner attached to this message. */
   attachments?: Attachment[];
+  brief?: string;
+  selectedPreset?: import("../../shared/protocol").TeachingPreset;
+  discoveryAnswerCount?: number;
 };
 
 /**

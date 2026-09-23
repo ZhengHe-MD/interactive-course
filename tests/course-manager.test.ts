@@ -42,6 +42,60 @@ describe("CourseManager", () => {
     expect(outline.upNext).toEqual([]);
   });
 
+  it("keeps discovery, brief review, and approval tied to the current brief", async () => {
+    const root = await repository();
+    const manager = new CourseManager(root, "demo");
+    managers.push(manager);
+
+    await manager.startDiscovery("How computers work");
+    expect((await manager.getOutline()).phase).toBe("discovery");
+    await writeFile(join(root, "demo/COURSE.md"), "# Course Brief\n\n## Direction\nHow computers work\n");
+    const draft = await manager.getOutline();
+    expect(draft.brief?.markdown).toContain("How computers work");
+    await manager.reviewBrief();
+    expect((await manager.getOutline()).phase).toBe("brief-review");
+    await manager.selectTeachingPreset("worked-examples");
+    const reviewed = await manager.getOutline();
+    expect(reviewed.brief?.selectedPreset).toBe("worked-examples");
+    expect(await readFile(join(root, "demo/COURSE.md"), "utf8")).toContain("course-studio-selected-preset: worked-examples");
+    await manager.approveBrief(reviewed.brief!.revision);
+    expect((await manager.getOutline()).phase).toBe("brief-approved");
+
+    await writeFile(join(root, "demo/COURSE.md"), "# Course Brief\n\n## Direction\nHow CPUs work\n");
+    expect((await manager.getOutline()).phase).toBe("brief-review");
+    await expect(manager.approveBrief(reviewed.brief!.revision)).rejects.toThrow(/changed/i);
+  });
+
+  it("does not expose an unsolicited syllabus before brief approval", async () => {
+    const root = await repository();
+    const manager = new CourseManager(root, "demo");
+    managers.push(manager);
+    await manager.startDiscovery("Computers");
+    await writeFile(join(root, "demo/COURSE.md"), "# Course Brief\n\nComputers\n");
+    await writeFile(join(root, "demo/syllabus.html"), '<meta name="course-studio-phase" content="syllabus"><h1>Unapproved plan</h1>');
+
+    const outline = await manager.getOutline();
+    expect(outline.phase).toBe("discovery");
+    expect(outline.hasContent).toBe(false);
+    expect(outline.pages).toEqual([]);
+  });
+
+  it("keeps the recommended preset approved when no alternative was selected", async () => {
+    const root = await repository();
+    const manager = new CourseManager(root, "demo");
+    managers.push(manager);
+    await manager.startDiscovery("Computers");
+    await writeFile(join(root, "demo/COURSE.md"), "# Course Brief\n\nComputers\n<!-- course-studio-recommended-preset: retrieval-practice -->\n");
+    await manager.reviewBrief();
+    const current = (await manager.getOutline()).brief!;
+    expect(current.selectedPreset).toBe("retrieval-practice");
+    await manager.approveBrief(current.revision);
+    await manager.syncSelectedPresetMarker();
+    expect((await manager.getOutline()).phase).toBe("brief-approved");
+    await writeFile(join(root, "demo/syllabus.html"), '<meta name="course-studio-phase" content="syllabus"><h1>Plan</h1>');
+    expect((await manager.getOutline()).phase).toBe("syllabus");
+  });
+
   it("derives the outline from the course HTML", async () => {
     const root = await repository();
     const manager = new CourseManager(root, "demo");

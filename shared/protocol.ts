@@ -67,11 +67,23 @@ export type AgentConfig = {
 export type Language = "en" | "zh-CN";
 
 /**
- * Where the course is in its life. Stored in the course itself as
- * `<meta name="course-studio-phase">` so it survives restarts and stays
- * inspectable, and re-read on every turn.
+ * Where the course is in its life. Before HTML exists, discovery state lives
+ * beside COURSE.md in course.json. Once the syllabus exists, its
+ * `<meta name="course-studio-phase">` controls the syllabus/learning transition.
+ * Both are re-read on every turn.
  */
-export type CoursePhase = "empty" | "syllabus" | "learning";
+export type CoursePhase = "empty" | "discovery" | "brief-review" | "brief-approved" | "syllabus" | "learning";
+
+export type TeachingPreset = "guided-inquiry" | "worked-examples" | "retrieval-practice";
+export type BriefErrorCode = "brief.errorBusy" | "brief.errorNotReady" | "brief.errorChanged" | "brief.errorReview" | "brief.errorPreset" | "brief.errorGeneric";
+
+export type CourseBrief = {
+  markdown: string;
+  revision: string;
+  recommendedPreset: TeachingPreset;
+  selectedPreset: TeachingPreset;
+  answerCount: number;
+};
 
 /** A jump target in the current course page. */
 export type CourseSection = {
@@ -97,6 +109,7 @@ export type CoursePage = {
 export type CourseOutline = {
   phase: CoursePhase;
   hasContent: boolean;
+  brief?: CourseBrief;
   title: string;
   topic: string;
   availableLanguages?: Language[];
@@ -183,6 +196,10 @@ export type ClientMessage =
   | { type: "course.start"; topic: string; agent?: AgentConfig; language?: Language }
   | { type: "course.open"; courseId: string }
   | { type: "course.rename"; title: string }
+  | { type: "course.brief.review" }
+  | { type: "course.brief.explore" }
+  | { type: "course.brief.preset"; preset: TeachingPreset }
+  | { type: "course.brief.approve"; revision: string; language?: Language; agent?: AgentConfig }
   | { type: "conversation.new" }
   | { type: "conversation.open"; conversationId: string }
   | { type: "turn.interrupt" }
@@ -240,4 +257,4 @@ export type ServerMessage =
   | { type: "checkpoints"; checkpoints: Checkpoint[] }
   | { type: "turn.completed"; turnId: string; status: string; error?: string }
   | { type: "system"; message: string }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string; code?: BriefErrorCode };

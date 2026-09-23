@@ -14,8 +14,10 @@ import type {
   Language,
   Selection,
   ServerMessage,
+  TeachingPreset,
 } from "../shared/protocol";
 import type { ChatItem } from "./types";
+import { translate, useI18n } from "./i18n";
 
 export const uid = () => (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`);
 
@@ -367,6 +369,10 @@ export type StudioActions = {
   startCourse: (topic: string, agent?: AgentConfig, language?: Language) => void;
   openCourse: (courseId: string) => void;
   renameCourse: (title: string) => void;
+  reviewBrief: () => void;
+  exploreBrief: () => void;
+  selectTeachingPreset: (preset: TeachingPreset) => void;
+  approveBrief: (revision: string, displayText: string, agent?: AgentConfig, language?: Language) => void;
   newConversation: () => void;
   openConversation: (conversationId: string) => void;
   interrupt: () => void;
@@ -375,6 +381,9 @@ export type StudioActions = {
 
 export function useStudio(): { state: StudioState; actions: StudioActions } {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const { language } = useI18n();
+  const languageRef = useRef(language);
+  languageRef.current = language;
   const socket = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -389,7 +398,12 @@ export function useStudio(): { state: StudioState; actions: StudioActions } {
       next.addEventListener("message", (event) => {
         try {
           const message = JSON.parse(event.data) as ServerMessage;
-          dispatch({ type: "server", message });
+          dispatch({
+            type: "server",
+            message: message.type === "error" && message.code
+              ? { ...message, message: translate(message.code, languageRef.current) }
+              : message,
+          });
 
           if (message.type === "session" || message.type === "course.opened") {
             liveCourseId = message.courseId;
@@ -467,6 +481,13 @@ export function useStudio(): { state: StudioState; actions: StudioActions } {
         dispatch({ type: "course.switching", courseId });
       },
       renameCourse: (title) => post({ type: "course.rename", title }),
+      reviewBrief: () => post({ type: "course.brief.review" }),
+      exploreBrief: () => post({ type: "course.brief.explore" }),
+      selectTeachingPreset: (preset) => post({ type: "course.brief.preset", preset }),
+      approveBrief(revision, displayText, agent, language) {
+        post({ type: "course.brief.approve", revision, agent, language });
+        dispatch({ type: "send", id: uid(), agentId: uid(), text: displayText, selections: [] });
+      },
       newConversation: () => post({ type: "conversation.new" }),
       openConversation: (conversationId) => post({ type: "conversation.open", conversationId }),
       interrupt: () => post({ type: "turn.interrupt" }),

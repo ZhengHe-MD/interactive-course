@@ -20,8 +20,8 @@ describe("course prompt", () => {
     expect(prompt).toContain("main > section:nth-of-type(1) > p.lead");
     expect(prompt).toContain('<p class="lead">');
     expect(prompt).toContain("reference context, not as authorization to edit");
-    expect(prompt).toContain("answer fully in chat and do not modify course files");
-    expect(prompt).toContain("Edit the course only when they explicitly ask");
+    expect(prompt).toContain("answer fully in chat and do not modify syllabus or lesson files");
+    expect(prompt).toContain("Edit syllabus or lesson files only when they explicitly ask");
     expect(prompt).toContain("Do not run git");
   });
 
@@ -105,16 +105,26 @@ describe("course prompt", () => {
     expect(inputs).toEqual([]);
   });
 
-  it("starts with an interview and builds a new course from scratch", () => {
-    const prompt = buildCoursePrompt("I want to learn something new", [], { coursePhase: "empty" });
+  it("guides discovery without permitting an unapproved syllabus", () => {
+    const prompt = buildCoursePrompt("I want to learn something new", [], { coursePhase: "discovery", discoveryAnswerCount: 3 });
 
-    expect(prompt).toContain("no syllabus.html or legacy index.html yet");
-    expect(prompt).toContain("do not create files yet");
-    expect(prompt).toContain("goal, desired depth, current background, and time budget");
-    expect(prompt).toContain("from scratch");
-    expect(prompt).toContain("Do not copy a sample course");
-    expect(prompt).toContain("create only a syllabus as syllabus.html");
-    expect(prompt).toContain('content="syllabus"');
+    expect(prompt).toContain("one focused question");
+    expect(prompt).toContain("COURSE.md");
+    expect(prompt).toContain("unresolved assumptions");
+    expect(prompt).toContain("review or keep exploring");
+    expect(prompt).toContain("Do not create syllabus.html");
+    expect(prompt).toContain("3 learner answers");
+  });
+
+  it("carries the approved brief and preset into syllabus generation", () => {
+    const prompt = buildCoursePrompt("Generate the syllabus from the approved Course Brief.", [], {
+      coursePhase: "brief-approved",
+      brief: "# Course Brief\n\n## Direction\nUnderstand CPUs",
+      selectedPreset: "worked-examples",
+    });
+    expect(prompt).toContain("Understand CPUs");
+    expect(prompt).toContain("worked-examples");
+    expect(prompt).toContain("Create only syllabus.html");
     expect(prompt).toContain("Do not create session files");
   });
 
