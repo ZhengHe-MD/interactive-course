@@ -60,11 +60,13 @@ export type ThreadStartResponse = {
   thread: PersistedThread;
   model?: string;
   reasoningEffort?: string | null;
+  serviceTier?: string | null;
 };
 export type ThreadResumeResponse = {
   thread: PersistedThread;
   model?: string;
   reasoningEffort?: string | null;
+  serviceTier?: string | null;
 };
 export type ThreadReadResponse = { thread: PersistedThread };
 export type ThreadListResponse = { data: PersistedThread[]; nextCursor: string | null };
@@ -98,6 +100,8 @@ export type TurnStartParams = {
   model?: string | null;
   /** `app-server` calls reasoning effort `effort` on turn/start. */
   effort?: string | null;
+  /** Per-turn speed; `default` explicitly selects Standard. */
+  serviceTierForTurn?: string;
 };
 
 export type ModelListParams = {
@@ -114,6 +118,7 @@ export type ModelListResponse = {
     hidden: boolean;
     supportedReasoningEfforts: Array<{ reasoningEffort: string; description: string }>;
     defaultReasoningEffort: string;
+    serviceTiers?: Array<{ id: string; name: string; description: string }>;
     isDefault: boolean;
   }>;
   nextCursor: string | null;

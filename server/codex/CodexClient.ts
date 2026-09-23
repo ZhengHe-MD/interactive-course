@@ -196,6 +196,7 @@ export class CodexClient extends EventEmitter {
             description: effort.description,
           })),
           defaultEffort: model.defaultReasoningEffort,
+          fastServiceTier: model.serviceTiers?.find((tier) => tier.id === "priority" || tier.id === "fast")?.id,
           isDefault: model.isDefault,
         })));
       cursor = response.nextCursor;
@@ -271,6 +272,7 @@ export class CodexClient extends EventEmitter {
 
       const prompt = `Topic: "${topic}"\n\nProvide a concise 2-4 word English slug (lowercase, letters and numbers with hyphens only, e.g. "naruto-main-storyline"). Reply ONLY with the slug.`;
       const agent = await this.validateAgentConfig(options.agent);
+      const serviceTierForTurn = await this.serviceTierForTurn(agent);
 
       const turnResponse = await this.peer.request<TurnStartResponse>(
         "turn/start",
@@ -279,6 +281,7 @@ export class CodexClient extends EventEmitter {
           input: [{ type: "text", text: prompt, text_elements: [] }],
           ...(agent.model ? { model: agent.model } : {}),
           ...(agent.effort ? { effort: agent.effort } : {}),
+          ...(serviceTierForTurn ? { serviceTierForTurn } : {}),
         },
         timeoutMs + 1000,
       );
@@ -404,6 +407,7 @@ export class CodexClient extends EventEmitter {
 
   private async send(input: UserInput[], requested?: AgentConfig) {
     const agent = await this.validateAgentConfig(requested);
+    const serviceTierForTurn = await this.serviceTierForTurn(agent);
     const response = await this.peer!.request<TurnStartResponse>(
       "turn/start",
       {
@@ -411,6 +415,7 @@ export class CodexClient extends EventEmitter {
         input,
         ...(agent.model ? { model: agent.model } : {}),
         ...(agent.effort ? { effort: agent.effort } : {}),
+        ...(serviceTierForTurn ? { serviceTierForTurn } : {}),
       },
       60_000,
     );
@@ -418,9 +423,23 @@ export class CodexClient extends EventEmitter {
     return response.turn;
   }
 
-  private captureAgentConfig(response: { model?: string; reasoningEffort?: string | null }) {
+  private captureAgentConfig(response: { model?: string; reasoningEffort?: string | null; serviceTier?: string | null }) {
     if (!response.model) return;
-    this.agentConfig = { model: response.model, effort: response.reasoningEffort ?? null };
+    this.agentConfig = {
+      model: response.model,
+      effort: response.reasoningEffort ?? null,
+      ...(response.serviceTier !== undefined
+        ? { fastMode: response.serviceTier === "priority" || response.serviceTier === "fast" }
+        : {}),
+    };
+  }
+
+  private async serviceTierForTurn(agent: AgentConfig): Promise<string | undefined> {
+    if (agent.fastMode === undefined) return undefined;
+    if (!agent.fastMode) return "default";
+    const model = (await this.listModels()).find((candidate) => candidate.model === agent.model);
+    if (!model?.fastServiceTier) throw new Error("Fast mode is not available for this model.");
+    return model.fastServiceTier;
   }
 
   private async validateAgentConfig(requested?: AgentConfig) {

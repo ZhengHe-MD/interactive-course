@@ -92,6 +92,68 @@ describe("agent configuration", () => {
     expect(html).not.toContain("Fast responses.");
   });
 
+  it("offers Fast only for a model advertising that tier, with localized credit guidance", () => {
+    const fastModel = { ...models[0], model: "gpt-6-astra", fastServiceTier: "priority" };
+    const english = renderToStaticMarkup(
+      <AgentControls models={[fastModel]} value={{ model: fastModel.model, effort: "medium", fastMode: true }} onChange={() => {}} />,
+    );
+    const chinese = renderToStaticMarkup(
+      <I18nProvider initialLanguage="zh-CN">
+        <AgentControls models={[fastModel]} value={{ model: fastModel.model, effort: "medium", fastMode: false }} onChange={() => {}} />
+      </I18nProvider>,
+    );
+    const unavailable = renderToStaticMarkup(
+      <AgentControls models={models} value={{ model: "gpt-deep", effort: "medium" }} onChange={() => {}} />,
+    );
+
+    expect(english).toContain('aria-label="Fast"');
+    expect(english).toContain('aria-pressed="true"');
+    expect(english).toContain("2.5×");
+    expect(chinese).toContain('aria-label="快速"');
+    expect(chinese).toContain('aria-pressed="false"');
+    expect(chinese).toContain("2.5 倍");
+    expect(unavailable).not.toContain('aria-label="Fast"');
+  });
+
+  it("sends Fast and Standard tiers only when selected for a supported model", async () => {
+    const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
+    let fastSupported = true;
+    const client = new CodexClient("/tmp/course-studio-fast-mode-test");
+    Object.assign(client, {
+      status: { state: "ready" },
+      threadId: "thread-1",
+      peer: {
+        request: async (method: string, params: Record<string, unknown>) => {
+          requests.push({ method, params });
+          if (method === "model/list") return {
+            data: [{
+              ...models[0],
+              hidden: false,
+              supportedReasoningEfforts: models[0].supportedEfforts.map((option) => ({
+                reasoningEffort: option.effort, description: option.description,
+              })),
+              defaultReasoningEffort: models[0].defaultEffort,
+              serviceTiers: fastSupported ? [{ id: "priority", name: "Fast", description: "Faster" }] : [],
+            }],
+            nextCursor: null,
+          };
+          if (method === "turn/start") return { turn: { id: "turn-1", status: "inProgress" } };
+          throw new Error(`Unexpected request: ${method}`);
+        },
+      },
+    });
+
+    await client.startTurn("Explain this.", [], { agent: { model: "gpt-deep", effort: "medium", fastMode: true } });
+    await client.startTurn("Explain more.", [], { agent: { model: "gpt-deep", effort: "medium", fastMode: false } });
+    const turns = requests.filter((request) => request.method === "turn/start");
+    expect(turns.map((request) => request.params.serviceTierForTurn)).toEqual(["priority", "default"]);
+    fastSupported = false;
+    await expect(client.startTurn("Explain this.", [], {
+      agent: { model: "gpt-deep", effort: "medium", fastMode: true },
+    })).rejects.toThrow("Fast mode is not available");
+    expect(requests.filter((request) => request.method === "turn/start")).toHaveLength(2);
+  });
+
   it("uses the account catalog and forwards model and effort to app-server", async () => {
     const requests: Array<{ method: string; params: unknown }> = [];
     const client = new CodexClient("/tmp/course-studio-agent-config-test");
