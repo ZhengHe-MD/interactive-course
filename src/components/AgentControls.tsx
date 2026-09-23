@@ -42,14 +42,14 @@ export function AgentControls({ models, value, disabled = false, className = "",
       <div className={`agent-controls-inline ${className}`.trim()} aria-hidden="true" style={{ opacity: 0.65 }}>
         <span className="agent-control-pill-btn" style={{ pointerEvents: "none" }}>
           <span className="agent-control-label">{t("agent.model")}</span>
-          <span className="agent-control-value">GPT-5.6-Sol</span>
+          <span className="agent-control-value">—</span>
           <span className="custom-dropdown-caret">
             <ChevronDown size={12} strokeWidth={2.5} />
           </span>
         </span>
         <span className="agent-control-pill-btn" style={{ pointerEvents: "none" }}>
           <span className="agent-control-label">{t("agent.thinking")}</span>
-          <span className="agent-control-value">High</span>
+          <span className="agent-control-value">—</span>
           <span className="custom-dropdown-caret">
             <ChevronDown size={12} strokeWidth={2.5} />
           </span>
@@ -215,4 +215,3 @@ function effortLabel(effort: string, extraHigh: string) {
   if (effort === "xhigh") return extraHigh;
   return effort.replaceAll("-", " ").replace(/^./, (letter) => letter.toUpperCase());
 }
-

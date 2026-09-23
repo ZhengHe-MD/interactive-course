@@ -65,6 +65,38 @@ Building your own Mac app needs no Apple Developer account and no App Store: an 
 
 Prefer not to build? Every tagged version ships a `.dmg` and a `.zip` for both Apple Silicon and Intel on the [Releases page](https://github.com/ZhengHe-MD/interactive-course/releases). Those builds are ad-hoc signed rather than notarized, so macOS quarantines them on download — the release notes carry the one command that clears it. See [docs/desktop-app.md](docs/desktop-app.md) for the details, including how a release is cut and what notarization would change.
 
+### Model availability and upgrades
+
+The model picker and thinking levels come from your signed-in Codex CLI's
+[`model/list` catalog](https://developers.openai.com/codex/app-server#models).
+Studio reads it again when you reload or reconnect, switch conversations, or
+send a turn. Existing conversations keep their selected model until you change it.
+
+If new models are missing, update the CLI that Studio actually runs:
+
+```bash
+command -v codex
+codex --version
+codex update
+```
+
+`codex update` applies to the standalone installation. For npm or Homebrew
+installations, update with the same package manager you used to install Codex
+(`npm install -g @openai/codex@latest` or `brew upgrade codex`). If you set
+`CODEX_BIN`, check and update that executable instead.
+
+Then stop and restart the Studio server, or fully quit and reopen the desktop
+app. If the desktop app is attached to an existing server, restart that server
+too. Reloading the page refreshes the catalog but does not replace an already
+running Codex process. Installing a newer ChatGPT desktop app alone does not
+update the separate CLI on your PATH.
+
+The current [OpenAI model family](https://developers.openai.com/api/docs/guides/latest-model)
+includes GPT-6 Astra, Sol, and Luna. Studio exposes whichever models and thinking
+levels your CLI and account report; it does not maintain its own model allowlist
+or require a separate API key. Choose a newly available model in the composer
+to use it on the next turn of an existing course.
+
 ### Environment Variables
 
 | Variable | Default | Description |

@@ -75,7 +75,6 @@ export class CodexClient extends EventEmitter {
    * that point can race app-server's own read of them.
    */
   private turnImages = new Map<string, () => Promise<void>>();
-  private models: AgentModel[] | null = null;
   private agentConfig: AgentConfig = { model: "", effort: null };
 
   constructor(
@@ -178,7 +177,8 @@ export class CodexClient extends EventEmitter {
 
   async listModels(): Promise<AgentModel[]> {
     await this.requireReady();
-    if (this.models) return this.models;
+    // Ask app-server each time the Studio sends its agent context. A lifetime
+    // cache here hides newly available models even after a browser reload.
 
     const models: AgentModel[] = [];
     let cursor: string | null = null;
@@ -201,7 +201,6 @@ export class CodexClient extends EventEmitter {
       cursor = response.nextCursor;
     } while (cursor);
 
-    this.models = models;
     if (!this.agentConfig.model) {
       const defaultModel = models.find((model) => model.isDefault) ?? models[0];
       if (defaultModel) {

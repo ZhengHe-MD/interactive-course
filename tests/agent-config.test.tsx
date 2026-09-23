@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { CodexClient } from "../server/codex/CodexClient";
 import { AgentControls } from "../src/components/AgentControls";
+import { I18nProvider } from "../src/i18n";
 
 const models = [{
   model: "gpt-deep",
@@ -23,6 +24,56 @@ const models = [{
 }];
 
 describe("agent configuration", () => {
+  it.each(["en", "zh-CN"] as const)("does not advertise a stale model before discovery (%s)", (language) => {
+    const html = renderToStaticMarkup(
+      <I18nProvider initialLanguage={language}>
+        <AgentControls models={[]} value={null} onChange={() => {}} />
+      </I18nProvider>,
+    );
+
+    expect(html).not.toContain("GPT-5.6");
+    expect(html).not.toContain(">High<");
+  });
+
+  it("rediscovers paginated models without changing an existing selection", async () => {
+    const client = new CodexClient("/tmp/course-studio-agent-config-test");
+    let refreshed = false;
+    const currentModel = {
+      model: "gpt-6-astra",
+      displayName: "GPT-6 Astra",
+      description: "Newly available model",
+      hidden: false,
+      supportedReasoningEfforts: [
+        { reasoningEffort: "medium", description: "Balanced" },
+        { reasoningEffort: "ultra", description: "Deepest reasoning" },
+      ],
+      defaultReasoningEffort: "medium",
+      isDefault: true,
+    };
+    Object.assign(client, {
+      status: { state: "ready" },
+      agentConfig: { model: "gpt-deep", effort: "xhigh" },
+      peer: {
+        request: async (_method: string, params: { cursor: string | null }) => {
+          if (params.cursor === "next") {
+            return { data: [currentModel, { ...currentModel, model: "hidden-model", hidden: true }], nextCursor: null };
+          }
+          return {
+            data: [{ ...currentModel, model: "gpt-deep", isDefault: false }],
+            nextCursor: refreshed ? "next" : null,
+          };
+        },
+      },
+    });
+
+    expect((await client.listModels()).map((model) => model.model)).toEqual(["gpt-deep"]);
+    refreshed = true;
+    const available = await client.listModels();
+    expect(available.map((model) => model.model)).toEqual(["gpt-deep", "gpt-6-astra"]);
+    expect(available[1].supportedEfforts.map((option) => option.effort)).toEqual(["medium", "ultra"]);
+    expect(client.getAgentConfig()).toEqual({ model: "gpt-deep", effort: "xhigh" });
+  });
+
   it("renders the selected model and only its supported thinking efforts", () => {
     const html = renderToStaticMarkup(
       <AgentControls

@@ -65,6 +65,34 @@ npm run desktop:install
 
 不想自己构建？每个版本标签都会在 [Releases 页面](https://github.com/ZhengHe-MD/interactive-course/releases) 发布 Apple Silicon 与 Intel 两种架构的 `.dmg` 和 `.zip`。这些安装包只做了 ad-hoc 签名、未经 Apple 公证，下载后会被 macOS 加上隔离属性——发布说明里给出了解除它的那一条命令。详情（包括版本发布流程，以及公证能改变什么）见 [docs/desktop-app.md](docs/desktop-app.md)。
 
+### 模型可用性与升级
+
+模型菜单和思考强度来自已登录 Codex CLI 的
+[`model/list` 目录](https://developers.openai.com/codex/app-server#models)。
+重新加载或连接 Studio、切换对话或发送消息时，Studio 会再次读取目录。
+已有对话会保留所选模型，直到你主动更改。
+
+如果缺少新模型，请更新 Studio 实际使用的 CLI：
+
+```bash
+command -v codex
+codex --version
+codex update
+```
+
+`codex update` 适用于独立安装版。通过 npm 或 Homebrew 安装时，请使用原来的
+包管理器更新（`npm install -g @openai/codex@latest` 或 `brew upgrade codex`）。
+如果设置了 `CODEX_BIN`，请检查并更新它指向的可执行文件。
+
+随后停止并重启 Studio 服务端，或完全退出再打开桌面应用。如果桌面应用连接的是
+已运行的服务端，也需要重启该服务端。刷新页面会重新读取模型目录，但不会替换
+正在运行的 Codex 进程。仅更新 ChatGPT 桌面应用，不会更新 PATH 中独立安装的 CLI。
+
+目前的 [OpenAI 模型系列](https://developers.openai.com/api/docs/guides/latest-model)
+包括 GPT-6 Astra、Sol 和 Luna。Studio 显示 CLI 与账号返回的模型及思考强度，
+不维护独立的模型白名单，也不需要额外的 API 密钥。在输入框旁选择新模型后，
+已有课程的下一轮对话就会使用该模型。
+
 ### 常用环境变量
 
 | 变量名 | 默认值 | 说明 |
