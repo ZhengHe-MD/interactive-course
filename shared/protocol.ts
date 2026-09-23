@@ -51,6 +51,8 @@ export type AgentModel = {
   description: string;
   supportedEfforts: Array<{ effort: string; description: string }>;
   defaultEffort: string;
+  /** App-server's advertised Fast service-tier id, when available. */
+  fastServiceTier?: string;
   isDefault: boolean;
 };
 
@@ -58,6 +60,7 @@ export type AgentModel = {
 export type AgentConfig = {
   model: string;
   effort: string | null;
+  fastMode?: boolean;
 };
 
 /** Learner-selected language for Studio chrome and agent-authored material. */

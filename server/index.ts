@@ -230,7 +230,11 @@ app.post("/api/export", express.json({ limit: "64kb" }), async (request, respons
     const language: Language = body.language === "zh-CN" ? "zh-CN" : "en";
     const candidate = body.agent && typeof body.agent === "object" ? body.agent as Record<string, unknown> : null;
     const agent: AgentConfig | undefined = candidate && typeof candidate.model === "string"
-      ? { model: candidate.model, effort: typeof candidate.effort === "string" ? candidate.effort : null }
+      ? {
+        model: candidate.model,
+        effort: typeof candidate.effort === "string" ? candidate.effort : null,
+        ...(typeof candidate.fastMode === "boolean" ? { fastMode: candidate.fastMode } : {}),
+      }
       : undefined;
     await syncCourseConversations(courseDirectory);
     const prepared = instruction
@@ -692,4 +696,3 @@ export async function shutdown() {
   await course.close();
   server.close();
 }
-

@@ -1870,6 +1870,7 @@ button:disabled {
 .agent-controls-inline {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   font-size: 11.5px;
   color: var(--color-neutral-600);
@@ -2006,6 +2007,32 @@ button:disabled {
 .agent-controls-inline .custom-dropdown-menu {
   top: auto;
   bottom: calc(100% + 6px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.agent-controls-inline .custom-dropdown-menu.open-down {
+  top: calc(100% + 6px);
+  bottom: auto;
+}
+
+.agent-controls-inline .custom-dropdown-menu > * {
+  flex-shrink: 0;
+}
+
+.agent-controls-inline .custom-dropdown-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.agent-controls-inline .custom-dropdown-menu::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-300);
+  border-radius: var(--radius-pill);
+}
+
+.agent-fast-mode.active {
+  background: var(--color-accent-100);
+  border-color: var(--color-accent);
+  color: var(--color-accent-800);
 }
 
 .custom-dropdown-heading {
