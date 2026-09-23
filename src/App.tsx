@@ -611,7 +611,7 @@ export function App() {
 
   const isDirectCourseRoute = initialRouteRef.current.kind === "course";
 
-  if (!state.course.hasContent && !birthTopic && !hasDesignHistory && !state.switchingCourseId && !isDirectCourseRoute) {
+  if (state.course.phase === "empty" && !birthTopic && !hasDesignHistory && !state.switchingCourseId && !isDirectCourseRoute) {
     return (
       <Welcome
         connected={state.connected}

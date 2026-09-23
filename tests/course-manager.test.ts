@@ -49,7 +49,7 @@ describe("CourseManager", () => {
 
     await manager.startDiscovery("How computers work");
     expect((await manager.getOutline()).phase).toBe("discovery");
-    await writeFile(join(root, "demo/COURSE.md"), "# Course Brief\n\n## Direction\nHow computers work\n");
+    await writeFile(join(root, "demo/COURSE.md"), "# Course Brief\n\n## Direction\nHow computers work\n\n## Teaching approach\nGuided inquiry fits this topic.\n<!-- course-studio-recommended-preset: guided-inquiry -->\n");
     const draft = await manager.getOutline();
     expect(draft.brief?.markdown).toContain("How computers work");
     await manager.reviewBrief();
@@ -61,7 +61,7 @@ describe("CourseManager", () => {
     await manager.approveBrief(reviewed.brief!.revision);
     expect((await manager.getOutline()).phase).toBe("brief-approved");
 
-    await writeFile(join(root, "demo/COURSE.md"), "# Course Brief\n\n## Direction\nHow CPUs work\n");
+    await writeFile(join(root, "demo/COURSE.md"), "# Course Brief\n\n## Direction\nHow CPUs work\n\n## Teaching approach\nGuided inquiry fits this topic.\n<!-- course-studio-recommended-preset: guided-inquiry -->\n");
     expect((await manager.getOutline()).phase).toBe("brief-review");
     await expect(manager.approveBrief(reviewed.brief!.revision)).rejects.toThrow(/changed/i);
   });
@@ -80,6 +80,22 @@ describe("CourseManager", () => {
     expect(outline.pages).toEqual([]);
   });
 
+  it("keeps an incomplete brief visible but requires an explicit recommendation before review", async () => {
+    const root = await repository();
+    const manager = new CourseManager(root, "demo");
+    managers.push(manager);
+    await manager.startDiscovery("Computers");
+    await writeFile(join(root, "demo/COURSE.md"), "# Course Brief\n\nComputer basics\n");
+    const draft = (await manager.getOutline()).brief!;
+    expect(draft.markdown).toContain("Computer basics");
+    expect(draft.recommendedPreset).toBeUndefined();
+    expect(draft.selectedPreset).toBeUndefined();
+    await expect(manager.reviewBrief()).rejects.toThrow(/recommended Teaching Preset/);
+    await writeFile(join(root, "demo/COURSE.md"), "# Course Brief\n\nComputer basics\n\n## Teaching approach\nWorked examples fit this learner.\n<!-- course-studio-recommended-preset: worked-examples -->\n");
+    await manager.reviewBrief();
+    expect((await manager.getOutline()).brief?.selectedPreset).toBe("worked-examples");
+  });
+
   it("keeps the recommended preset approved when no alternative was selected", async () => {
     const root = await repository();
     const manager = new CourseManager(root, "demo");
@@ -93,6 +109,8 @@ describe("CourseManager", () => {
     await manager.syncSelectedPresetMarker();
     expect((await manager.getOutline()).phase).toBe("brief-approved");
     await writeFile(join(root, "demo/syllabus.html"), '<meta name="course-studio-phase" content="syllabus"><h1>Plan</h1>');
+    expect((await manager.getOutline()).phase).toBe("syllabus");
+    await writeFile(join(root, "demo/COURSE.md"), "# Course Brief\n\nRevised after planning\n");
     expect((await manager.getOutline()).phase).toBe("syllabus");
   });
 

@@ -25,6 +25,21 @@ afterEach(async () => {
 });
 
 describe("Course Brief review", () => {
+  it("shows an evolving draft without inventing a teaching recommendation", async () => {
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => root.render(
+      <I18nProvider initialLanguage="en">
+        <CourseBriefPanel brief={{ ...brief, recommendedPreset: undefined, selectedPreset: undefined }} phase="discovery" working={false} connected onReview={() => {}} onExplore={() => {}} onPreset={() => {}} onApprove={() => {}} />
+      </I18nProvider>,
+    ));
+    expect(container.textContent).toContain("Understand computers");
+    expect(container.textContent).toContain("Ask the agent to add a teaching recommendation");
+    expect(container.querySelector(".course-brief-presets")).toBeNull();
+    expect((container.querySelector(".course-brief-actions button") as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("shows the evolving brief, permits continued discovery, and approves the current preset", async () => {
     container = document.createElement("div");
     document.body.append(container);

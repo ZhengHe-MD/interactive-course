@@ -37,6 +37,8 @@ const en = {
   "toolbar.history": "History",
   "toolbar.designing": "Designing course",
   "toolbar.created": "Course created",
+  "toolbar.briefApprovedCheckpoint": "Approved Course Brief",
+  "toolbar.briefReviewCheckpoint": "Updated Course Brief review",
   "toolbar.revertTitle": "Revert the last course checkpoint",
   "toolbar.revert": "Revert",
   "toolbar.selectTitle": "Select text or a course block as context",
@@ -132,6 +134,7 @@ const en = {
   "brief.presetRetrieval": "Recall and apply",
   "brief.presetRetrievalDescription": "Use low-stakes recall and application with feedback and revisiting.",
   "brief.recommended": "recommended",
+  "brief.awaitingRecommendation": "Ask the agent to add a teaching recommendation before review.",
   "brief.checkpoint": "Ready to review, or keep exploring in chat.",
   "brief.review": "Review brief",
   "brief.keepExploring": "Keep exploring",
@@ -144,6 +147,8 @@ const en = {
   "brief.errorChanged": "The Course Brief changed. Review the latest draft before approving.",
   "brief.errorReview": "Review the Course Brief before approving it.",
   "brief.errorPreset": "Unknown Teaching Preset.",
+  "brief.errorRecommendation": "The Course Brief needs a recommended Teaching Preset before review.",
+  "brief.errorProgress": "Could not save discovery progress.",
   "brief.errorGeneric": "Could not update the Course Brief.",
   "chat.reviewBrief": "Step 1 of 3 · Review the Course Brief",
   "chat.reviewBriefDescription": "Correct it in chat, choose a teaching approach, then approve it.",
@@ -332,6 +337,8 @@ const zh: Record<keyof typeof en, string> = {
   "importConflict.cancel": "取消",
   "chat.readOnly": "历史会话（只读）",
   "toolbar.changed": "已更新",
+  "toolbar.briefApprovedCheckpoint": "已批准课程简述",
+  "toolbar.briefReviewCheckpoint": "已更新课程简述审阅",
   "nav.label": "课程导航",
   "nav.open": "打开课程导航",
   "nav.collapse": "收起课程导航",
@@ -390,6 +397,7 @@ const zh: Record<keyof typeof en, string> = {
   "brief.presetRetrieval": "回忆与应用",
   "brief.presetRetrievalDescription": "通过低压力回忆、应用与反馈巩固所学。",
   "brief.recommended": "推荐",
+  "brief.awaitingRecommendation": "请让助手补充教学方式建议，再审阅简述。",
   "brief.checkpoint": "现在可以审阅，也可以继续在对话中探索。",
   "brief.review": "审阅简述",
   "brief.keepExploring": "继续探索",
@@ -402,6 +410,8 @@ const zh: Record<keyof typeof en, string> = {
   "brief.errorChanged": "课程简述已更改。请先审阅最新草稿，再批准。",
   "brief.errorReview": "请先审阅课程简述，再批准。",
   "brief.errorPreset": "无法识别此教学方式。",
+  "brief.errorRecommendation": "课程简述需要先推荐一种教学方式，才能审阅。",
+  "brief.errorProgress": "无法保存意图探索进度。",
   "brief.errorGeneric": "无法更新课程简述。",
   "chat.reviewBrief": "第 1/3 步 · 审阅课程简述",
   "chat.reviewBriefDescription": "在对话中纠正内容，选择教学方式，然后批准。",
@@ -527,6 +537,13 @@ const catalogs: Record<Language, Record<TranslationKey, string>> = { en, "zh-CN"
 
 export function translate(key: TranslationKey, language: Language) {
   return catalogs[language][key] ?? en[key];
+}
+
+/** Checkpoint labels are stored in Git history; localize known Studio labels at display time. */
+export function translateCheckpointLabel(label: string, language: Language) {
+  if (label === "Approved Course Brief") return translate("toolbar.briefApprovedCheckpoint", language);
+  if (label === "Updated Course Brief review") return translate("toolbar.briefReviewCheckpoint", language);
+  return label;
 }
 
 export function initialLanguage(): Language {

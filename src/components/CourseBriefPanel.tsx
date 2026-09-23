@@ -42,7 +42,7 @@ export function CourseBriefPanel({ brief, phase, working, connected, onReview, o
           <p className="course-brief-empty">{t("brief.empty")}</p>
         )}
 
-        {brief && (
+        {brief?.recommendedPreset && (
           <fieldset className="course-brief-presets" disabled={!reviewing || !canAct}>
             <legend>{t("brief.teachingPreset")}</legend>
             {PRESETS.map((preset) => (
@@ -66,13 +66,14 @@ export function CourseBriefPanel({ brief, phase, working, connected, onReview, o
         {brief && phase === "discovery" && (
           <div className="course-brief-actions">
             {brief.answerCount >= 3 && <span className="course-brief-checkpoint">{t("brief.checkpoint")}</span>}
-            <button type="button" disabled={!canAct} onClick={onReview}>{t("brief.review")}</button>
+            {!brief.recommendedPreset && <span className="course-brief-checkpoint">{t("brief.awaitingRecommendation")}</span>}
+            <button type="button" disabled={!canAct || !brief.recommendedPreset} onClick={onReview}>{t("brief.review")}</button>
           </div>
         )}
         {brief && reviewing && (
           <div className="course-brief-actions">
             <button type="button" className="secondary" disabled={!canAct} onClick={onExplore}>{t("brief.keepExploring")}</button>
-            <button type="button" disabled={!canAct} onClick={() => onApprove(brief.revision)}>{t("brief.approve")}</button>
+            <button type="button" disabled={!canAct || !brief.recommendedPreset || !brief.selectedPreset} onClick={() => onApprove(brief.revision)}>{t("brief.approve")}</button>
           </div>
         )}
         {phase === "brief-approved" && (

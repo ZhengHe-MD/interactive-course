@@ -75,13 +75,13 @@ export type Language = "en" | "zh-CN";
 export type CoursePhase = "empty" | "discovery" | "brief-review" | "brief-approved" | "syllabus" | "learning";
 
 export type TeachingPreset = "guided-inquiry" | "worked-examples" | "retrieval-practice";
-export type BriefErrorCode = "brief.errorBusy" | "brief.errorNotReady" | "brief.errorChanged" | "brief.errorReview" | "brief.errorPreset" | "brief.errorGeneric";
+export type BriefErrorCode = "brief.errorBusy" | "brief.errorNotReady" | "brief.errorChanged" | "brief.errorReview" | "brief.errorPreset" | "brief.errorRecommendation" | "brief.errorProgress" | "brief.errorGeneric";
 
 export type CourseBrief = {
   markdown: string;
   revision: string;
-  recommendedPreset: TeachingPreset;
-  selectedPreset: TeachingPreset;
+  recommendedPreset?: TeachingPreset;
+  selectedPreset?: TeachingPreset;
   answerCount: number;
 };
 

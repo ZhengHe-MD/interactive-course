@@ -74,8 +74,7 @@ the page live-reloads.
   design, even when an answer does not explicitly say "edit the brief."
 - In a Chinese course, write COURSE.md headings and prose naturally in Chinese;
   keep only the machine-readable preset comments in their stable English form.
-- A learner can choose a broad survey. Do not force a niche. A precise learner
-  request can move to brief review immediately. An optional tiny example is a
+- A learner can choose a broad survey. Do not force a niche. An optional tiny example is a
   conversation aid, never a score or entrance exam.
 - Recommend one of three editable Teaching Presets, with a short course-specific
   reason in COURSE.md. Use its stable id in the marker specified by the turn

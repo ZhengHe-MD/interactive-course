@@ -662,8 +662,8 @@ async function handleClientMessage(socket: WebSocket, raw: string) {
       broadcast({ type: "turn.accepted", turnId: turn.id });
       broadcast({ type: "activity", activity: { id: "prepare", kind: "reasoning", label: "Reading your course context…", done: true } });
       if (message.type === "turn.start" && currentOutline.phase === "discovery") {
-        await course.recordDiscoveryAnswer().catch((error) => {
-          broadcast({ type: "error", message: error instanceof Error ? error.message : "Could not save discovery progress." });
+        await course.recordDiscoveryAnswer().catch(() => {
+          broadcast({ type: "error", code: "brief.errorProgress", message: "Could not save discovery progress." });
         });
       }
     } catch (error) {

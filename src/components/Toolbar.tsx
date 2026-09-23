@@ -12,7 +12,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useI18n } from "../i18n";
+import { translateCheckpointLabel, useI18n } from "../i18n";
 import type { Checkpoint, CourseSummary, WidthMode } from "../types";
 import { LanguageSwitch } from "./LanguageSwitch";
 
@@ -70,14 +70,16 @@ export function Toolbar({
   onExport,
   onImportFile,
 }: Props) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [draftTitle, setDraftTitle] = useState(courseTitle);
   const isSwitching = Boolean(switchingCourseId);
   const renameAllowed = canRename && Boolean(onRenameCourse) && !working && !isSwitching;
-  const currentCheckpoint = checkpoints[0]?.label ?? (working ? t("toolbar.designing") : t("toolbar.created"));
+  const currentCheckpoint = checkpoints[0]?.label
+    ? translateCheckpointLabel(checkpoints[0].label, language)
+    : working ? t("toolbar.designing") : t("toolbar.created");
 
   // A turn, a course switch, or a course that lost its content all take the
   // title out of the learner's hands mid-edit. Drop the draft rather than

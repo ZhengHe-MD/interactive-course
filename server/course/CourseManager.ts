@@ -132,12 +132,12 @@ export class CourseManager {
     }
     if (!markdown.trim()) return undefined;
     const marker = markdown.match(/<!--\s*course-studio-recommended-preset:\s*([\w-]+)\s*-->/i)?.[1];
-    const recommendedPreset = isPreset(marker) ? marker : "guided-inquiry";
+    const recommendedPreset = isPreset(marker) ? marker : undefined;
     const selectedMarker = markdown.match(/<!--\s*course-studio-selected-preset:\s*([\w-]+)\s*-->/i)?.[1];
     const selectedPreset = isPreset(manifest.studioDiscovery?.selectedPreset)
       ? manifest.studioDiscovery.selectedPreset
       : isPreset(selectedMarker) ? selectedMarker : recommendedPreset;
-    const revision = createHash("sha256").update(markdown).update("\0").update(selectedPreset).digest("hex");
+    const revision = createHash("sha256").update(markdown).update("\0").update(selectedPreset ?? "").digest("hex");
     return { markdown, revision, recommendedPreset, selectedPreset, answerCount: manifest.studioDiscovery?.answerCount ?? 0 };
   }
 
@@ -160,7 +160,9 @@ export class CourseManager {
 
   async reviewBrief() {
     const manifest = await this.readManifest();
-    if (!(await this.readBrief(manifest))) throw new CourseBriefError("brief.errorNotReady", "The Course Brief is not ready yet.");
+    const brief = await this.readBrief(manifest);
+    if (!brief) throw new CourseBriefError("brief.errorNotReady", "The Course Brief is not ready yet.");
+    if (!brief.recommendedPreset) throw new CourseBriefError("brief.errorRecommendation", "The Course Brief needs a recommended Teaching Preset before review.");
     await this.writeDiscovery({ status: "reviewing", approvedRevision: undefined });
   }
 
@@ -195,6 +197,7 @@ export class CourseManager {
     const manifest = await this.readManifest();
     const brief = await this.readBrief(manifest);
     if (!brief) throw new CourseBriefError("brief.errorNotReady", "The Course Brief is not ready yet.");
+    if (!brief.recommendedPreset || !brief.selectedPreset) throw new CourseBriefError("brief.errorRecommendation", "The Course Brief needs a recommended Teaching Preset before approval.");
     if (brief.revision !== revision) throw new CourseBriefError("brief.errorChanged", "The Course Brief changed. Review the latest draft before approving.");
     if (manifest.studioDiscovery?.status !== "reviewing" && manifest.studioDiscovery?.status !== "approved") {
       throw new CourseBriefError("brief.errorReview", "Review the Course Brief before approving it.");
@@ -210,7 +213,7 @@ export class CourseManager {
     const [html, htmlFiles, manifest] = await Promise.all([this.readEntry(), this.readHtmlFiles(), this.readManifest()]);
     const brief = await this.readBrief(manifest);
     const approvalCurrent = Boolean(brief && manifest.studioDiscovery?.approvedRevision === brief.revision);
-    if (manifest.studioDiscovery && !approvalCurrent) {
+    if (manifest.studioDiscovery && (!manifest.studioDiscovery.approvedRevision || (html === null && !approvalCurrent))) {
       if (!brief) return "discovery";
       return manifest.studioDiscovery.status === "reviewing" || manifest.studioDiscovery.status === "approved"
         ? "brief-review"

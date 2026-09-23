@@ -17,7 +17,7 @@ import type {
   TeachingPreset,
 } from "../shared/protocol";
 import type { ChatItem } from "./types";
-import { translate, useI18n } from "./i18n";
+import { translate, translateCheckpointLabel, useI18n } from "./i18n";
 
 export const uid = () => (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`);
 
@@ -402,7 +402,9 @@ export function useStudio(): { state: StudioState; actions: StudioActions } {
             type: "server",
             message: message.type === "error" && message.code
               ? { ...message, message: translate(message.code, languageRef.current) }
-              : message,
+              : message.type === "system"
+                ? { ...message, message: translateCheckpointLabel(message.message, languageRef.current) }
+                : message,
           });
 
           if (message.type === "session" || message.type === "course.opened") {
