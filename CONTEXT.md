@@ -4,7 +4,21 @@ A local studio for co-designing personalized interactive HTML courses with a cod
 
 ## Language
 
+### Course Discovery
+
+**Intent Discovery**:
+A collaborative conversation that helps a learner find or clarify what they want to learn, including directions they cannot yet articulate. A deliberately broad exploration is a valid outcome.
+_Avoid_: Intake questionnaire, mandatory narrowing
+
+**Teaching Preset**:
+A selectable teaching approach that supplies an editable starting point for a course's pedagogy; each course selects one preset. It guides how the course teaches without prescribing fixed content or page designs.
+_Avoid_: Course template, visual theme
+
 ### Course Artifacts
+
+**Course Brief**:
+An editable account of a learner's goals, starting point, and course-specific teaching and design direction, including unresolved assumptions. It develops during Intent Discovery and is reviewed before the syllabus is created.
+_Avoid_: Syllabus, intake form
 
 **Course Package**:
 A portable, editable `.zip` archive containing a course's source files, assets, metadata, and conversation history (`conversations.json`) for transfer between Course Studio instances.
